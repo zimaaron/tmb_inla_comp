@@ -81,20 +81,19 @@ m.clust         <- as.numeric(loopvars[par.iter, 14])
 sample.strat    <- as.character(loopvars[par.iter, 15])
 cores           <- as.numeric(loopvars[par.iter, 16]) 
 ndraws          <- as.numeric(loopvars[par.iter, 17])
-alphaj.pri      <- eval(parse(text = loopvars[par.iter, 18])) ## normal mean and sd
-nug.pri         <- eval(parse(text = loopvars[par.iter, 19]))  ## gamma for nug preciion with shape and inv-scale
+alphaj.pri      <- eval(parse(text = loopvars[par.iter, 18])) ## normal mean and sd ## TODO pass this to INLA and TMB
+nug.pri         <- eval(parse(text = loopvars[par.iter, 19]))  ## gamma for nug preciion with shape and inv-scale ## TODO pass this to INLA and TMB
 inla.int.strat  <- as.character(loopvars[par.iter, 20]) ## can be one of: 'eb', 'ccd', 'grid'
 inla.approx     <- as.character(loopvars[par.iter, 21]) ## can be one of: 'eb', 'ccd', 'grid'
 l.tau.pri       <- NULL  ## taken from INLA spde mesh obj
 l.kap.pri       <- NULL  ## taken from INLA spde mesh obj
 Nsim <-  as.numeric(loopvars[par.iter, 22]) ## number of times to repeat simulation
 
-## TODO? add in some validation options?
+## TODO? add in some validation options? or maybe just always do them all
 
 
 ## from these imputs, make a table of covariate names and measures
 covs <- data.table(name = cov_names, meas = cov_measures)
-
 
 ## I hardcode a few other options that are useful sometimes when running interactively
 ## these can probably be deleted...
@@ -108,6 +107,8 @@ save.as.input.data <- FALSE
 data.tag <- '_allyrs_nug'
 
 ## end of user inputs
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ## transform some inputs into other useful quantities
