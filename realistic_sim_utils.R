@@ -128,8 +128,17 @@ sim.realistic.data <- function(reg,
                                simple_raster,
                                simple_polygon, 
                                out.dir,
+                               pop.raster = NULL,
+                               obs.loc.strat = 'rand', ## either 'rand' or 'pop.strat'
+                               urban.pop.pct = 1, ## percent (in percent = alpha*100% space - i.e. 1 for 1%) of population that comprises urban
+                               urban.strat.pct = 40, ## percent of sample locations that should come from urban pixels
                                seed = NULL){
 
+  ## make some checks and set things
+  if(is.null(pop.raster) & obs.loc.strat == 'pop.strat'){
+    stop("You need to supply a pop raster to use obs.loc.strat=='pop.strat'")
+  }
+  
   ## set seed if required
   if(!is.null(seed)) set.seed(seed)
 
@@ -368,8 +377,33 @@ sim.realistic.data <- function(reg,
   ## randomly (for now) select data boservation locations across time
 
   ## to do this, we sample, with replacement, from the lat-longs that we used to sim the GP
-  sim.rows <- sample(x = 1:nrow(pix.pts.numeric), size = n.clust * length(year_list),
+  if(obs.loc.strat == 'rand'){ ## select locations totally at random
+    sim.rows <- sample(x = 1:nrow(pix.pts.numeric), size = n.clust * length(year_list),
+                       replace = TRUE)
+  } else{ ## stratify by "urban"/"rural"
+    ## given the % of population you want to be urban, find the population value cutoff
+    urban_thresh <- quantile(probs = (1 - urban.pop.pct), na.omit(values(pop_raster)))
+
+    ## make a binary urban rural raster and get the lat-longs of the pixels
+    u_r_raster <- pop_raster[[1]] ## urban is 1, rural is 0
+    u_r_raster[pop_raster[[1]] < urban_thresh] <- 0
+    u_r_raster[pop_raster[[1]] >= urban_thresh] <- 1
+
+    ## convert pixels to a data frame
+    u_r.pts <- rasterToPoints(u_r_raster, spatial = TRUE)
+    u_r.pts@data <- data.frame(u_r.pts@data, long=coordinates(u_r.pts)[,1],
+                               lat=coordinates(u_r.pts)[,2])
+    u_r.pts.numeric <- as.data.frame(u_r.pts@data)
+
+    ## sample stratified locations
+    u.rows <- sample(x = which(u_r.pts.numeric[, 1] == 1), size = round(n.clust * urban_strat),
                      replace = TRUE)
+    r.rows <- sample(x = which(u_r.pts.numeric[, 1] == 0), size = round(n.clust * (1 - urban_strat)),
+                     replace = TRUE)
+    sim.rows <- c(u.rows, r.rows)
+  }
+
+  ## generate a table of simulated data at the selected locations
   sim.dat <- as.data.table(pix.pts.numeric[, -1])
   sim.dat <- sim.dat[sim.rows, ]
 
