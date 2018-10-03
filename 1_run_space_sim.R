@@ -69,21 +69,28 @@ year_list       <- eval(parse(text = loopvars[par.iter, 2]))
 cov_names       <- eval(parse(text = as.character(loopvars[par.iter, 3])))
 cov_measures    <- eval(parse(text = as.character(loopvars[par.iter, 4])))
 betas           <- eval(parse(text = as.character(loopvars[par.iter, 5])))
+
 alpha           <- as.numeric(loopvars[par.iter, 6])
 sp.range        <- as.numeric(loopvars[par.iter, 7])
 sp.var          <- as.numeric(loopvars[par.iter, 8])
 sp.alpha        <- as.numeric(loopvars[par.iter, 9])
 nug.var         <- as.numeric(loopvars[par.iter, 10])
+
 t.rho           <- as.numeric(loopvars[par.iter, 11])
 mesh_s_max_edge <- as.character(loopvars[par.iter, 12])
 n.clust         <- as.numeric(loopvars[par.iter, 13])
 m.clust         <- as.numeric(loopvars[par.iter, 14])
-sample.strat    <- as.character(loopvars[par.iter, 15])
+sample.strat    <- eval(parse(text = loopvars[par.iter, 15]))
+obs.loc.strat   <- sample.strat[['obs.loc.strat']]
+urban.pop.pct   <- sample.strat[['urban.pop.pct']]
+urban.strat.pct <- sample.strat[['urban.strat.pct']]
+
 cores           <- as.numeric(loopvars[par.iter, 16]) 
 ndraws          <- as.numeric(loopvars[par.iter, 17])
 alphaj.pri      <- eval(parse(text = loopvars[par.iter, 18])) ## normal mean and sd ## TODO pass this to INLA and TMB
 nug.pri         <- eval(parse(text = loopvars[par.iter, 19]))  ## gamma for nug preciion with shape and inv-scale ## TODO pass this to INLA and TMB
 inla.int.strat  <- as.character(loopvars[par.iter, 20]) ## can be one of: 'eb', 'ccd', 'grid'
+
 inla.approx     <- as.character(loopvars[par.iter, 21]) ## can be one of: 'eb', 'ccd', 'grid'
 l.tau.pri       <- NULL  ## taken from INLA spde mesh obj
 l.kap.pri       <- NULL  ## taken from INLA spde mesh obj
@@ -94,6 +101,8 @@ Nsim <-  as.numeric(loopvars[par.iter, 22]) ## number of times to repeat simulat
 
 ## from these imputs, make a table of covariate names and measures
 covs <- data.table(name = cov_names, meas = cov_measures)
+
+
 
 ## I hardcode a few other options that are useful sometimes when running interactively
 ## these can probably be deleted...
@@ -181,7 +190,11 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                                 m.clust = m.clust,
                                 covs = covs,
                                 simple_raster = simple_raster,
-                                simple_polygon = simple_polygon, 
+                                simple_polygon = simple_polygon,
+                                pop_raster = pop_raster
+                                obs.loc.strat = obs.loc.strat,
+                                urban.pop.pct = urban.pop.pct,
+                                urban.strat.pct =urban.strat.pct, 
                                 out.dir = out.dir,
                                 seed = NULL)
 
@@ -1046,57 +1059,63 @@ write.csv(complete.surface.metrics, sprintf('%s/validation/surface_metrics_compl
 
 
 
-###################
-## scratch
+#############
+## SCRATCH ##
+#############
 
-top_pop_urban <- 0.01
-urban_strat <- 0.4
-urban_thresh <- quantile(probs = (1 - top_pop_urban), na.omit(values(pop_raster)))
-u_r_raster <- pop_raster[[1]] ## urban is 1, rural is 0
-u_r_raster[pop_raster[[1]] < urban_thresh] <- 0
-u_r_raster[pop_raster[[1]] >= urban_thresh] <- 1
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## !! moved into realistic_sim_utils.R/sim.realistic.data() on 0ct 3, 2018 !!
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-pix.pts <- rasterToPoints(simple_raster, spatial = TRUE)
-u_r.pts <- rasterToPoints(u_r_raster, spatial = TRUE)
+## top_pop_urban <- 0.01
+## urban_strat <- 0.4
+## urban_thresh <- quantile(probs = (1 - top_pop_urban), na.omit(values(pop_raster)))
+## u_r_raster <- pop_raster[[1]] ## urban is 1, rural is 0
+## u_r_raster[pop_raster[[1]] < urban_thresh] <- 0
+## u_r_raster[pop_raster[[1]] >= urban_thresh] <- 1
 
-## reproject sp obj
-geo.prj <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0" 
-pix.pts <- spTransform(pix.pts, CRS(geo.prj))
-u_r.pts <- spTransform(u_r.pts, CRS(geo.prj))
-proj4string(pix.pts)
-proj4string(u_r.pts)
+## pix.pts <- rasterToPoints(simple_raster, spatial = TRUE)
+## u_r.pts <- rasterToPoints(u_r_raster, spatial = TRUE)
 
-## get coords
-pix.pts@data <- data.frame(pix.pts@data, long=coordinates(pix.pts)[,1],
-                           lat=coordinates(pix.pts)[,2])
-pix.pts.numeric <- as.data.frame(pix.pts@data)
+## ## reproject sp obj
+## geo.prj <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0" 
+## pix.pts <- spTransform(pix.pts, CRS(geo.prj))
+## u_r.pts <- spTransform(u_r.pts, CRS(geo.prj))
+## proj4string(pix.pts)
+## proj4string(u_r.pts)
 
-u_r.pts@data <- data.frame(u_r.pts@data, long=coordinates(u_r.pts)[,1],
-                           lat=coordinates(u_r.pts)[,2])
-u_r.pts.numeric <- as.data.frame(u_r.pts@data)
+## ## get coords
+## pix.pts@data <- data.frame(pix.pts@data, long=coordinates(pix.pts)[,1],
+##                            lat=coordinates(pix.pts)[,2])
+## pix.pts.numeric <- as.data.frame(pix.pts@data)
 
-sim.rows <- sample(x = 1:nrow(pix.pts.numeric), size = n.clust * length(year_list),
-                   replace = TRUE)
-sim.dat <- as.data.table(pix.pts.numeric[, -1])
-sim.dat <- sim.dat[sim.rows, ]
+## u_r.pts@data <- data.frame(u_r.pts@data, long=coordinates(u_r.pts)[,1],
+##                            lat=coordinates(u_r.pts)[,2])
+## u_r.pts.numeric <- as.data.frame(u_r.pts@data)
 
-
-u.rows <- sample(x = which(u_r.pts.numeric[, 1] == 1), size = round(n.clust * urban_strat),
-                 replace = TRUE)
-r.rows <- sample(x = which(u_r.pts.numeric[, 1] == 0), size = round(n.clust * (1 - urban_strat)),
-                 replace = TRUE)
-
-sim.dat <- as.data.table(pix.pts.numeric[, -1])
-sim.dat <- sim.dat[c(u.rows, r.rows), ]
+## sim.rows <- sample(x = 1:nrow(pix.pts.numeric), size = n.clust * length(year_list),
+##                    replace = TRUE)
+## sim.dat <- as.data.table(pix.pts.numeric[, -1])
+## sim.dat <- sim.dat[sim.rows, ]
 
 
-pdf(sprintf('%s/validation/pop_strat.pdf',out.dir), height=10,width=20)
-par(mfrow = c(1, 2))
-raster::plot(pop_raster[[1]])
-points(sim.dat)
-raster::plot(u_r_raster)
-dev.off()
+## u.rows <- sample(x = which(u_r.pts.numeric[, 1] == 1), size = round(n.clust * urban_strat),
+##                  replace = TRUE)
+## r.rows <- sample(x = which(u_r.pts.numeric[, 1] == 0), size = round(n.clust * (1 - urban_strat)),
+##                  replace = TRUE)
 
+## sim.dat <- as.data.table(pix.pts.numeric[, -1])
+## sim.dat <- sim.dat[c(u.rows, r.rows), ]
+
+
+## pdf(sprintf('%s/validation/pop_strat.pdf',out.dir), height=10,width=20)
+## par(mfrow = c(1, 2))
+## raster::plot(pop_raster[[1]])
+## points(sim.dat)
+## raster::plot(u_r_raster)
+## dev.off()
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 

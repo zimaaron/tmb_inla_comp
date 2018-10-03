@@ -128,15 +128,18 @@ sim.realistic.data <- function(reg,
                                simple_raster,
                                simple_polygon, 
                                out.dir,
-                               pop.raster = NULL,
+                               pop_raster = NULL,
                                obs.loc.strat = 'rand', ## either 'rand' or 'pop.strat'
                                urban.pop.pct = 1, ## percent (in percent = alpha*100% space - i.e. 1 for 1%) of population that comprises urban
                                urban.strat.pct = 40, ## percent of sample locations that should come from urban pixels
                                seed = NULL){
 
   ## make some checks and set things
-  if(is.null(pop.raster) & obs.loc.strat == 'pop.strat'){
+  if(is.null(pop_raster) & obs.loc.strat == 'pop.strat'){
     stop("You need to supply a pop raster to use obs.loc.strat=='pop.strat'")
+  }
+  if(obs.loc.strat == 'pop.strat' & (is.null(urban.pop.pct) | is.null(urban.strat.pct))){
+    stop("You must pass in urban.pop.pct and urban.strat.pct values when you set obs.loc.strat=='pop.strat'")
   }
   
   ## set seed if required

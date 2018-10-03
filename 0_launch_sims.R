@@ -103,7 +103,13 @@ n.clust <-  50                   ## clusters PER TIME slice
 m.clust <- 35                    ## mean number of obs per cluster (poisson)
 
 ## loopvars 15
-sample.strat <- 'random'         ## random or by population for now. ## TODO cluser design
+## each entry must be a character string with the syntax for a 3 element R list containing:
+## 1) obs.loc.strat: (either 'rand' or 'pop.strat')
+## 2) urban.pop.pct:   a number between 0 and 100. the % of population that belongs to urban pixels
+## 3) urban.strat.pct: a number between 0 and 100. the % of observations that should come fom urban pixels
+sample.strat <- "list(obs.loc.strat='rand',
+                      urban.pop.pct=5,
+                      urban.strat.pct=40)"         ## random or by population for now. ## TODO cluser design
 
 ## loopvars 16
 cores <- 5
