@@ -254,7 +254,9 @@ sim.realistic.data <- function(reg,
 
   ## use random fields package on simple_raster to simulate GP for spatial field
   if(sp.field.sim.strat == 'RF'){ 
-    model <- RMmatern(nu = 1)
+    model <- RMmatern(nu = sp.alpha - 1, ## from INLA book
+                      scale = sqrt(2 * (sp.alpha - 1)) / sp.kappa, 
+                      var = sp.var)      
     sf.iid <- geostatsp::RFsimulate(model, x = simple_raster, n = length(year_list))
   }
 
