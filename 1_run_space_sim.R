@@ -191,7 +191,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                                 covs = covs,
                                 simple_raster = simple_raster,
                                 simple_polygon = simple_polygon,
-                                pop_raster = pop_raster
+                                pop_raster = pop_raster, 
                                 obs.loc.strat = obs.loc.strat,
                                 urban.pop.pct = urban.pop.pct,
                                 urban.strat.pct =urban.strat.pct, 

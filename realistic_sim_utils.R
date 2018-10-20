@@ -129,9 +129,10 @@ sim.realistic.data <- function(reg,
                                simple_polygon, 
                                out.dir,
                                pop_raster = NULL,
-                               obs.loc.strat = 'rand', ## either 'rand' or 'pop.strat'
+                               obs.loc.strat = 'rand', ## either 'rand' or 'pop.strat'. NOTE: random is proportional to population!
                                urban.pop.pct = 1, ## percent (in percent = alpha*100% space - i.e. 1 for 1%) of population that comprises urban
                                urban.strat.pct = 40, ## percent of sample locations that should come from urban pixels
+                               sp.field.sim.strat = 'RF', ## one of RF or SPDE ## TODO add t-dist, extremal
                                seed = NULL){
 
   ## make some checks and set things
@@ -210,70 +211,97 @@ sim.realistic.data <- function(reg,
   ############################
   
   message('\n\nSIMULATE GP\n\n')
-  ## to simulate, we need lat-lon locs for the entire raster
 
+  ## FIRST, get the pixel coords- these are useful later too
+  
   ## convert simple raster of our region to spatialpolygonsDF
   pix.pts <- rasterToPoints(simple_raster, spatial = TRUE)
-
+  
   ## reproject sp obj
   geo.prj <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0" 
   pix.pts <- spTransform(pix.pts, CRS(geo.prj)) 
   proj4string(pix.pts)
-
+  
   ## get coords
   pix.pts@data <- data.frame(pix.pts@data, long=coordinates(pix.pts)[,1],
                              lat=coordinates(pix.pts)[,2])
   pix.pts.numeric <- as.data.frame(pix.pts@data)
 
-  ## now we can use these coords to simulate GP from rspde()
-  reg.mesh <- inla.mesh.2d(boundary = inla.sp2segment(simple_polygon),
-                           loc = pix.pts@data[, 2:3],
-                           max.edge = c(0.25, 5),
-                           offset = c(1, 5),
-                           cutoff = 0.25)
+  ## sim using SPDE mesh ## TODO export this mesh to use in fitting
+  if(sp.field.sim.strat == 'SPDE'){ 
+    ## to simulate, we need lat-lon locs for the entire raster
 
-
-  ## get gp fields across space that are indep in time
-  gp.iid <- rspde(coords = cbind(pix.pts.numeric[, 2], pix.pts.numeric[, 3]),
-                  kappa = sp.kappa,
-                  variance = sp.var,
-                  alpha = sp.alpha,
-                  mesh = reg.mesh,
-                  n = length(year_list),
-                  seed = seed)
-
-  ## introduce temporal ar1 correlation at the pixel level
-  if(length(year_list) > 1){ ## then, correlate gp draws
-    gp.cor <- gp.iid
-    for(ii in 2:ncol(gp.cor)){
-      gp.cor[, ii] <- t.rho * gp.cor[, ii - 1] + sqrt(1 - t.rho ^ 2) * gp.iid[, ii]
-    }
+ 
 
     
+    ## now we can use these coords to simulate GP from rspde()
+    reg.mesh <- inla.mesh.2d(boundary = inla.sp2segment(simple_polygon),
+                             loc = pix.pts@data[, 2:3],
+                             max.edge = c(0.25, 5),
+                             offset = c(1, 5),
+                             cutoff = 0.25)
+
+
+    ## get spatial fields that are GPs across space and are indep in time
+    sf.iid <- rspde(coords = cbind(pix.pts.numeric[, 2], pix.pts.numeric[, 3]),
+                    kappa = sp.kappa,
+                    variance = sp.var,
+                    alpha = sp.alpha,
+                    mesh = reg.mesh,
+                    n = length(year_list),
+                    seed = seed)
+  }
+
+  ## use random fields package on simple_raster to simulate GP for spatial field
+  if(sp.field.sim.strat == 'RF'){ 
+    model <- RMmatern(nu = 1)
+    sf.iid <- geostatsp::RFsimulate(model, x = simple_raster, n = length(year_list))
+  }
+
+  ## simulate t dist with low DOF
+  if(sp.field.sim.strat == 't'){
+    message("sp.field.sim.strat=='t' is not yet implemented")
+  }
+
+  ## simulate extremal dist
+  if(sp.field.sim.strat == 'ext'){
+    message("sp.field.sim.strat=='ext' is not yet implemented")
+  }
+
+  ## ---------
+  ## introduce temporal ar1 correlation at the pixel level
+  if(length(year_list) > 1){ ## then, correlate gp draws
+    sf.cor <- sf.iid
+    for(ii in 2:ncol(sf.cor)){
+      sf.cor[, ii] <- t.rho * sf.cor[, ii - 1] + sqrt(1 - t.rho ^ 2) * sf.iid[, ii]
+    }
+    
+    
     ## convert them to rasters
-    for(cc in 1:ncol(gp.iid)){
+    for(cc in 1:ncol(sf.iid)){
       if(cc == 1){
-        gp.rast <- rasterize(x = pix.pts@data[, 2:3],
+        sf.rast <- rasterize(x = pix.pts@data[, 2:3],
                              y = simple_raster,
-                             field = gp.cor[, cc])
+                             field = sf.cor[, cc])
       }else{
-        gp.rast <- addLayer(gp.rast,
+        sf.rast <- addLayer(sf.rast,
                             rasterize(x = pix.pts@data[, 2:3],
                                       y = simple_raster,
-                                      field = gp.cor[, cc]))
+                                      field = sf.cor[, cc]))
       }
     }
   }else{ ## we have a single year, no time corr needed
-    gp.rast <- rasterize(x = pix.pts@data[, 2:3],
-                             y = simple_raster,
-                             field = gp.iid)
+    sf.rast <- rasterize(x = pix.pts@data[, 2:3],
+                         y = simple_raster,
+                         field = sf.iid)
   }
+  
 
   ## plot gp
   pdf(sprintf('%s/simulated_obj/st_gp_plot.pdf', out.dir), width = 16, height = 16)
-  par(mfrow = rep( ceiling(sqrt( dim(gp.rast)[3] )), 2))
-  for(yy in 1:dim(gp.rast)[3]){
-    raster::plot(gp.rast[[yy]],
+  par(mfrow = rep( ceiling(sqrt( dim(sf.rast)[3] )), 2))
+  for(yy in 1:dim(sf.rast)[3]){
+    raster::plot(sf.rast[[yy]],
                  main = paste('GP',
                               year_list[yy],
                               sep = ': '))
@@ -318,7 +346,7 @@ sim.realistic.data <- function(reg,
 
     ## plot nugget
     pdf(sprintf('%s/simulated_obj/nugget_plot.pdf', out.dir), width = 16, height = 16)
-    par(mfrow = rep( ceiling(sqrt( dim(gp.rast)[3] )), 2))
+    par(mfrow = rep( ceiling(sqrt( dim(sf.rast)[3] )), 2))
     for(yy in 1:dim(nug.rast)[3]){
       raster::plot(nug.rast[[yy]],
                    main = paste('GP',
@@ -340,14 +368,14 @@ sim.realistic.data <- function(reg,
   ## make true surface by combining cov effects and gp ##
   #######################################################
 
-  ## finally, we combine the gp and the covariate effecgts to get our surface in link (e.g. logit if binomial) space
-  true.rast <- gp.rast
+  ## finally, we combine the gp and the covariate effects to get our surface in link (e.g. logit if binomial) space
+  true.rast <- sf.rast
   for(cc in 1:length(cov_layers)){ ## loop though and add on coefficients*covariates to gp raster layers
     true.rast <- true.rast + betas[cc] * cov_layers[[cc]] ## should work for both stationary and time-varying
   }
 
   ## we append the gp to the cov_layers
-  cov_layers[['gp']] <- gp.rast
+  cov_layers[['gp']] <- sf.rast
 
   ## and, add nugget if desired
   if(!is.null(nug.var)) true.rast <- true.rast + nug.rast
@@ -381,8 +409,8 @@ sim.realistic.data <- function(reg,
 
   ## to do this, we sample, with replacement, from the lat-longs that we used to sim the GP
   if(obs.loc.strat == 'rand'){ ## select locations totally at random
-    sim.rows <- sample(x = 1:nrow(pix.pts.numeric), size = n.clust * length(year_list),
-                       replace = TRUE)
+    sim.rows <- sample(x = 1:nrow(pix.pts.numeric), prob = pix.pts.numeric[, 1],
+                       size = n.clust * length(year_list), replace = TRUE)
   } else{ ## stratify by "urban"/"rural"
     ## given the % of population you want to be urban, find the population value cutoff
     urban_thresh <- quantile(probs = (1 - urban.pop.pct), na.omit(values(pop_raster)))
@@ -399,9 +427,9 @@ sim.realistic.data <- function(reg,
     u_r.pts.numeric <- as.data.frame(u_r.pts@data)
 
     ## sample stratified locations
-    u.rows <- sample(x = which(u_r.pts.numeric[, 1] == 1), size = round(n.clust * urban_strat),
+    u.rows <- sample(x = which(u_r.pts.numeric[, 1] == 1), size = round(n.clust * urban.strat.pct),
                      replace = TRUE)
-    r.rows <- sample(x = which(u_r.pts.numeric[, 1] == 0), size = round(n.clust * (1 - urban_strat)),
+    r.rows <- sample(x = which(u_r.pts.numeric[, 1] == 0), size = round(n.clust * (1 - urban.strat.pct)),
                      replace = TRUE)
     sim.rows <- c(u.rows, r.rows)
   }
