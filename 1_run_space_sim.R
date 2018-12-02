@@ -136,7 +136,7 @@ trho_trans <- log((-1 - t.rho) / (t.rho - 1))
 dir.create(sprintf('%s/simulated_obj', out.dir), recursive = TRUE)
 
 ## load in the region shapefile and prep the boundary
-gaul_list           <- get_gaul_codes(reg)
+gaul_list           <- get_adm0_codes(reg)
 simple_polygon_list <- load_simple_polygon(gaul_list = gaul_list, buffer = 1, tolerance = 0.4, use_premade = T)
 subset_shape        <- simple_polygon_list[[1]]
 simple_polygon      <- simple_polygon_list[[2]]
