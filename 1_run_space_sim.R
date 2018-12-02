@@ -23,7 +23,7 @@ run_date <- "2018_12_01_16_28_20"
 ## Set core_repo location and tmb_repo loc
 user      <- Sys.info()['user']
 core_repo <- sprintf('/share/code/geospatial/%s/lbd_core/', user)
-tmb_repo  <- sprintf('/homes/%s/tmb_transition', user)
+tmb_repo  <- sprintf('/homes/%s/tmb_inla_comp', user)
 pull_tmb_git <- FALSE
 
 ## grab libraries and functions from MBG code
@@ -42,11 +42,12 @@ library(grid)
 library(RColorBrewer)
 library(viridis)
 library(scales)
+library(RandomFields)
 
 ## Now we can switch to the TMB repo
 setwd(tmb_repo)
 if(pull_tmb_git) system(sprintf('cd %s\ngit pull %s %s', core_repo, remote, branch))
-source('./realistic_sims/realistic_sim_utils.R')
+source('./realistic_sim_utils.R')
 
 ## setup is now done. setup some parameters for this simulation
 
@@ -190,8 +191,9 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                                 pop_raster = pop_raster, 
                                 obs.loc.strat = obs.loc.strat,
                                 urban.pop.pct = urban.pop.pct,
-                                urban.strat.pct =urban.strat.pct, 
+                                urban.strat.pct = urban.strat.pct, 
                                 out.dir = out.dir,
+                                sp.field.sim.strat = 'SPDE', 
                                 seed = NULL)
 
   saveRDS(file = sprintf('%s/simulated_obj/sim_obj_%i.rds', out.dir, iii),
@@ -1043,7 +1045,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
     complete.surface.metrics <- rbind(complete.surface.metrics, surface.metrics)
   }
 
-} ## end iii loop repeating iterations
+} ## end iii loop repeating iterations over 1:Nsim
 
 write.csv(complete.surface.metrics, sprintf('%s/validation/surface_metrics_complete.csv',out.dir))
 

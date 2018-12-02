@@ -221,7 +221,8 @@ sim.realistic.data <- function(reg,
   geo.prj <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0" 
   pix.pts <- spTransform(pix.pts, CRS(geo.prj)) 
   proj4string(pix.pts)
-  
+
+  ## to simulate, we need lat-lon locs for the entire raster
   ## get coords
   pix.pts@data <- data.frame(pix.pts@data, long=coordinates(pix.pts)[,1],
                              lat=coordinates(pix.pts)[,2])
@@ -229,11 +230,7 @@ sim.realistic.data <- function(reg,
 
   ## sim using SPDE mesh ## TODO export this mesh to use in fitting
   if(sp.field.sim.strat == 'SPDE'){ 
-    ## to simulate, we need lat-lon locs for the entire raster
-
- 
-
-    
+        
     ## now we can use these coords to simulate GP from rspde()
     reg.mesh <- inla.mesh.2d(boundary = inla.sp2segment(simple_polygon),
                              loc = pix.pts@data[, 2:3],
@@ -257,7 +254,8 @@ sim.realistic.data <- function(reg,
     model <- RMmatern(nu = sp.alpha - 1, ## from INLA book
                       scale = sqrt(2 * (sp.alpha - 1)) / sp.kappa, 
                       var = sp.var)      
-    sf.iid <- geostatsp::RFsimulate(model, x = simple_raster, n = length(year_list))
+    ## sf.iid <- geostatsp::RFsimulate(model, x = simple_raster, n = length(year_list))
+    sf.iid <- RFsimulate(model, x = pix.pts.numeric[, 2], y = pix.pts.numeric[, 3], n = length(year_list), spConform = FALSE)
   }
 
   ## simulate t dist with low DOF
