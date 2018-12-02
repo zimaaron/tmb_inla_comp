@@ -1,13 +1,11 @@
 ## this script can be used to launch 1_run_simulation.R in parallel on the IHME cluster
 ## written by aoz
+## dec 1 2018
 
-
-####################
-## run some setup ##
-####################
-
+## DO THIS!
 ################################################################################
-logging_note <- 'parallel test run'
+## ADD A NOTE! to help identify what you were doing with this run
+logging_note <- 'testing validation'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

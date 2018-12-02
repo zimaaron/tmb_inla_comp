@@ -5,12 +5,7 @@
 
 ## options(error = recover)
 load('/homes/azimmer/scratch/tmb_space_debug.RData')
-
-## DO THIS!
-################################################################################
-## ADD A NOTE! to help identify what you were doing with this run
-logging_note <- 'Running these models with real HIV SSSA data. using weights'
-################################################################################
+load('~/Desktop/tmb_inla_comp/scratch/tmb_space_debug.RData')
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -19,6 +14,7 @@ logging_note <- 'Running these models with real HIV SSSA data. using weights'
 par.iter <- 1  ## as.numeric(  commandArgs()[4]) ## all we need is to grab the (parallel) iteration of this run
 run_date <- "2018_06_12_15_54_38" ## as.character(commandArgs()[5]) ## and the run_date so we know where to load from
 run_date <- "2018_10_03_12_51_58"
+run_date <- "2018_12_01_16_28_20"
 
 #############################################
 ## setup the environment for singularity R ##
@@ -80,7 +76,7 @@ t.rho           <- as.numeric(loopvars[par.iter, 11])
 mesh_s_max_edge <- as.character(loopvars[par.iter, 12])
 n.clust         <- as.numeric(loopvars[par.iter, 13])
 m.clust         <- as.numeric(loopvars[par.iter, 14])
-sample.strat    <- eval(parse(text = loopvars[par.iter, 15]))
+sample.strat    <- eval(parse(text = as.character(loopvars[par.iter, 15])))
 obs.loc.strat   <- sample.strat[['obs.loc.strat']]
 urban.pop.pct   <- sample.strat[['urban.pop.pct']]
 urban.strat.pct <- sample.strat[['urban.strat.pct']]
