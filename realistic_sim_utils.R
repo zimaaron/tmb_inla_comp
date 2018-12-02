@@ -178,7 +178,7 @@ sim.realistic.data <- function(reg,
 
 
   ## plot center-scaled covariates
-  dir.create(sprintf('%s/simulated_obj/', out.dir))
+  dir.create(sprintf('%s/simulated_obj/', out.dir), recursive = T)
   pdf(sprintf('%s/simulated_obj/cov_plot.pdf', out.dir), width = 16, height = 16)
   for(cc in 1:length(cov_layers)){
     message(sprintf('Plotting covariate: %s\n', names(cov_layers)[[cc]]))

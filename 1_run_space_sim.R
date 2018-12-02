@@ -84,8 +84,8 @@ urban.strat.pct <- sample.strat[['urban.strat.pct']]
 
 cores           <- as.numeric(loopvars[par.iter, 16]) 
 ndraws          <- as.numeric(loopvars[par.iter, 17])
-alphaj.pri      <- eval(parse(text = loopvars[par.iter, 18])) ## normal mean and sd ## TODO pass this to INLA and TMB
-nug.pri         <- eval(parse(text = loopvars[par.iter, 19]))  ## gamma for nug preciion with shape and inv-scale ## TODO pass this to INLA and TMB
+alphaj.pri      <- eval(parse(text = as.character(loopvars[par.iter, 18]))) ## normal mean and sd ## TODO pass this to INLA and TMB
+nug.pri         <- eval(parse(text = as.character(loopvars[par.iter, 19])))  ## gamma for nug preciion with shape and inv-scale ## TODO pass this to INLA and TMB
 inla.int.strat  <- as.character(loopvars[par.iter, 20]) ## can be one of: 'eb', 'ccd', 'grid'
 
 inla.approx     <- as.character(loopvars[par.iter, 21]) ## can be one of: 'eb', 'ccd', 'grid'
@@ -192,7 +192,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                                 obs.loc.strat = obs.loc.strat,
                                 urban.pop.pct = urban.pop.pct,
                                 urban.strat.pct = urban.strat.pct, 
-                                out.dir = out.dir,
+                                out.dir = paste(out.dir, iii, sep = '/'),
                                 sp.field.sim.strat = 'SPDE', 
                                 seed = NULL)
 
