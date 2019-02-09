@@ -4,8 +4,10 @@
 ## last editted Oct 3, 2018
 
 ## options(error = recover)
-load('/homes/azimmer/scratch/tmb_space_debug.RData')
-load('~/Desktop/tmb_inla_comp/scratch/tmb_space_debug.RData')
+
+## ## for working on local laptop
+## load('/homes/azimmer/scratch/tmb_space_debug.RData')
+## load('~/Desktop/tmb_inla_comp/scratch/tmb_space_debug.RData')
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -175,26 +177,49 @@ saveRDS(file = sprintf('%s/simulated_obj/true_param_table.rds', out.dir),
 ###########
 
 for(iii in 1:Nsim){ ## repeat Nsim times
-  
-  sim.obj <- sim.realistic.data(reg = reg,
-                                year_list = year_list,
-                                betas = betas,
-                                sp.kappa = sp.kappa,
-                                sp.alpha = sp.alpha,
-                                t.rho = t.rho,
-                                nug.var = nug.var, 
-                                n.clust = n.clust,
-                                m.clust = m.clust,
-                                covs = covs,
-                                simple_raster = simple_raster,
-                                simple_polygon = simple_polygon,
-                                pop_raster = pop_raster, 
-                                obs.loc.strat = obs.loc.strat,
-                                urban.pop.pct = urban.pop.pct,
-                                urban.strat.pct = urban.strat.pct, 
-                                out.dir = paste(out.dir, iii, sep = '/'),
-                                sp.field.sim.strat = 'SPDE', 
-                                seed = NULL)
+
+  ## if(iii == 1){ ## first time, must load covs, after that, we can reuse them
+    sim.obj <- sim.realistic.data(reg = reg,
+                                  year_list = year_list,
+                                  betas = betas,
+                                  sp.kappa = sp.kappa,
+                                  sp.alpha = sp.alpha,
+                                  t.rho = t.rho,
+                                  nug.var = nug.var, 
+                                  n.clust = n.clust,
+                                  m.clust = m.clust,
+                                  covs = covs,
+                                  simple_raster = simple_raster,
+                                  simple_polygon = simple_polygon,
+                                  pop_raster = pop_raster, 
+                                  obs.loc.strat = obs.loc.strat,
+                                  urban.pop.pct = urban.pop.pct,
+                                  urban.strat.pct = urban.strat.pct, 
+                                  out.dir = paste(out.dir, iii, sep = '/'),
+                                  sp.field.sim.strat = 'SPDE', 
+                                  seed = NULL)
+  ## }else{
+  ##    sim.obj <- sim.realistic.data(reg = reg,
+  ##                                 year_list = year_list,
+  ##                                 betas = betas,
+  ##                                 sp.kappa = sp.kappa,
+  ##                                 sp.alpha = sp.alpha,
+  ##                                 t.rho = t.rho,
+  ##                                 nug.var = nug.var, 
+  ##                                 n.clust = n.clust,
+  ##                                 m.clust = m.clust,
+  ##                                 covs = covs,
+  ##                                 cov_layers = cov_list, ## which is created from each sim.obj after stripping GP from the list. ~line228
+  ##                                 simple_raster = simple_raster,
+  ##                                 simple_polygon = simple_polygon,
+  ##                                 pop_raster = pop_raster, 
+  ##                                 obs.loc.strat = obs.loc.strat,
+  ##                                 urban.pop.pct = urban.pop.pct,
+  ##                                 urban.strat.pct = urban.strat.pct, 
+  ##                                 out.dir = paste(out.dir, iii, sep = '/'),
+  ##                                 sp.field.sim.strat = 'SPDE', 
+  ##                                 seed = NULL)
+  ## }
 
   saveRDS(file = sprintf('%s/simulated_obj/sim_obj_%i.rds', out.dir, iii),
           object = sim.obj)
@@ -455,7 +480,9 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   fit_time_tmb <- proc.time()[3] - ptm
 
   ## Get standard errors
-  SD0 = TMB::sdreport(obj,getJointPrecision=TRUE)
+  SD0 = TMB::sdreport(obj, getJointPrecision=TRUE,
+                      bias.correct = TRUE,
+                      bias.correct.control = list(sd = TRUE))
   tmb_total_fit_time <- proc.time()[3] - ptm 
   tmb_sdreport_time <-  tmb_total_fit_time - fit_time_tmb
 
@@ -470,15 +497,23 @@ for(iii in 1:Nsim){ ## repeat Nsim times
 
   ## simulate draws
   ptm2 <- proc.time()[3]
-  rmvnorm_prec <- function(mu, prec, n.sims) {
+  rmvnorm_prec <- function(mu, chol_prec, n.sims) {
     z <- matrix(rnorm(length(mu) * n.sims), ncol=n.sims)
-    L <- Cholesky(prec, super=TRUE)
-    z <- solve(L, z, system = "Lt") ## z = Lt^-1 %*% z
-    z <- solve(L, z, system = "Pt") ## z = Pt    %*% z
+    L <- chol_prec #Cholesky(prec, super=TRUE)
+    z <- Matrix::solve(L, z, system = "Lt") ## z = Lt^-1 %*% z
+    z <- Matrix::solve(L, z, system = "Pt") ## z = Pt    %*% z
     z <- as.matrix(z)
     mu + z
   }
-  tmb_draws <- rmvnorm_prec(mu = mu , prec = SD0$jointPrecision, n.sims = ndraws)
+  L <- try(suppressWarnings(Cholesky(SD0$jointPrecision, super = T)), silent = TRUE)
+  if(class(L) == "try-error"){
+    message('\nTMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
+    message('\nTMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
+    message('\nTMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
+    SD0$jointPrecision <- Matrix(nearPD(SD0$jointPrecision)$mat, sparse = T)
+    L <- Cholesky(SD0$jointPrecision, super = T)
+  }
+  tmb_draws <- rmvnorm_prec(mu = mu , chol_prec = L, n.sims = ndraws)
   tmb_get_draws_time <- proc.time()[3] - ptm2
 
   ## separate out the tmb_draws
@@ -561,13 +596,14 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   res_fit <- inla(formula,
                   data = inla.stack.data(stack.obs),
                   control.predictor = list(A = inla.stack.A(stack.obs),
-                                           link = 1,
+                                           ## link = 1, ## removed after looking at NMM
                                            compute = FALSE),
                   control.fixed = list(expand.factor.strategy = 'inla'),
                   control.inla = list(strategy = inla.approx,
                                       int.strategy = inla.int.strat,
-                                      h = 1e-3,
-                                      tolerance = 1e-6),
+                                      ## h = 1e-3, ## removed after looking at NMMn
+                                      ## tolerance = 1e-6 ## removed after looking at NMM
+                                      ),
                   control.compute=list(config = TRUE),
                   family = 'binomial',
                   num.threads = cores, #

@@ -117,6 +117,8 @@ rspde <- function (coords, kappa, variance = 1, alpha = 2, n = 1, mesh,
 
 sim.realistic.data <- function(reg,
                                year_list,
+                               data.lik, ## either 'binom' or 'normal'
+                               sd.norm, ## sd of normal observations 
                                betas,
                                sp.kappa,
                                sp.alpha,
@@ -125,6 +127,7 @@ sim.realistic.data <- function(reg,
                                n.clust,
                                m.clust,
                                covs,
+                               cov_layers = NULL, ## if supplied, use this instead of reloading covs
                                simple_raster,
                                simple_polygon, 
                                out.dir,
@@ -149,31 +152,38 @@ sim.realistic.data <- function(reg,
   
   ########################################
   ## load and prepare covariate rasters ##
-  ########################################  
+  ######################################## 
 
-  message('\n\nLOADING COVS\n\n')
-  cov_layers <- load_and_crop_covariates_annual(covs            = covs[, name],
-                                                measures        = covs[, meas],
-                                                simple_polygon  = simple_polygon,
-                                                start_year      = min(year_list),
-                                                end_year        = max(year_list),
-                                                interval_mo     = 12) ## always grab annual, then subset if need be
-  ## subset to years in yearlist
-  for(cc in 1:length(cov_layers)){
-    if(dim(cov_layers[[cc]])[3] > 1){
-      cov_layers[[cc]] <- cov_layers[[cc]][[which( min(year_list):max(year_list) %in% year_list )]]
+  if(is.null(cov_layers)){
+    message('\n\nLOADING COVS\n\n')
+    cov_layers <- load_and_crop_covariates_annual(covs            = covs[, name],
+                                                  measures        = covs[, meas],
+                                                  simple_polygon  = simple_polygon,
+                                                  start_year      = min(year_list),
+                                                  end_year        = max(year_list),
+                                                  interval_mo     = 12) ## always grab annual, then subset if need be
+    ## subset to years in yearlist
+    for(cc in 1:length(cov_layers)){
+      if(dim(cov_layers[[cc]])[3] > 1){
+        cov_layers[[cc]] <- cov_layers[[cc]][[which( min(year_list):max(year_list) %in% year_list )]]
+      }
+
+      ## center-scale covs. (TODO by year or across years?)
+      cov_layers[[cc]] <- (cov_layers[[cc]] - mean(values(cov_layers[[cc]]), na.rm = T)) / sd(values(cov_layers[[cc]]), na.rm = T)
     }
 
-    ## center-scale covs. (TODO by year or across years?)
-    cov_layers[[cc]] <- (cov_layers[[cc]] - mean(values(cov_layers[[cc]]), na.rm = T)) / sd(values(cov_layers[[cc]]), na.rm = T)
-  }
-
-  ## we also want our cov_layers to align with simple_raster
-  for(l in 1:length(cov_layers)) {
-    message(sprintf("On cov %i out of %i", l, length(cov_layers)))
-    cov_layers[[l]]  <- crop(cov_layers[[l]], extent(simple_raster))
-    cov_layers[[l]]  <- setExtent(cov_layers[[l]], simple_raster)
-    cov_layers[[l]]  <- mask(cov_layers[[l]], simple_raster)
+    ## we also want our cov_layers to align with simple_raster
+    for(l in 1:length(cov_layers)) {
+      message(sprintf("On cov %i out of %i", l, length(cov_layers)))
+      cov_layers[[l]]  <- crop(cov_layers[[l]], extent(simple_raster))
+      cov_layers[[l]]  <- setExtent(cov_layers[[l]], simple_raster)
+      cov_layers[[l]]  <- mask(cov_layers[[l]], simple_raster)
+    }
+  }else{
+    message('\n\nUSING PRE-SUPPLIED AND PREPPED COVS\n\n')
+    if(length(cov_layers) != length(betas)){
+      stop('The supplied cov_layers object does not match the beta arg in length. Something has gone wrong')
+    }
   }
 
 
@@ -447,19 +457,35 @@ sim.realistic.data <- function(reg,
     true_p_logit[which(sim.dat[, year] == yy)] <- raster::extract(x = true.rast[[ which(year_list %in% yy) ]],
                                                                   y = sim.dat[year == yy, .(long, lat)])
   }
-  sim.dat[, p_true := inv.logit(true_p_logit)]
 
-  ## add in cluster sample size
-  sim.dat[, N := rpois(n = nrow(sim.dat), lambda = m.clust)]
+  if(data.lik == 'binom'){
+    sim.dat[, p_true := inv.logit(true_p_logit)]
 
-  ## and now we simulate binomial observations from the true surface
-  sim.dat[, Y := rbinom(n = nrow(sim.dat), size = sim.dat[, N], prob = sim.dat[, p_true])]
+    ## add in cluster sample size
+    sim.dat[, N := rpois(n = nrow(sim.dat), lambda = m.clust)]
 
-  ## and get empirical p_obs
-  sim.dat[, p_obs := Y / N]
+    ## and now we simulate binomial observations from the true surface
+    sim.dat[, Y := rbinom(n = nrow(sim.dat), size = sim.dat[, N], prob = sim.dat[, p_true])]
 
-  ## lastly, we tag on weight. TODO flesh out weighting options
-  sim.dat[, weight := 1]
+    ## and get empirical p_obs
+    sim.dat[, p_obs := Y / N]
+
+    ## lastly, we tag on weight. TODO flesh out weighting options
+    sim.dat[, weight := 1]
+  }else if(data.lik == 'normal'){
+    sim.dat[, p_true := true_p_logit]
+
+    ## add in cluster sample size
+    sim.dat[, N := rpois(n = nrow(sim.dat), lambda = m.clust)]
+
+    ## and now we simulate binomial observations from the true surface
+    sim.dat[, Y := rnorm(n = sim.dat[, N], mean = sim.dat[, p_true], sd = )]
+
+    ## and get empirical p_obs
+    sim.dat[, p_obs := Y / N]
+
+    ## lastly, we tag on weight. TODO flesh out weighting options
+  }
   
   ## now we just finish by making some convenience objects and saving everything
 

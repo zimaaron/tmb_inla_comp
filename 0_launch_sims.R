@@ -107,7 +107,7 @@ m.clust <- 35                    ## mean number of obs per cluster (poisson)
 ## 3) urban.strat.pct: a number between 0 and 100. the % of observations that should come fom urban pixels
 sample.strat <- "list(obs.loc.strat='rand',
                       urban.pop.pct=5,
-                      urban.strat.pct=40)"         ## random or by population for now. ## TODO cluser design
+                      urban.strat.pct=40)"  ## random or by population for now. ## TODO cluser design
 
 ## loopvars 16
 cores <- 5
