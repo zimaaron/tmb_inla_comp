@@ -600,7 +600,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                                            compute = FALSE),
                   control.fixed = list(expand.factor.strategy = 'inla'),
                   control.inla = list(strategy = inla.approx,
-                                      int.strategy = inla.int.strat,
+                                      int.strategy = inla.int.strat ##,
                                       ## h = 1e-3, ## removed after looking at NMMn
                                       ## tolerance = 1e-6 ## removed after looking at NMM
                                       ),
@@ -731,7 +731,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## ####################
   ## 2) setup big plot ##
   ## ####################
-  pdf(sprintf('%s/validation/inla_tmb_summary_comparison_plot_%i.pdf',out.dir, iii), height=15,width=30)
+  pdf(sprintf('%s/validation/inla_tmb_summary_comparison_plot_%i_new.pdf',out.dir, iii), height=15,width=30)
 
 
   ## ~~~

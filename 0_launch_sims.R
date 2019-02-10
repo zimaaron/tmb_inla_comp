@@ -5,7 +5,7 @@
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
-logging_note <- 'testing validation'
+logging_note <- 'no nug and no covs'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -70,7 +70,7 @@ cov_names <- "c('access2', 'distrivers', 'evi'   , 'mapincidence')"
 cov_measures <- "c('mean'   , 'mean'      , 'median', 'mean')"
 
 ## loopvars 5
-betas <- "c(.5, -1, 1, -.5)"
+betas <- NULL ## "c(.5, -1, 1, -.5)"
 
 ## loopvars 6
 alpha <- 0
@@ -85,7 +85,7 @@ sp.var <- 0.5            ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
 sp.alpha <- 2.0          ## matern smoothness = sp.alpha - 1 (for R^2 domain)
 
 ## loopvars 10
-nug.var <- .5 ^ 2        ## nugget variance
+nug.var <- NULL ## .5 ^ 2        ## nugget variance
 
 ## loopvars 11
 t.rho <-  0.8            ## annual temporal auto-corr
