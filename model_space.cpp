@@ -47,9 +47,11 @@ template<class Type>
 Type objective_function<Type>::operator() ()
 {
 
-  // ~~~~~~~~~~~
+  // ~~~~~~~~~------------------------------------------------------~~
+  // ~~~~~~~~~------------------------------------------------------~~
   // FIRST, we define params/values/data that will be passed in from R
-  // ~~~~~~~~~~~
+  // ~~~~~~~~~~~------------------------------------------------------
+  // ~~~~~~~~~------------------------------------------------------~~
 
   // normalization flag
   DATA_INTEGER( flag ); // flag=0 => no data contribution added to jnll
@@ -61,7 +63,8 @@ Type objective_function<Type>::operator() ()
   // Data (all except for X_ij is a vector of length num_i)
   DATA_VECTOR( y_i );   // Num occurrences (deaths) per binomial experiment at point i (cluster)
   DATA_VECTOR( n_i );   // Trials per cluster
-  DATA_MATRIX( X_ij );  // Covariate design matrix
+  DATA_MATRIX( X_alpha );  // Covariate 'design matrix' for just intercept (i.e. 1col matrix of all 1s)
+  DATA_MATRIX( X_beta );   // Covariate design matrix excluding intercept columm
 
   // SPDE objects
   DATA_SPARSE_MATRIX( M0 );
@@ -71,9 +74,18 @@ Type objective_function<Type>::operator() ()
 
   // Options
   DATA_VECTOR( options );
+  // options[0] == 1 : turn on adreport
+  // options[1] == 1 : use priors
+  // options[2] == 1 : fit with intercept
+  // options[3] == 1 : fit with cov effects
+  // options[4] == 1 : fit with nugget
+  // options[5] == 0 : use normal data lik
+  // options[5] == 1 : use binom  data lik 
 
   // Fixed effects
-  PARAMETER_VECTOR( alpha_j );   // Fixed effect coefficients, including intercept as first index
+  PARAMETER( alpha );            // Intercept
+  PARAMETER_VECTOR( betas );     // Covariate coefficients
+  PARAMETER( log_obs_sigma);     // if using normal likelihood, sd of single normal obs
   PARAMETER( log_tau );          // Log of INLA tau param (precision of space covariance matrix)
   PARAMETER( log_kappa );        // Log of INLA kappa (related to spatial correlation and range)
   PARAMETER( log_nugget_sigma ); // Log of SD for irreducible nugget variance
@@ -82,18 +94,20 @@ Type objective_function<Type>::operator() ()
   // Random effects
   PARAMETER_ARRAY( Epsilon_s );  // Random effect for each spatial mesh location. Currently a 1d array of num_s
 
-  // ~~~~~~~~~~~
+  // ~~~~~~~~~------------------------------------------------~~
+  // ~~~~~~~~~------------------------------------------------~~
   // SECOND, we define all other objects that we need internally
-  // ~~~~~~~~~~~
+  // ~~~~~~~~~------------------------------------------------~~
+  // ~~~~~~~~~------------------------------------------------~~
   
   // objective function -- joint negative log-likelihood
   Type jnll = 0;
   //parallel_accumulator<Type> jnll(this); // parallelize jnll NOTE: seems to break with omp>1 and mkl >=1
 
   // print parallel info
-  //  max_parallel_regions = omp_get_max_threads();
+  // max_parallel_regions = omp_get_max_threads();
   max_parallel_regions = 1;
-  printf("This is thread %d\n", max_parallel_regions);
+  // printf("This is thread %d\n", max_parallel_regions);
 
   // Make spatial precision matrix
   SparseMatrix<Type> Q_ss = spde_Q(log_kappa, log_tau, M0, M1, M2);
@@ -105,12 +119,18 @@ Type objective_function<Type>::operator() ()
 
   // Define objects for derived values
   vector<Type> fe_i(num_i);              // main effect X_ij %*% t(alpha_j)
-  vector<Type> logit_prob_i(num_i);      // Logit estimated prob for each point i
+  vector<Type> latent_field_i(num_i);      // Logit estimated prob for each point i
   vector<Type> epsilon_s(num_s);         // Epsilon_s (array) unlisted into a vector for easier matrix multiplication
   vector<Type> projepsilon_i(num_i);     // value of gmrf at data points
   
-  // evaluate fixed effects for alpha_j values
-  fe_i = X_ij * alpha_j.matrix(); 
+  // evaluate fixed effects for intercept and covs of applicable
+  fe_i = X_alpha * Type(0.0); // initialize
+  if(options[2] == 1){
+    fe_i = X_alpha * alpha; // add on intercept if using
+  }
+  if(options[3] == 1){
+    fe_i = X_beta * betas.matrix(); // add on covariate effects if using
+  }
   
   // Transform GMRFs and make vector form
   for(int s = 0; s < num_s; s++){
@@ -120,56 +140,104 @@ Type objective_function<Type>::operator() ()
   // Project GP approx from mesh points to data points 
   projepsilon_i = Aproj * epsilon_s.matrix();
 
-  // ~~~~~~~~~~~
+  // ~~~~~~~~~------------------------------------------------~~-
+  // ~~~~~~~~~------------------------------------------------~~-
   // THIRD, we calculate the contribution to the likelihood from:
   // 1) priors
   // 2) GP field
   // 3) data
-  // ~~~~~~~~~~~
+  // ~~~~~~~~~------------------------------------------------~~-
+  // ~~~~~~~~~------------------------------------------------~~-
 
-  // 1) Prior contributions to joint likelihood (if option[0]==1)
-  if(options[0] == 1) {
+  ///////// 
+  // (1) // 
+  /////////
+  // Prior contributions to joint likelihood (if option[0]==1)
+  if(options[1] == 1) {
+
+    // add in priors for spde gp
     jnll -= dnorm(log_tau,   Type(0.0), Type(1.0), true); // N(0,1) prior for logtau
     jnll -= dnorm(log_kappa, Type(0.0), Type(1.0), true); // N(0,1) prior for logkappa
-   for( int j = 0; j < alpha_j.size(); j++){
-     jnll -= dnorm(alpha_j(j), Type(0.0), Type(3), true); // N(0, sqrt(1/.001)) prior for fixed effects.
-   }
-   jnll -= dnorm(log_nugget_sigma, Type(-4.0), Type(2.0), true); // N(-4, 2) for log(sd_nugget)
-  }
+
+    // prior for intercept
+    if(options[2] == 1){
+      jnll -= dnorm(alpha, Type(0.0), Type(3), true); // N(0, 3)
+    }
+
+    // prior for covariate coefs
+    if(options[3] == 1){
+      for( int j = 0; j < betas.size(); j++){
+	jnll -= dnorm(betas(j), Type(0.0), Type(3), true); // N(0, 3)
+      }
+    }
+
+    // prior for log(nugget sd)
+    if(options[4] == 1){
+      jnll -= dnorm(log_nugget_sigma, Type(-4.0), Type(2.0), true); // N(-4, 2)
+    }
+
+    // prior for log(obs sd) of using normal data lik
+    if(option[5] == 0){
+      jnll -= dnorm(log_obs_sigma, Type(-4.0), Type(2.0), true); // N(-4, 2)
+    }
+    
+  } 
+
+  /////////
+  // (2) //
+  /////////
+  // 'GP' field contribution (i.e. log-lik of Gaussian-Markov random fields, GMRFs)
+  // NOTE: likelihoods from namespace 'density' already return NEGATIVE log-liks so we add
+  //       other likelihoods return positibe log-liks
+  jnll += GMRF(Q_ss, false)(epsilon_s);
 
   // nugget contribution to the likelihood
-  if(options[2] == 1 ){
-    printf("Nugget \n");
+  if(options[4] == 1 ){
     for (int i = 0; i < num_i; i++){
       jnll -= dnorm(nug_i(i), Type(0.0), nugget_sigma, true);
     }
   }
 
-  // 2) 'GP' field contribution (i.e. log-lik of Gaussian-Markov random fields, GMRFs)
-  // NOTE: likelihoods from namespace 'density' already return NEGATIVE log-liks so we add
-  //       other likelihoods return positibe log-liks
-  jnll += GMRF(Q_ss, false)(epsilon_s);
-
-  
-  // 3) Likelihood contribution from each datapoint i
+  /////////
+  // (3) //
+  /////////
+  // Likelihood contribution from each datapoint i
 
   if (flag == 0) return jnll; // without data ll contrib
 
   for (int i = 0; i < num_i; i++){
-    logit_prob_i(i) = fe_i(i) + projepsilon_i(i) + nug_i(i);
-    if(!isNA(y_i(i))){
-      // Likelihood contribution from non-VR binomial data
-      // Uses the dbinom_robust function, which takes the logit probability
-      jnll -= dbinom_robust( y_i(i), n_i(i), logit_prob_i(i), true );
+
+    // latent field estimate at each obs
+    latent_field_i(i) = fe_i(i) + projepsilon_i(i);
+    // add on nugget if using
+    if(option[4] == 1){ 
+      latent_field_i(i) = latent_field_i(i) + nug_i(i);
     }
-  }
+
+    // and add data contribution to jnll
+    if(!isNA(y_i(i))){
+
+      // if normal
+      if(options[5] ==  0){
+	// Uses the dbinom_robust function, which takes the logit probability
+	jnll -= dnorm( y_i(i), latent_field_i(i), exp(log_obs_sigma)/n_i(i), true );
+      }
+
+      // if binom
+      if(options[5] ==  1){
+	// Uses the dbinom_robust function, which takes the logit probability
+	jnll -= dbinom_robust( y_i(i), n_i(i), latent_field_i(i), true );
+      }
+      
+    } // !isNA
+
+  } // for( i )
   
 
   // ~~~~~~~~~~~
   // ADREPORT
-  // Report estimates (if options[1]==1)
   // ~~~~~~~~~~~
-  if(options[1] == 1){
+  if(options[0] == 1){
     ADREPORT(alpha_j);
     ADREPORT(Epsilon_s);
   }
