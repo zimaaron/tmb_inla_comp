@@ -17,6 +17,7 @@ par.iter <- 1  ## as.numeric(  commandArgs()[4]) ## all we need is to grab the (
 run_date <- "2018_06_12_15_54_38" ## as.character(commandArgs()[5]) ## and the run_date so we know where to load from
 run_date <- "2018_10_03_12_51_58"
 run_date <- "2018_12_01_16_28_20"
+run_date <- "2019_02_10_12_59_31"
 
 #############################################
 ## setup the environment for singularity R ##
@@ -67,13 +68,13 @@ reg             <- as.character(loopvars[par.iter, 1])
 year_list       <- eval(parse(text = loopvars[par.iter, 2]))
 cov_names       <- eval(parse(text = as.character(loopvars[par.iter, 3])))
 cov_measures    <- eval(parse(text = as.character(loopvars[par.iter, 4])))
-betas           <- eval(parse(text = as.character(loopvars[par.iter, 5])))
+betas           <- eval(parse(text = as.character(loopvars[par.iter, 5])));if(is.na(betas)) betas <- NULL
 
-alpha           <- as.numeric(loopvars[par.iter, 6])
+alpha           <- as.numeric(loopvars[par.iter, 6]);if(is.na(alpha)) alpha <- NULL
 sp.range        <- as.numeric(loopvars[par.iter, 7])
 sp.var          <- as.numeric(loopvars[par.iter, 8])
 sp.alpha        <- as.numeric(loopvars[par.iter, 9])
-nug.var         <- as.numeric(loopvars[par.iter, 10])
+nug.var         <- as.numeric(loopvars[par.iter, 10]);if(is.na(nug.var)) nug.var <- NULL
 
 t.rho           <- as.numeric(loopvars[par.iter, 11])
 mesh_s_max_edge <- as.character(loopvars[par.iter, 12])
@@ -94,14 +95,14 @@ inla.approx     <- as.character(loopvars[par.iter, 21]) ## can be one of: 'eb', 
 l.tau.pri       <- NULL  ## taken from INLA spde mesh obj
 l.kap.pri       <- NULL  ## taken from INLA spde mesh obj
 Nsim <-  as.numeric(loopvars[par.iter, 22]) ## number of times to repeat simulation
+data.lik <- as.character(loopvars[par.iter, 23])
+sd.norm <-  as.numeric(loopvars[par.iter, 24])
 
 ## TODO? add in some validation options? or maybe just always do them all
 
 
 ## from these imputs, make a table of covariate names and measures
 covs <- data.table(name = cov_names, meas = cov_measures)
-
-
 
 ## I hardcode a few other options that are useful sometimes when running interactively
 ## these can probably be deleted...
@@ -152,7 +153,14 @@ pop_raster         <- raster_list[['pop_raster']]
 ## simulate data ##
 ###################
 
+##TODO fix up truths now that things can be shut off... (betas, alpha, covs, ...)
+
 ## make an object with true param values
+true.param.names <- true.param.vals <- c()
+if(!is.null(alpha){
+  
+}
+
 true.params <- data.table(param = c('int',
                                     cov_names,
                                     'nom. range',
@@ -164,9 +172,10 @@ true.params <- data.table(param = c('int',
                                     sp.range,
                                     sp.var,
                                     t.rho))
-true.par.vec <- c(alpha, betas, logtau, logkappa, trho_trans)
-names(true.par.vec) <- c(rep('alpha_j', length(betas) + 1), 'logtau', 'logkappa', 'trho_trans')
-if(length(year_list) == 1) true.par.vec <- true.par.vec[-length(true.par.vec)]
+
+## true.par.vec <- c(alpha, betas, logtau, logkappa, trho_trans)
+## names(true.par.vec) <- c(rep('alpha_j', length(betas) + 1), 'logtau', 'logkappa', 'trho_trans')
+## if(length(year_list) == 1) true.par.vec <- true.par.vec[-length(true.par.vec)]
 
 saveRDS(file = sprintf('%s/simulated_obj/true_param_table.rds', out.dir),
         object = true.params)
@@ -178,9 +187,13 @@ saveRDS(file = sprintf('%s/simulated_obj/true_param_table.rds', out.dir),
 
 for(iii in 1:Nsim){ ## repeat Nsim times
 
+  ## TODO get this logic working to speed things up...
   ## if(iii == 1){ ## first time, must load covs, after that, we can reuse them
+  
     sim.obj <- sim.realistic.data(reg = reg,
                                   year_list = year_list,
+                                  data.lik = data.lik,
+                                  sd.norm = sd.norm, 
                                   betas = betas,
                                   sp.kappa = sp.kappa,
                                   sp.alpha = sp.alpha,
@@ -198,6 +211,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                                   out.dir = paste(out.dir, iii, sep = '/'),
                                   sp.field.sim.strat = 'SPDE', 
                                   seed = NULL)
+
   ## }else{
   ##    sim.obj <- sim.realistic.data(reg = reg,
   ##                                 year_list = year_list,
@@ -227,7 +241,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   dt <- sim.obj$sim.dat ## simulated data, lat-long, year, covs, true surface
   covs.gp <- sim.obj$cov.gp.rasters   ## rasters of covs and true simulated gp field
   true.gp <- covs.gp[['gp']]
-  cov_list <- covs.gp$gp <- NULL
+  cov_list <- covs.gp[!grepl('gp',names(covs.gp))]
   true.rast <- sim.obj$true.rast
 
   ## save (if desired) this simulated dataset to .../mbg/input_data for mbg pipeline
@@ -253,9 +267,9 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## setup for tmb and INLA modeling ##
   ## ##################################
   ## ##################################
-  dir.create(sprintf('%s/modeling/inputs', out.dir), recursive = TRUE)
-  dir.create(sprintf('%s/modeling/tmb/outputs', out.dir), recursive = TRUE)
-  dir.create(sprintf('%s/modeling/inla/outputs', out.dir), recursive = TRUE)
+  dir.create(sprintf('%s/modeling/inputs', out.dir), recursive = TRUE, showWarnings = F)
+  dir.create(sprintf('%s/modeling/tmb/outputs', out.dir), recursive = TRUE, showWarnings = F)
+  dir.create(sprintf('%s/modeling/inla/outputs', out.dir), recursive = TRUE, showWarnings = F)
 
   ## ######################################
   ## load in some real data (if desired) ##
@@ -365,24 +379,6 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## required for predict
   ## ~~~
 
-  ## pull out covariates in format we expect them
-  ## a list of length periods with a brick of named covariates inside
-  cov_list <- covs.gp
-  cov_list$gp <- NULL
-  new_cl <- list()
-  for(p in 1:nperiods){
-    new_cl[[p]] <- list()
-    for(n in names(cov_list)){
-      if(dim(cov_list[[n]])[3] == 1){
-        new_cl[[p]][[n]] <- cov_list[[n]]
-      }else{
-        new_cl[[p]][[n]] <- cov_list[[n]][[p]]
-      }
-    }
-    new_cl[[p]] <- brick(new_cl[[p]])
-  }
-
-
   ## get space-time-locs grid to predict onto
   f_orig <- data.table(cbind(coordinates(simple_raster), t=1))
                                         # add time periods
@@ -395,7 +391,6 @@ for(iii in 1:Nsim){ ## repeat Nsim times
     }
   }
 
-
   ## get surface to project on to
   pcoords <- cbind(x=fullsamplespace$x, y=fullsamplespace$y)
   groups_periods <- fullsamplespace$t
@@ -407,12 +402,30 @@ for(iii in 1:Nsim){ ## repeat Nsim times
     group = groups_periods)
 
   ## extract cell values  from covariates, deal with timevarying covariates here
-  cov_vals <- list()
-  for(p in 1:nperiods){
-    cov_vals[[p]] <- raster::extract(new_cl[[p]], pcoords[1:(nrow(fullsamplespace)/nperiods),])
-    cov_vals[[p]] <- (cbind(int = 1, cov_vals[[p]]))
-  }
 
+  
+  ## pull out covariates in format we expect them
+  ## a list of length periods with a brick of named covariates inside
+  new_cl <- list()
+  if(!is.null(betas)){
+    for(p in 1:nperiods){
+      new_cl[[p]] <- list()
+      for(n in names(cov_list)){
+        if(dim(cov_list[[n]])[3] == 1){
+          new_cl[[p]][[n]] <- cov_list[[n]]
+        }else{
+          new_cl[[p]][[n]] <- cov_list[[n]][[p]]
+        }
+      }
+      new_cl[[p]] <- brick(new_cl[[p]])
+    }
+
+    cov_vals <- list()
+    for(p in 1:nperiods){
+      cov_vals[[p]] <- raster::extract(new_cl[[p]], pcoords[1:(nrow(fullsamplespace)/nperiods),])
+      cov_vals[[p]] <- (cbind(int = 1, cov_vals[[p]]))
+    }
+  }
 
   ## ######
   ## ######
@@ -424,44 +437,81 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## ########
   ## SETUP ##
   ## ########
-  X_xp = as.matrix(cbind(1, dt[,covs[, name], with=FALSE])) ## design mat
+
+  ## build design mats for int and covs
+  ## this is done seperately to allow indep. turning each on/off
+  X_alpha <- matrix(rep(1, nrow(dt), ncol = 1))
+  X_betas <- as.matrix(dt[, covs[, name], with=FALSE]) 
 
   templ <- "model_space"
   setwd("/homes/azimmer/tmb_transition/realistic_sims")
   TMB::compile(paste0('./', templ,".cpp"))
   dyn.load( dynlib(templ) )
 
+
+  ## function to convert from data lik string to integer
+  ## allows easily adding more options even though overkill for just 2
+  data.lik.dict <- function(x){
+    dict <- list(normal = 0,
+                 binom = 1)
+    dict[[x]]
+  }
+  
   ## setup data to feed into the model
   data_full <- list(num_i = nrow(dt),  # Total number of observations
                     num_s = mesh_s$n,  # Number of vertices in SPDE mesh
                     y_i   = dt[,Y],    # Number of observed deaths in the cluster
-                    n_i = dt[,N],    # Number of exposures in the cluster
-                    X_ij  = X_xp,               # Covariate design matrix
+                    n_i   = dt[,N],    # Number of exposures in the cluster
+                    X_alpha  = X_alpha,# Covariate design matrix
+                    X_betas  = X_betas,# Covariate design matrix
                     M0    = spde$param.inla$M0, # SPDE sparse matrix
                     M1    = spde$param.inla$M1, # SPDE sparse matrix
                     M2    = spde$param.inla$M2, # SPDE sparse matrix
                     Aproj = A.proj,             # Projection matrix
-                    options = c(1, # use priors 
-                                0, # adreport
-                                1  # fit with nugget 
+                    options = c(1, # if 1, run adreport 
+                                1, ## if 1, use priors
+                                ifelse(is.null(alpha), 0, 1), # if 1, run with intercept
+                                ifelse(is.null(betas), 0, 1), # if 1, run with covs
+                                ifelse(is.null(nug.var), 0, 1), # if 1, run with nugget
+                                data.lik.dict(data.lik)  # if 0, normal data. if 1, binom data lik
                                 ),
                     flag = 1 # normalization flag
                     )
 
-  ## Specify starting values for TMB parameters
-  tmb_params <- list(alpha_j   = rep(0,ncol(X_xp)), # Alphas for FE parameters
-                     log_tau   = 1.0, # Log inverse of tau (Epsilon)
+  ## Specify starting values for TMB parameters for GP
+  tmb_params <- list(log_tau   = 1.0, # Log inverse of tau (Epsilon)
                      log_kappa = 1.0, # Matern range parameter
-                     Epsilon_s = matrix(1,nrow=nodes,ncol=1), # GP locations
+                     log_obs_sigma = 0.0, # log(data sd) if using normal dist
+                     alpha = 0.0, # intercept
+                     betas = rep(0, ncol(X_betas)), # cov effects
+                     Epsilon_s = matrix(1, nrow=nodes, ncol=1), # GP value at obs locs
                      log_nugget_sigma = -1.0, # log of nugget sd
                      nug_i = rep(0, nrow(dt)) # vector of nugget random effects
                      )
 
-
+  ## make a list of things that are random effects
+  rand_effs <- c('Epsilon_s')
+  
+  ## NULL out things that aren't in this run and identify extra rand effs if using them
+  ADmap <- list()
+  if(is.null(alpha)){
+    ADmap[['alpha']] <- factor(NA)
+  }
+  if(is.null(betas)){
+    ADmap[['betas']] <- rep(factor(NA), ncol(X_betas))
+  }
+  if(is.null(nug.var)){
+    ADmap[['log_nugget_sigma']] <- factor(NA)
+    ADmap[['nug_i']] <- rep(factor(NA), nrow(dt))
+  }else{
+    rand_effs <- c(rand_effs, 'nug_i')
+  }
+  
   ## make the autodiff generated liklihood func & gradient
   obj <- MakeADFun(data=data_full,
                    parameters=tmb_params,
-                   random=c('Epsilon_s', 'nug_i'),
+                   random=rand_effs,
+                   map = ADmap, 
                    hessian=TRUE,
                    DLL=templ)
 

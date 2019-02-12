@@ -64,7 +64,7 @@ Type objective_function<Type>::operator() ()
   DATA_VECTOR( y_i );   // Num occurrences (deaths) per binomial experiment at point i (cluster)
   DATA_VECTOR( n_i );   // Trials per cluster
   DATA_MATRIX( X_alpha );  // Covariate 'design matrix' for just intercept (i.e. 1col matrix of all 1s)
-  DATA_MATRIX( X_beta );   // Covariate design matrix excluding intercept columm
+  DATA_MATRIX( X_betas );   // Covariate design matrix excluding intercept columm
 
   // SPDE objects
   DATA_SPARSE_MATRIX( M0 );
@@ -129,7 +129,7 @@ Type objective_function<Type>::operator() ()
     fe_i = X_alpha * alpha; // add on intercept if using
   }
   if(options[3] == 1){
-    fe_i = X_beta * betas.matrix(); // add on covariate effects if using
+    fe_i = X_betas * betas.matrix(); // add on covariate effects if using
   }
   
   // Transform GMRFs and make vector form

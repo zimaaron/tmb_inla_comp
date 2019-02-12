@@ -55,7 +55,10 @@ source('./realistic_sims/realistic_sim_utils.R')
 ## setup things to loop over ##
 ###############################
 
+## NOTES
 ## this list should align with the args in 1_run_simulation.R
+## NULLs can't be passed this way, so NAs are stand-ins for NULL and this gets fixed in 1_run_space_sim.R
+
 
 ## loopvars 1
 reg <- 'nga'
@@ -70,7 +73,7 @@ cov_names <- "c('access2', 'distrivers', 'evi'   , 'mapincidence')"
 cov_measures <- "c('mean'   , 'mean'      , 'median', 'mean')"
 
 ## loopvars 5
-betas <- NULL ## "c(.5, -1, 1, -.5)"
+betas <- NA ## "c(.5, -1, 1, -.5)"
 
 ## loopvars 6
 alpha <- 0
@@ -85,7 +88,7 @@ sp.var <- 0.5            ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
 sp.alpha <- 2.0          ## matern smoothness = sp.alpha - 1 (for R^2 domain)
 
 ## loopvars 10
-nug.var <- NULL ## .5 ^ 2        ## nugget variance
+nug.var <- NA ## .5 ^ 2        ## nugget variance
 
 ## loopvars 11
 t.rho <-  0.8            ## annual temporal auto-corr
@@ -131,8 +134,10 @@ inla.approx <- 'simplified.laplace' ## can be 'gaussian', 'simplified.laplace' (
 Nsim <- 5 ## number of times to repeat simulation
 
 ## loopvars 23
+data.lik <- 'normal' ## either 'binom' or 'normal'
 
 ## loopvars 24
+sd.norm <- 0.1
 
 ## loopvars 25
 
@@ -187,17 +192,17 @@ for(ii in 1:nrow(loopvars)){
   ## save loopvars to this dir to reload into the parallel env
   saveRDS(file = paste0(out.dir, '/loopvars.rds'), obj = loopvars)
 
-  ## save and reload loopvars in parallel env. that way, we only need to pass in iter/row #
-  qsub.string <- qsub_sim(iter = ii, ## sets which loopvar to use in parallel
-                          run_date = run_date,
-                          slots = 4, 
-                          codepath = '/homes/azimmer/tmb_transition/realistic_sims/1_run_simulation.R', 
-                          singularity = 'default',
-                          singularity_opts = NULL,
-                          logloc = NULL ## defaults to input/output dir in sim run_date dir
-                          )
+  ## ## save and reload loopvars in parallel env. that way, we only need to pass in iter/row #
+  ## qsub.string <- qsub_sim(iter = ii, ## sets which loopvar to use in parallel
+  ##                         run_date = run_date,
+  ##                         slots = 4, 
+  ##                         codepath = '/homes/azimmer/tmb_transition/realistic_sims/1_run_simulation.R', 
+  ##                         singularity = 'default',
+  ##                         singularity_opts = NULL,
+  ##                         logloc = NULL ## defaults to input/output dir in sim run_date dir
+  ##                         )
 
-  ## launch the job
+  ## ## launch the job
   
-  system(qsub.string)
+  ## system(qsub.string)
 }

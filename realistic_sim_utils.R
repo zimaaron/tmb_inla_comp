@@ -136,15 +136,17 @@ sim.realistic.data <- function(reg,
                                urban.pop.pct = 1, ## percent (in percent = alpha*100% space - i.e. 1 for 1%) of population that comprises urban
                                urban.strat.pct = 40, ## percent of sample locations that should come from urban pixels
                                sp.field.sim.strat = 'RF', ## one of RF or SPDE ## TODO add t-dist, extremal
-                               seed = NULL){## make some checks and set things
+                               seed = NULL){
+
+  ## make some checks and set things
   if(is.null(pop_raster) & obs.loc.strat == 'pop.strat'){
     stop("You need to supply a pop raster to use obs.loc.strat=='pop.strat'")
   }
   if(obs.loc.strat == 'pop.strat' & (is.null(urban.pop.pct) | is.null(urban.strat.pct))){
-    stop("You must pass in urban.pop.pct and urban.strat.pct values when you set obs.loc.strat=='pop.strat'")
+      stop("You must pass in urban.pop.pct and urban.strat.pct values when you set obs.loc.strat=='pop.strat'")
   }
   if(data.lik == 'normal' & is.null(sd.norm)){
-    stop("You must pass in sd.norm if setting data.lik=='normal'")
+        stop("You must pass in sd.norm if setting data.lik=='normal'")
   }
   if(!is.null(betas)){
     if(!is.null(cov_layers)){
@@ -159,50 +161,50 @@ sim.realistic.data <- function(reg,
       stop('You must pass in either but no covs of cov_layers when you pass in betas.')
     }
   }else{
-    cov_layers <- list(NULL) 
+    cov_layers <- list() 
   }
-  
+
   ## set seed if required
   if(!is.null(seed)) set.seed(seed)
   
   ## create dir for simulated objects
-  dir.create(sprintf('%s/simulated_obj/', out.dir), recursive = T)
+  dir.create(sprintf('%s/simulated_obj/', out.dir), recursive = T, showWarnings = F)
   
-########################################
+  ## #####################################
   ## load and prepare covariate rasters ##
-######################################## 
+  ## #####################################
   
-  if(is.null(cov_layers) & !is.null(betas)){
-    message('\n\nLOADING COVS\n\n')
-    cov_layers <- load_and_crop_covariates_annual(covs            = covs[, name],
-                                                  measures        = covs[, meas],
-                                                  simple_polygon  = simple_polygon,
-                                                  start_year      = min(year_list),
-                                                  end_year        = max(year_list),
-                                                  interval_mo     = 12) ## always grab annual, then subset if need be
-    ## subset to years in yearlist
-    for(cc in 1:length(cov_layers)){
-      if(dim(cov_layers[[cc]])[3] > 1){
-        cov_layers[[cc]] <- cov_layers[[cc]][[which( min(year_list):max(year_list) %in% year_list )]]
+  if(!is.null(betas)){
+    if(is.null(cov_layers)){
+      message('\n\nLOADING COVS\n')
+      cov_layers <- load_and_crop_covariates_annual(covs            = covs[, name],
+                                                    measures        = covs[, meas],
+                                                    simple_polygon  = simple_polygon,
+                                                    start_year      = min(year_list),
+                                                    end_year        = max(year_list),
+                                                    interval_mo     = 12) ## always grab annual, then subset if need be
+      ## subset to years in yearlist
+      for(cc in 1:length(cov_layers)){
+        if(dim(cov_layers[[cc]])[3] > 1){
+          cov_layers[[cc]] <- cov_layers[[cc]][[which( min(year_list):max(year_list) %in% year_list )]]
+        }
+        
+        ## center-scale covs. (TODO by year or across years?)
+        cov_layers[[cc]] <- (cov_layers[[cc]] - mean(values(cov_layers[[cc]]), na.rm = T)) / sd(values(cov_layers[[cc]]), na.rm = T)
       }
       
-      ## center-scale covs. (TODO by year or across years?)
-      cov_layers[[cc]] <- (cov_layers[[cc]] - mean(values(cov_layers[[cc]]), na.rm = T)) / sd(values(cov_layers[[cc]]), na.rm = T)
-    }
+      ## we also want our cov_layers to align with simple_raster
+      for(l in 1:length(cov_layers)) {
+        message(sprintf("On cov %i out of %i", l, length(cov_layers)))
+        cov_layers[[l]]  <- crop(cov_layers[[l]], extent(simple_raster))
+        cov_layers[[l]]  <- setExtent(cov_layers[[l]], simple_raster)
+        cov_layers[[l]]  <- mask(cov_layers[[l]], simple_raster)
+      }
+    }else{
+      message('\n\nUSING PRE-SUPPLIED AND PREPPED COVS\n')
+    }  
     
-    ## we also want our cov_layers to align with simple_raster
-    for(l in 1:length(cov_layers)) {
-      message(sprintf("On cov %i out of %i", l, length(cov_layers)))
-      cov_layers[[l]]  <- crop(cov_layers[[l]], extent(simple_raster))
-      cov_layers[[l]]  <- setExtent(cov_layers[[l]], simple_raster)
-      cov_layers[[l]]  <- mask(cov_layers[[l]], simple_raster)
-    }
-  }else{
-    message('\n\nUSING PRE-SUPPLIED AND PREPPED COVS\n\n')
-  }  
-  
-  ## plot center-scaled covariates
-  if(!is.null(betas)){
+    ## plot center-scaled covariates
     pdf(sprintf('%s/simulated_obj/cov_plot.pdf', out.dir), width = 16, height = 16)
     for(cc in 1:length(cov_layers)){
       message(sprintf('Plotting covariate: %s\n', names(cov_layers)[[cc]]))
@@ -223,6 +225,8 @@ sim.realistic.data <- function(reg,
       }
     }
     dev.off()
+  }else{
+    message('\n\nNO COVS\n')
   }
   
   ## now we can simulate our true surface
@@ -235,7 +239,7 @@ sim.realistic.data <- function(reg,
   ## simulate space-time gp ##
   ## ##########################
   
-  message('\n\nSIMULATE GP\n\n')
+  message('SIMULATE GP\n')
   
   ## FIRST, get the pixel coords- these are useful later too
   
@@ -347,11 +351,11 @@ sim.realistic.data <- function(reg,
   
   ## simulate IID normal draws to add as nugget
   
-  if(!is.null(nug.var) & nug.var > 0 & data.lik != 'normal'){
+  if(!is.null(nug.var) & data.lik != 'normal'){
     ## normal plus nugget means add nugget in normal draws, not to every pixel!
     ## TODO is this right to set it up and limit it this way??
     
-    message('\n\nSIMULATE PIXEL NUGGET\n\n')
+    message('SIMULATE PIXEL NUGGET\n')
     
     ## take rnorm() draws and convert them to rasters
     for(cc in 1:length(year_list)){
@@ -382,7 +386,9 @@ sim.realistic.data <- function(reg,
     }
     dev.off()
     
-  } ## non-null nug.var
+  }else{
+    message('NO NUGGET\n')
+  }
   
   
   ## now we can make the true surface
@@ -437,7 +443,7 @@ sim.realistic.data <- function(reg,
   ## simulate data from true surface ##
   #####################################
 
-  message('\n\nSIMULATE DATA\n\n')
+  message('SIMULATE DATA\n')
   
   ## randomly (for now) select data boservation locations across time
   
@@ -476,12 +482,12 @@ sim.realistic.data <- function(reg,
   sim.dat[, year := rep(year_list, each = n.clust)]
   
   ## extract the value of the true surface at data locations
-  true_p_logit<- numeric(nrow(sim.dat))
+  true_p_logit <- numeric(nrow(sim.dat))
   for(yy in unique(year_list)){
     true_p_logit[which(sim.dat[, year] == yy)] <- raster::extract(x = true.rast[[ which(year_list %in% yy) ]],
                                                                   y = sim.dat[year == yy, .(long, lat)])
   }
-
+  
   ## sim sample size of observations
   sim.dat[, N := rpois(n = nrow(sim.dat), lambda = m.clust)]
   
@@ -500,7 +506,8 @@ sim.realistic.data <- function(reg,
     sim.dat[, p_true := true_p_logit] ## no link to transform
     
     ## and now we simulate binomial observations from the true surface
-    sim.dat[, Y := mean(rnorm(n = sim.dat[, N], mean = sim.dat[, p_true], sd = sd.norm))]
+    Y <- unlist(lapply(1:nrow(sim.dat), FUN = function(x){mean(rnorm(n = sim.dat[x, N], mean = sim.dat[x, p_true], sd = sd.norm))}))
+    sim.dat[, Y := Y]
     
     ## and get empirical p_obs
     sim.dat[, p_obs := Y]
@@ -518,7 +525,7 @@ sim.realistic.data <- function(reg,
   ## for convenience, we also extract covariate values to the same df (and the true gp val) ##
   ## ##########################################################################################
   
-  message('\n\nPREPARE AND SAVE OBJECTS\n\n')
+  message('PREPARE AND SAVE OBJECTS\n')
   
   cov.mat <- matrix(ncol = length(cov_layers),
                     nrow = nrow(sim.dat))
