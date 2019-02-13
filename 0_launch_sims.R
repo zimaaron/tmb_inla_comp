@@ -49,7 +49,7 @@ close(fileConn)
 ## Now we can switch to the TMB repo
 setwd(tmb_repo)
 if(pull_tmb_git) system(sprintf('cd %s\ngit pull %s %s', core_repo, remote, branch))
-source('./realistic_sims/realistic_sim_utils.R')
+source('./realistic_sim_utils.R')
 
 ###############################
 ## setup things to loop over ##
@@ -167,14 +167,35 @@ loopvars <- expand.grid(reg, ## 1
                         data.lik,
                         sd.norm)
 
-loopvars$run_date <- NA ## keep track of run_dates to later compare runs
 
 ## prepare a set of run_dates so we can write the complete loopvars to each run_date dir
-## TODO for long loopvars this is stupidly slow... manually create the rundate list
-for(ii in 1:nrow(loopvars)){
-  loopvars$run_date[ii] <- make_time_stamp(TRUE)
-  Sys.sleep(1.1)
+all_rds <- make_time_stamp(TRUE)
+if(nrow(loopvars) > 1){
+  for(ii in 2:nrow(loopvars)){
+    split.rd <- strsplit(all_rds[ii - 1], split = '_')[[1]]
+    if(split.rd[6] < 60){
+      split.rd[6] <- as.character(as.numeric(split.rd[6]) + 1)
+      if(as.numeric(split.rd[6]) < 10) split.rd[6] <- paste0('0', split.rd[6])
+    }else if(split.rd[5] < 60){
+      split.rd[5] <- as.character(as.numeric(split.rd[5]) + 1)
+      if(as.numeric(split.rd[5]) < 10) split.rd[5] <- paste0('0', split.rd[5])
+      split.rd[6] <- '00'
+    }else if(split.rd[4] < 24){
+      split.rd[4] <- as.character(as.numeric(split.rd[4]) + 1)
+      if(as.numeric(split.rd[4]) < 10) split.rd[4] <- paste0('0', split.rd[4])
+      split.rd[5] <- '00'
+      split.rd[6] <- '00'
+    }else {
+      split.rd[3] <- split.rd[3] + 1
+      split.rd[4] <- '00'
+      split.rd[5] <- '00'
+      split.rd[6] <- '00'
+    }
+    all_rds <- c(all_rds, paste(split.rd, sep='', collapse='_'))
+  }
 }
+
+loopvars$run_date <- all_rds ## keep track of run_dates to later compare runs
 
 for(ii in 1:nrow(loopvars)){
 

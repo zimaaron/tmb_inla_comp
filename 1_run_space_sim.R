@@ -14,10 +14,8 @@
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 par.iter <- 1  ## as.numeric(  commandArgs()[4]) ## all we need is to grab the (parallel) iteration of this run
-run_date <- "2018_06_12_15_54_38" ## as.character(commandArgs()[5]) ## and the run_date so we know where to load from
-run_date <- "2018_10_03_12_51_58"
-run_date <- "2018_12_01_16_28_20"
-run_date <- "2019_02_10_12_59_31"
+## as.character(commandArgs()[5]) ## and the run_date so we know where to load from
+run_date <- "2019_02_13_12_51_18"
 
 #############################################
 ## setup the environment for singularity R ##
@@ -605,12 +603,19 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## #######
 
   ## make some useful files first
-  summ_tmb <- cbind(median = (apply(pred_tmb,1,median)),
-                    sd = (apply(pred_tmb,1,sd)))
-
-  ras_med_tmb  <- rasterFromXYZT(data.table(pcoords,p=plogis(summ_tmb[,1]),
+  if(data.lik == 'normal'){
+    summ_tmb <- cbind(median = (apply(pred_tmb, 1, median)),
+                    sd = (apply(pred_tmb, 1, sd)))
+  }else if(data.lik == 'binom'){
+    ## convert to prev space
+    pred_tmb <- plogis(pred_tmb)
+    summ_tmb <- cbind(median = (apply(pred_tmb, 1, median)),
+                      sd = (apply(pred_tmb, 1, sd)))
+  }
+    
+  ras_med_tmb  <- rasterFromXYZT(data.table(pcoords,p=summ_tmb[,1],
                                             t=rep(1:nperiods,each=nrow(pred_tmb)/nperiods)),"p","t")
-  ras_sdv_tmb  <- rasterFromXYZT(data.table(pcoords,p=plogis(summ_tmb[,2]),
+  ras_sdv_tmb  <- rasterFromXYZT(data.table(pcoords,p=summ_tmb[,2],
                                             t=rep(1:nperiods,each=nrow(pred_tmb)/nperiods)),"p","t")
 
   saveRDS(file = sprintf('%s/modeling/tmb/outputs/tmb_preds_median_raster_%i.rds', out.dir, iii), object = ras_med_tmb)
@@ -652,8 +657,6 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                            'f(space, model = spde, group = space.group, control.group = list(model = \'ar1\'))',
                            sep = ' + '))
 
-
-  
   ## function to convert from data lik string to integer
   ## allows easily adding more options even though overkill for just 2
   inla.lik.dict <- function(x){
@@ -679,6 +682,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                   family = inla.lik.dict(data.lik),
                   num.threads = cores, #
                   Ntrials = dt$N,
+                  scale = dt$N, 
                   ## weights = rep(1, nrow(dt)),
                   verbose = TRUE,
                   keep = FALSE)
@@ -731,17 +735,23 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## SAVE ##
   ## #######
 
-  ## make some useful files first
-  summ_inla <- cbind(median = (apply(pred_inla,1,median)),
-                     sd = (apply(pred_inla,1,sd)))
-
-  ras_med_inla  <- rasterFromXYZT(data.table(pcoords,p=plogis(summ_inla[,1]), t=rep(1:nperiods,each=nrow(pred_inla)/nperiods)),"p","t")
-  ras_sdv_inla  <- rasterFromXYZT(data.table(pcoords,p=plogis(summ_inla[,2]), t=rep(1:nperiods,each=nrow(pred_inla)/nperiods)),"p","t")
+  if(data.lik == 'normal'){
+    summ_inla <- cbind(median = (apply(pred_inla, 1, median)),
+                    sd = (apply(pred_inla, 1, sd)))
+  }else if(data.lik == 'binom'){
+    ## convert to prev space
+    pred_inla <- plogis(pred_inla)
+    summ_inla <- cbind(median = (apply(pred_inla, 1, median)),
+                      sd = (apply(pred_inla, 1, sd)))
+  }
+    
+  ras_med_inla  <- rasterFromXYZT(data.table(pcoords,p=summ_inla[,1],
+                                            t=rep(1:nperiods,each=nrow(pred_inla)/nperiods)),"p","t")
+  ras_sdv_inla  <- rasterFromXYZT(data.table(pcoords,p=summ_inla[,2],
+                                            t=rep(1:nperiods,each=nrow(pred_inla)/nperiods)),"p","t")
 
   saveRDS(file = sprintf('%s/modeling/inla/outputs/inla_preds_median_raster_%i.rds', out.dir, iii), object = ras_med_inla)
   saveRDS(file = sprintf('%s/modeling/inla/outputs/inla_preds_stdev_raster_%i.rds', out.dir, iii), object = ras_sdv_inla)
-
-
 
   ## #############
   ## #############

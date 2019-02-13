@@ -504,8 +504,7 @@ sim.realistic.data <- function(reg,
     sim.dat[, p_true := true_p_logit] ## no link to transform
     
     ## and now we simulate binomial observations from the true surface
-    Y <- unlist(lapply(1:nrow(sim.dat), FUN = function(x){mean(rnorm(n = sim.dat[x, N], mean = sim.dat[x, p_true], sd = sd.norm))}))
-    sim.dat[, Y := Y]
+    sim.dat[, Y := apply(.SD, 1, function(x) mean(rnorm(n = x[1], mean = x[2], sd = sd.norm))), .SDcols = c('N', 'p_true')]
     
     ## and get empirical p_obs
     sim.dat[, p_obs := Y]
