@@ -441,7 +441,11 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## build design mats for int and covs
   ## this is done seperately to allow indep. turning each on/off
   X_alpha <- matrix(rep(1, nrow(dt), ncol = 1))
-  X_betas <- as.matrix(dt[, covs[, name], with=FALSE]) 
+  if(!is.null(betas)){
+    X_betas <- as.matrix(dt[, covs[, name], with=FALSE])
+  }else{
+    X_betas <- matrix(0, ncol = nrow(covs), nrow = nrow(dt))
+  }
 
   templ <- "model_space"
   setwd("/homes/azimmer/tmb_transition/realistic_sims")

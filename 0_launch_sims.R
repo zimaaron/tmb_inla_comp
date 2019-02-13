@@ -141,6 +141,7 @@ sd.norm <- 0.1
 
 ## loopvars 25
 
+## TODO always add all vars to exand.grid() 
 loopvars <- expand.grid(reg, ## 1
                         year_list,
                         cov_names,
@@ -162,7 +163,9 @@ loopvars <- expand.grid(reg, ## 1
                         nug.pri,
                         inla.int.strat, ## 20
                         inla.approx, 
-                        Nsim)
+                        Nsim,
+                        data.lik,
+                        sd.norm)
 
 loopvars$run_date <- NA ## keep track of run_dates to later compare runs
 
