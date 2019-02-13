@@ -54,7 +54,7 @@ Type objective_function<Type>::operator() ()
   // ~~~~~~~~~------------------------------------------------------~~
 
   // normalization flag
-  DATA_INTEGER( flag ); // flag=0 => no data contribution added to jnll
+  DATA_INTEGER( flag ); // flag == 1 => no data contribution added to jnll
   
   // Indices
   DATA_INTEGER( num_i );   // Number of data points in space
@@ -189,7 +189,13 @@ Type objective_function<Type>::operator() ()
   // 'GP' field contribution (i.e. log-lik of Gaussian-Markov random fields, GMRFs)
   // NOTE: likelihoods from namespace 'density' already return NEGATIVE log-liks so we add
   //       other likelihoods return positibe log-liks
-  jnll += GMRF(Q_ss, false)(epsilon_s);
+  if(flag == 1){
+    // then we are not calculating the normalizing constant in the inner opt.
+    // that norm constant means taking an expensive determinant of Q_ss
+    jnll += GMRF(Q_ss, false)(epsilon_s);
+  }else{
+    jnll += GMRF(Q_ss)(epsilon_s);
+  }
 
   // nugget contribution to the likelihood
   if(options[4] == 1 ){
@@ -203,7 +209,7 @@ Type objective_function<Type>::operator() ()
   /////////
   // Likelihood contribution from each datapoint i
 
-  if (flag == 0) return jnll; // without data ll contrib
+  if (flag == 1) return jnll; // return without data ll contrib to avoid unneccesary log(det(Q)) calcs
 
   for (int i = 0; i < num_i; i++){
 

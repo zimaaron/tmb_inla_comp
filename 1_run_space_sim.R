@@ -472,14 +472,14 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                     M1    = spde$param.inla$M1, # SPDE sparse matrix
                     M2    = spde$param.inla$M2, # SPDE sparse matrix
                     Aproj = A.proj,             # Projection matrix
-                    options = c(1, # if 1, run adreport 
+                    options = c(0, ## if 1, run adreport 
                                 1, ## if 1, use priors
                                 ifelse(is.null(alpha), 0, 1), # if 1, run with intercept
                                 ifelse(is.null(betas), 0, 1), # if 1, run with covs
                                 ifelse(is.null(nug.var), 0, 1), # if 1, run with nugget
                                 data.lik.dict(data.lik)  # if 0, normal data. if 1, binom data lik
                                 ),
-                    flag = 1 # normalization flag
+                    flag = 0 # normalization flag. if 1, use norm trick
                     )
 
   ## Specify starting values for TMB parameters for GP
@@ -520,8 +520,9 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                    DLL=templ)
 
   ## should we use the normalization flag?
-  obj <- normalize(obj, flag="flag")
-
+  if(data_full == 1){
+    obj <- normalize(obj, flag="flag") 
+  }
 
   ## Run optimizer
   ptm <- proc.time()[3]
