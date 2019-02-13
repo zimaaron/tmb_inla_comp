@@ -19,7 +19,7 @@ logging_note <- 'no nug and no covs'
 ## Set core_repo location and tmb_repo loc
 user      <- Sys.info()['user']
 core_repo <- sprintf('/share/code/geospatial/%s/lbd_core/', user)
-tmb_repo  <- sprintf('/homes/%s/tmb_transition', user)
+tmb_repo  <- sprintf('/homes/%s/tmb_inla_comp', user)
 pull_tmb_git <- FALSE
 
 ## grab libraries and functions from MBG code

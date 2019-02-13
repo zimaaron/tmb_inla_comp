@@ -448,7 +448,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   }
 
   templ <- "model_space"
-  setwd("/homes/azimmer/tmb_transition/realistic_sims")
+  setwd("/homes/azimmer/tmb_inla_comp/")
   TMB::compile(paste0('./', templ,".cpp"))
   dyn.load( dynlib(templ) )
 

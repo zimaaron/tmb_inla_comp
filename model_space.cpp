@@ -118,7 +118,7 @@ Type objective_function<Type>::operator() ()
   Type nugget_sigma  = exp(log_nugget_sigma);
 
   // Define objects for derived values
-  vector<Type> fe_i(num_i);              // main effect X_ij %*% t(alpha_j)
+  vector<Type> fe_i(num_i);              // main effect alpha + X_betas %*% t(betas)
   vector<Type> latent_field_i(num_i);      // Logit estimated prob for each point i
   vector<Type> epsilon_s(num_s);         // Epsilon_s (array) unlisted into a vector for easier matrix multiplication
   vector<Type> projepsilon_i(num_i);     // value of gmrf at data points
@@ -152,7 +152,7 @@ Type objective_function<Type>::operator() ()
   ///////// 
   // (1) // 
   /////////
-  // Prior contributions to joint likelihood (if option[0]==1)
+  // Prior contributions to joint likelihood (if options[0]==1)
   if(options[1] == 1) {
 
     // add in priors for spde gp
@@ -177,7 +177,7 @@ Type objective_function<Type>::operator() ()
     }
 
     // prior for log(obs sd) of using normal data lik
-    if(option[5] == 0){
+    if(options[5] == 0){
       jnll -= dnorm(log_obs_sigma, Type(-4.0), Type(2.0), true); // N(-4, 2)
     }
     
@@ -210,7 +210,7 @@ Type objective_function<Type>::operator() ()
     // latent field estimate at each obs
     latent_field_i(i) = fe_i(i) + projepsilon_i(i);
     // add on nugget if using
-    if(option[4] == 1){ 
+    if(options[4] == 1){ 
       latent_field_i(i) = latent_field_i(i) + nug_i(i);
     }
 
@@ -238,7 +238,7 @@ Type objective_function<Type>::operator() ()
   // ADREPORT
   // ~~~~~~~~~~~
   if(options[0] == 1){
-    ADREPORT(alpha_j);
+    ADREPORT(betas);
     ADREPORT(Epsilon_s);
   }
 
