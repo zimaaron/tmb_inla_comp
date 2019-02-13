@@ -160,8 +160,6 @@ sim.realistic.data <- function(reg,
     }else{
       stop('You must pass in either but no covs of cov_layers when you pass in betas.')
     }
-  }else{
-    cov_layers <- list() 
   }
 
   ## set seed if required
@@ -174,7 +172,7 @@ sim.realistic.data <- function(reg,
   ## load and prepare covariate rasters ##
   ## #####################################
   
-  if(!is.null(betas)){
+##  if(!is.null(betas)){
     if(is.null(cov_layers)){
       message('\n\nLOADING COVS\n')
       cov_layers <- load_and_crop_covariates_annual(covs            = covs[, name],
@@ -225,9 +223,9 @@ sim.realistic.data <- function(reg,
       }
     }
     dev.off()
-  }else{
-    message('\n\nNO COVS\n')
-  }
+##  }else{
+##    message('\n\nNO COVS\n')
+##  }
   
   ## now we can simulate our true surface
   
