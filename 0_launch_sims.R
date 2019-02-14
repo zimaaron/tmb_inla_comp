@@ -5,7 +5,7 @@
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
-logging_note <- 'testing validation'
+logging_note <- 'no nug and no covs'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -19,7 +19,7 @@ logging_note <- 'testing validation'
 ## Set core_repo location and tmb_repo loc
 user      <- Sys.info()['user']
 core_repo <- sprintf('/share/code/geospatial/%s/lbd_core/', user)
-tmb_repo  <- sprintf('/homes/%s/tmb_transition', user)
+tmb_repo  <- sprintf('/homes/%s/tmb_inla_comp', user)
 pull_tmb_git <- FALSE
 
 ## grab libraries and functions from MBG code
@@ -49,13 +49,16 @@ close(fileConn)
 ## Now we can switch to the TMB repo
 setwd(tmb_repo)
 if(pull_tmb_git) system(sprintf('cd %s\ngit pull %s %s', core_repo, remote, branch))
-source('./realistic_sims/realistic_sim_utils.R')
+source('./realistic_sim_utils.R')
 
 ###############################
 ## setup things to loop over ##
 ###############################
 
+## NOTES
 ## this list should align with the args in 1_run_simulation.R
+## NULLs can't be passed this way, so NAs are stand-ins for NULL and this gets fixed in 1_run_space_sim.R
+
 
 ## loopvars 1
 reg <- 'nga'
@@ -70,7 +73,7 @@ cov_names <- "c('access2', 'distrivers', 'evi'   , 'mapincidence')"
 cov_measures <- "c('mean'   , 'mean'      , 'median', 'mean')"
 
 ## loopvars 5
-betas <- "c(.5, -1, 1, -.5)"
+betas <- NA ## "c(.5, -1, 1, -.5)"
 
 ## loopvars 6
 alpha <- 0
@@ -85,14 +88,13 @@ sp.var <- 0.5            ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
 sp.alpha <- 2.0          ## matern smoothness = sp.alpha - 1 (for R^2 domain)
 
 ## loopvars 10
-nug.var <- .5 ^ 2        ## nugget variance
+nug.var <- NA ## .5 ^ 2        ## nugget variance
 
 ## loopvars 11
 t.rho <-  0.8            ## annual temporal auto-corr
 
 ## loopvars 12
-mesh_s_max_edge <- c("c(0.2,5)",
-                     "c(0.3,5)")
+mesh_s_max_edge <- c("c(0.2,5)")
 
 ## loopvars 13
 n.clust <-  50                   ## clusters PER TIME slice
@@ -107,7 +109,7 @@ m.clust <- 35                    ## mean number of obs per cluster (poisson)
 ## 3) urban.strat.pct: a number between 0 and 100. the % of observations that should come fom urban pixels
 sample.strat <- "list(obs.loc.strat='rand',
                       urban.pop.pct=5,
-                      urban.strat.pct=40)"         ## random or by population for now. ## TODO cluser design
+                      urban.strat.pct=40)"  ## random or by population for now. ## TODO cluser design
 
 ## loopvars 16
 cores <- 5
@@ -131,11 +133,14 @@ inla.approx <- 'simplified.laplace' ## can be 'gaussian', 'simplified.laplace' (
 Nsim <- 5 ## number of times to repeat simulation
 
 ## loopvars 23
+data.lik <- 'normal' ## either 'binom' or 'normal'
 
 ## loopvars 24
+sd.norm <- 0.1
 
 ## loopvars 25
 
+## TODO always add all vars to exand.grid() 
 loopvars <- expand.grid(reg, ## 1
                         year_list,
                         cov_names,
@@ -157,16 +162,39 @@ loopvars <- expand.grid(reg, ## 1
                         nug.pri,
                         inla.int.strat, ## 20
                         inla.approx, 
-                        Nsim)
+                        Nsim,
+                        data.lik,
+                        sd.norm)
 
-loopvars$run_date <- NA ## keep track of run_dates to later compare runs
 
 ## prepare a set of run_dates so we can write the complete loopvars to each run_date dir
-## TODO for long loopvars this is stupidly slow... manually create the rundate list
-for(ii in 1:nrow(loopvars)){
-  loopvars$run_date[ii] <- make_time_stamp(TRUE)
-  Sys.sleep(1.1)
+all_rds <- make_time_stamp(TRUE)
+if(nrow(loopvars) > 1){
+  for(ii in 2:nrow(loopvars)){
+    split.rd <- strsplit(all_rds[ii - 1], split = '_')[[1]]
+    if(split.rd[6] < 60){
+      split.rd[6] <- as.character(as.numeric(split.rd[6]) + 1)
+      if(as.numeric(split.rd[6]) < 10) split.rd[6] <- paste0('0', split.rd[6])
+    }else if(split.rd[5] < 60){
+      split.rd[5] <- as.character(as.numeric(split.rd[5]) + 1)
+      if(as.numeric(split.rd[5]) < 10) split.rd[5] <- paste0('0', split.rd[5])
+      split.rd[6] <- '00'
+    }else if(split.rd[4] < 24){
+      split.rd[4] <- as.character(as.numeric(split.rd[4]) + 1)
+      if(as.numeric(split.rd[4]) < 10) split.rd[4] <- paste0('0', split.rd[4])
+      split.rd[5] <- '00'
+      split.rd[6] <- '00'
+    }else {
+      split.rd[3] <- split.rd[3] + 1
+      split.rd[4] <- '00'
+      split.rd[5] <- '00'
+      split.rd[6] <- '00'
+    }
+    all_rds <- c(all_rds, paste(split.rd, sep='', collapse='_'))
+  }
 }
+
+loopvars$run_date <- all_rds ## keep track of run_dates to later compare runs
 
 for(ii in 1:nrow(loopvars)){
 
@@ -187,17 +215,17 @@ for(ii in 1:nrow(loopvars)){
   ## save loopvars to this dir to reload into the parallel env
   saveRDS(file = paste0(out.dir, '/loopvars.rds'), obj = loopvars)
 
-  ## save and reload loopvars in parallel env. that way, we only need to pass in iter/row #
-  qsub.string <- qsub_sim(iter = ii, ## sets which loopvar to use in parallel
-                          run_date = run_date,
-                          slots = 4, 
-                          codepath = '/homes/azimmer/tmb_transition/realistic_sims/1_run_simulation.R', 
-                          singularity = 'default',
-                          singularity_opts = NULL,
-                          logloc = NULL ## defaults to input/output dir in sim run_date dir
-                          )
+  ## ## save and reload loopvars in parallel env. that way, we only need to pass in iter/row #
+  ## qsub.string <- qsub_sim(iter = ii, ## sets which loopvar to use in parallel
+  ##                         run_date = run_date,
+  ##                         slots = 4, 
+  ##                         codepath = '/homes/azimmer/tmb_transition/realistic_sims/1_run_simulation.R', 
+  ##                         singularity = 'default',
+  ##                         singularity_opts = NULL,
+  ##                         logloc = NULL ## defaults to input/output dir in sim run_date dir
+  ##                         )
 
-  ## launch the job
+  ## ## launch the job
   
-  system(qsub.string)
+  ## system(qsub.string)
 }

@@ -117,14 +117,17 @@ rspde <- function (coords, kappa, variance = 1, alpha = 2, n = 1, mesh,
 
 sim.realistic.data <- function(reg,
                                year_list,
-                               betas,
+                               data.lik, ## either 'binom' or 'normal'
+                               sd.norm = NULL, ## sd of normal observations 
+                               betas = NULL, ## if null, use no covs
                                sp.kappa,
                                sp.alpha,
                                t.rho,
                                nug.var = NULL, 
                                n.clust,
                                m.clust,
-                               covs,
+                               covs = NULL,
+                               cov_layers = NULL, ## if supplied, use this instead of reloading covs
                                simple_raster,
                                simple_polygon, 
                                out.dir,
@@ -140,78 +143,102 @@ sim.realistic.data <- function(reg,
     stop("You need to supply a pop raster to use obs.loc.strat=='pop.strat'")
   }
   if(obs.loc.strat == 'pop.strat' & (is.null(urban.pop.pct) | is.null(urban.strat.pct))){
-    stop("You must pass in urban.pop.pct and urban.strat.pct values when you set obs.loc.strat=='pop.strat'")
+      stop("You must pass in urban.pop.pct and urban.strat.pct values when you set obs.loc.strat=='pop.strat'")
   }
-  
+  if(data.lik == 'normal' & is.null(sd.norm)){
+        stop("You must pass in sd.norm if setting data.lik=='normal'")
+  }
+  if(!is.null(betas)){
+    if(!is.null(cov_layers)){
+      if(length(cov_layers) != length(betas)){
+        stop('The supplied cov_layers object does not match the beta arg in length. Something has gone wrong')
+      }
+    }else if(!is.null(covs)){
+      if(nrow(covs) != length(betas)){
+        stop('nrow(covs) does not match the beta arg in length. Something has gone wrong')
+      }
+    }else{
+      stop('You must pass in either but no covs of cov_layers when you pass in betas.')
+    }
+  }
+
   ## set seed if required
   if(!is.null(seed)) set.seed(seed)
-
   
-  ########################################
+  ## create dir for simulated objects
+  dir.create(sprintf('%s/simulated_obj/', out.dir), recursive = T, showWarnings = F)
+  
+  ## #####################################
   ## load and prepare covariate rasters ##
-  ########################################  
-
-  message('\n\nLOADING COVS\n\n')
-  cov_layers <- load_and_crop_covariates_annual(covs            = covs[, name],
-                                                measures        = covs[, meas],
-                                                simple_polygon  = simple_polygon,
-                                                start_year      = min(year_list),
-                                                end_year        = max(year_list),
-                                                interval_mo     = 12) ## always grab annual, then subset if need be
-  ## subset to years in yearlist
-  for(cc in 1:length(cov_layers)){
-    if(dim(cov_layers[[cc]])[3] > 1){
-      cov_layers[[cc]] <- cov_layers[[cc]][[which( min(year_list):max(year_list) %in% year_list )]]
-    }
-
-    ## center-scale covs. (TODO by year or across years?)
-    cov_layers[[cc]] <- (cov_layers[[cc]] - mean(values(cov_layers[[cc]]), na.rm = T)) / sd(values(cov_layers[[cc]]), na.rm = T)
-  }
-
-  ## we also want our cov_layers to align with simple_raster
-  for(l in 1:length(cov_layers)) {
-    message(sprintf("On cov %i out of %i", l, length(cov_layers)))
-    cov_layers[[l]]  <- crop(cov_layers[[l]], extent(simple_raster))
-    cov_layers[[l]]  <- setExtent(cov_layers[[l]], simple_raster)
-    cov_layers[[l]]  <- mask(cov_layers[[l]], simple_raster)
-  }
-
-
-  ## plot center-scaled covariates
-  dir.create(sprintf('%s/simulated_obj/', out.dir), recursive = T)
-  pdf(sprintf('%s/simulated_obj/cov_plot.pdf', out.dir), width = 16, height = 16)
-  for(cc in 1:length(cov_layers)){
-    message(sprintf('Plotting covariate: %s\n', names(cov_layers)[[cc]]))
-    if(dim(cov_layers[[cc]])[3] == 1){
-      message('--plotting single synoptic map\n')
-      par(mfrow = c(1, 1))
-    }else{
-      message('--plotting time series\n')
-      par(mfrow = rep( ceiling(sqrt( dim(cov_layers[[cc]])[3] )), 2))
-    }
-    for(yy in 1:dim(cov_layers[[cc]])[3]){
-      raster::plot(cov_layers[[cc]][[yy]],
-                   main = paste(names(cov_layers)[cc],
-                                ifelse(dim(cov_layers[[cc]])[3] == 1,
-                                       'synoptic',
-                                       year_list[yy]), 
-                                sep = ': '))
-    }
-  }
-  dev.off()
-
-  ## now we can simulate our true surface
-
-  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-  ############################
-  ## simulate space-time gp ##
-  ############################
+  ## #####################################
   
-  message('\n\nSIMULATE GP\n\n')
-
+##  if(!is.null(betas)){
+    if(is.null(cov_layers)){
+      message('\n\nLOADING COVS\n')
+      cov_layers <- load_and_crop_covariates_annual(covs            = covs[, name],
+                                                    measures        = covs[, meas],
+                                                    simple_polygon  = simple_polygon,
+                                                    start_year      = min(year_list),
+                                                    end_year        = max(year_list),
+                                                    interval_mo     = 12) ## always grab annual, then subset if need be
+      ## subset to years in yearlist
+      for(cc in 1:length(cov_layers)){
+        if(dim(cov_layers[[cc]])[3] > 1){
+          cov_layers[[cc]] <- cov_layers[[cc]][[which( min(year_list):max(year_list) %in% year_list )]]
+        }
+        
+        ## center-scale covs. (TODO by year or across years?)
+        cov_layers[[cc]] <- (cov_layers[[cc]] - mean(values(cov_layers[[cc]]), na.rm = T)) / sd(values(cov_layers[[cc]]), na.rm = T)
+      }
+      
+      ## we also want our cov_layers to align with simple_raster
+      for(l in 1:length(cov_layers)) {
+        message(sprintf("On cov %i out of %i", l, length(cov_layers)))
+        cov_layers[[l]]  <- crop(cov_layers[[l]], extent(simple_raster))
+        cov_layers[[l]]  <- setExtent(cov_layers[[l]], simple_raster)
+        cov_layers[[l]]  <- mask(cov_layers[[l]], simple_raster)
+      }
+    }else{
+      message('\n\nUSING PRE-SUPPLIED AND PREPPED COVS\n')
+    }  
+    
+    ## plot center-scaled covariates
+    pdf(sprintf('%s/simulated_obj/cov_plot.pdf', out.dir), width = 16, height = 16)
+    for(cc in 1:length(cov_layers)){
+      message(sprintf('Plotting covariate: %s\n', names(cov_layers)[[cc]]))
+      if(dim(cov_layers[[cc]])[3] == 1){
+        message('--plotting single synoptic map\n')
+        par(mfrow = c(1, 1))
+      }else{
+        message('--plotting time series\n')
+        par(mfrow = rep( ceiling(sqrt( dim(cov_layers[[cc]])[3] )), 2))
+      }
+      for(yy in 1:dim(cov_layers[[cc]])[3]){
+        raster::plot(cov_layers[[cc]][[yy]],
+                     main = paste(names(cov_layers)[cc],
+                                  ifelse(dim(cov_layers[[cc]])[3] == 1,
+                                         'synoptic',
+                                         year_list[yy]), 
+                                  sep = ': '))
+      }
+    }
+    dev.off()
+##  }else{
+##    message('\n\nNO COVS\n')
+##  }
+  
+  ## now we can simulate our true surface
+  
+  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  
+  ## ##########################
+  ## simulate space-time gp ##
+  ## ##########################
+  
+  message('SIMULATE GP\n')
+  
   ## FIRST, get the pixel coords- these are useful later too
   
   ## convert simple raster of our region to spatialpolygonsDF
@@ -221,24 +248,24 @@ sim.realistic.data <- function(reg,
   geo.prj <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0" 
   pix.pts <- spTransform(pix.pts, CRS(geo.prj)) 
   proj4string(pix.pts)
-
+  
   ## to simulate, we need lat-lon locs for the entire raster
   ## get coords
   pix.pts@data <- data.frame(pix.pts@data, long=coordinates(pix.pts)[,1],
                              lat=coordinates(pix.pts)[,2])
   pix.pts.numeric <- as.data.frame(pix.pts@data)
-
+  
   ## sim using SPDE mesh ## TODO export this mesh to use in fitting
   if(sp.field.sim.strat == 'SPDE'){ 
-        
+    
     ## now we can use these coords to simulate GP from rspde()
     reg.mesh <- inla.mesh.2d(boundary = inla.sp2segment(simple_polygon),
                              loc = pix.pts@data[, 2:3],
                              max.edge = c(0.25, 5),
                              offset = c(1, 5),
                              cutoff = 0.25)
-
-
+    
+    
     ## get spatial fields that are GPs across space and are indep in time
     sf.iid <- rspde(coords = cbind(pix.pts.numeric[, 2], pix.pts.numeric[, 3]),
                     kappa = sp.kappa,
@@ -248,7 +275,7 @@ sim.realistic.data <- function(reg,
                     n = length(year_list),
                     seed = seed)
   }
-
+  
   ## use random fields package on simple_raster to simulate GP for spatial field
   if(sp.field.sim.strat == 'RF'){ 
     model <- RMmatern(nu = sp.alpha - 1, ## from INLA book
@@ -257,17 +284,17 @@ sim.realistic.data <- function(reg,
     ## sf.iid <- geostatsp::RFsimulate(model, x = simple_raster, n = length(year_list))
     sf.iid <- RFsimulate(model, x = pix.pts.numeric[, 2], y = pix.pts.numeric[, 3], n = length(year_list), spConform = FALSE)
   }
-
+  
   ## simulate t dist with low DOF
   if(sp.field.sim.strat == 't'){
     message("sp.field.sim.strat=='t' is not yet implemented")
   }
-
+  
   ## simulate extremal dist
   if(sp.field.sim.strat == 'ext'){
     message("sp.field.sim.strat=='ext' is not yet implemented")
   }
-
+  
   ## ---------
   ## introduce temporal ar1 correlation at the pixel level
   if(length(year_list) > 1){ ## then, correlate gp draws
@@ -296,7 +323,7 @@ sim.realistic.data <- function(reg,
                          field = sf.iid)
   }
   
-
+  
   ## plot gp
   pdf(sprintf('%s/simulated_obj/st_gp_plot.pdf', out.dir), width = 16, height = 16)
   par(mfrow = rep( ceiling(sqrt( dim(sf.rast)[3] )), 2))
@@ -307,7 +334,7 @@ sim.realistic.data <- function(reg,
                               sep = ': '))
   }
   dev.off()
-
+  
   ## TODO alternatively, simulate non-Gaussian field!
   ## using RandomFields, e.g.
   ## model <- RPopitz(RMexp(), alpha=2)
@@ -315,17 +342,19 @@ sim.realistic.data <- function(reg,
   ## plot(z1, type = 'l')
   
   ## now we can make the iid nugget
-
+  
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+  
   ## simulate IID normal draws to add as nugget
   
-  if(!is.null(nug.var)){
-
-    message('\n\nSIMULATE NUGGET\n\n')
-
+  if(!is.null(nug.var) & data.lik != 'normal'){
+    ## normal plus nugget means add nugget in normal draws, not to every pixel!
+    ## TODO is this right to set it up and limit it this way??
+    
+    message('SIMULATE PIXEL NUGGET\n')
+    
     ## take rnorm() draws and convert them to rasters
     for(cc in 1:length(year_list)){
       if(cc == 1){ ## initialize
@@ -343,7 +372,7 @@ sim.realistic.data <- function(reg,
                                                      sd = sqrt(nug.var))))        
       } ## else
     } ## year loop
-
+    
     ## plot nugget
     pdf(sprintf('%s/simulated_obj/nugget_plot.pdf', out.dir), width = 16, height = 16)
     par(mfrow = rep( ceiling(sqrt( dim(sf.rast)[3] )), 2))
@@ -355,31 +384,40 @@ sim.realistic.data <- function(reg,
     }
     dev.off()
     
-  } ## non-null nug.var
-
-
-  ## now we can make the true surface
-
-  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-  #######################################################
-  ## make true surface by combining cov effects and gp ##
-  #######################################################
-
-  ## finally, we combine the gp and the covariate effects to get our surface in link (e.g. logit if binomial) space
-  true.rast <- sf.rast
-  for(cc in 1:length(cov_layers)){ ## loop though and add on coefficients*covariates to gp raster layers
-    true.rast <- true.rast + betas[cc] * cov_layers[[cc]] ## should work for both stationary and time-varying
+  }else{
+    message('NO NUGGET\n')
   }
-
+  
+  
+  ## now we can make the true surface
+  
+  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  
+  ## #####################################################
+  ## make true surface by combining cov effects and gp ##
+  ## #####################################################
+  
+  ## finally, we combine the gp and the covariate effects to get our surface in link (e.g. logit if binomial) space
+  
+  ## start with spatial field
+  true.rast <- sf.rast
+  
+  ## add on covs
+  if(!is.null(betas)){
+    for(cc in 1:length(cov_layers)){ ## loop though and add on coefficients*covariates to gp raster layers
+      true.rast <- true.rast + betas[cc] * cov_layers[[cc]] ## should work for both stationary and time-varying
+    }
+  }
+  
   ## we append the gp to the cov_layers
+  ## TODO this seems like a bad idea... adjust this to keep gp out of covs 
   cov_layers[['gp']] <- sf.rast
-
+  
   ## and, add nugget if desired
   if(!is.null(nug.var)) true.rast <- true.rast + nug.rast
-
+  
   pdf(sprintf('%s/simulated_obj/true_surface_plot.pdf', out.dir), width = 16, height = 16)
   par(mfrow = rep( ceiling(sqrt( dim(true.rast)[3] )), 2))
   for(yy in 1:dim(true.rast)[3]){
@@ -389,9 +427,9 @@ sim.realistic.data <- function(reg,
                               sep = ': '))
   }
   dev.off()
-
+  
   saveRDS(sprintf('%s/simulated_obj/true_surface_raster.rds', out.dir), object = true.rast)
-
+  
 
   ## now the surface simulation is done and all we need to do is simulate the data
 
@@ -403,10 +441,10 @@ sim.realistic.data <- function(reg,
   ## simulate data from true surface ##
   #####################################
 
-  message('\n\nSIMULATE DATA\n\n')
+  message('SIMULATE DATA\n')
   
   ## randomly (for now) select data boservation locations across time
-
+  
   ## to do this, we sample, with replacement, from the lat-longs that we used to sim the GP
   if(obs.loc.strat == 'rand'){ ## select locations totally at random
     sim.rows <- sample(x = 1:nrow(pix.pts.numeric), prob = pix.pts.numeric[, 1],
@@ -414,18 +452,18 @@ sim.realistic.data <- function(reg,
   } else{ ## stratify by "urban"/"rural"
     ## given the % of population you want to be urban, find the population value cutoff
     urban_thresh <- quantile(probs = (1 - urban.pop.pct), na.omit(values(pop_raster)))
-
+    
     ## make a binary urban rural raster and get the lat-longs of the pixels
     u_r_raster <- pop_raster[[1]] ## urban is 1, rural is 0
     u_r_raster[pop_raster[[1]] < urban_thresh] <- 0
     u_r_raster[pop_raster[[1]] >= urban_thresh] <- 1
-
+    
     ## convert pixels to a data frame
     u_r.pts <- rasterToPoints(u_r_raster, spatial = TRUE)
     u_r.pts@data <- data.frame(u_r.pts@data, long=coordinates(u_r.pts)[,1],
                                lat=coordinates(u_r.pts)[,2])
     u_r.pts.numeric <- as.data.frame(u_r.pts@data)
-
+    
     ## sample stratified locations
     u.rows <- sample(x = which(u_r.pts.numeric[, 1] == 1), size = round(n.clust * urban.strat.pct),
                      replace = TRUE)
@@ -433,84 +471,97 @@ sim.realistic.data <- function(reg,
                      replace = TRUE)
     sim.rows <- c(u.rows, r.rows)
   }
-
+  
   ## generate a table of simulated data at the selected locations
   sim.dat <- as.data.table(pix.pts.numeric[, -1])
   sim.dat <- sim.dat[sim.rows, ]
-
+  
   ## add in years
   sim.dat[, year := rep(year_list, each = n.clust)]
-
+  
   ## extract the value of the true surface at data locations
-  true_p_logit<- numeric(nrow(sim.dat))
+  true_p_logit <- numeric(nrow(sim.dat))
   for(yy in unique(year_list)){
     true_p_logit[which(sim.dat[, year] == yy)] <- raster::extract(x = true.rast[[ which(year_list %in% yy) ]],
                                                                   y = sim.dat[year == yy, .(long, lat)])
   }
-  sim.dat[, p_true := inv.logit(true_p_logit)]
-
-  ## add in cluster sample size
+  
+  ## sim sample size of observations
   sim.dat[, N := rpois(n = nrow(sim.dat), lambda = m.clust)]
-
-  ## and now we simulate binomial observations from the true surface
-  sim.dat[, Y := rbinom(n = nrow(sim.dat), size = sim.dat[, N], prob = sim.dat[, p_true])]
-
-  ## and get empirical p_obs
-  sim.dat[, p_obs := Y / N]
-
-  ## lastly, we tag on weight. TODO flesh out weighting options
-  sim.dat[, weight := 1]
+  
+  if(data.lik == 'binom'){
+    sim.dat[, p_true := inv.logit(true_p_logit)]
+    
+    ## and now we simulate binomial observations from the true surface
+    sim.dat[, Y := rbinom(n = nrow(sim.dat), size = sim.dat[, N], prob = sim.dat[, p_true])]
+    
+    ## and get empirical p_obs
+    sim.dat[, p_obs := Y / N]
+    
+    ## lastly, we tag on weight. TODO flesh out weighting options
+    sim.dat[, weight := 1]
+  }else if(data.lik == 'normal'){
+    sim.dat[, p_true := true_p_logit] ## no link to transform
+    
+    ## and now we simulate binomial observations from the true surface
+    sim.dat[, Y := apply(.SD, 1, function(x) mean(rnorm(n = x[1], mean = x[2], sd = sd.norm))), .SDcols = c('N', 'p_true')]
+    
+    ## and get empirical p_obs
+    sim.dat[, p_obs := Y]
+    
+    ## lastly, we tag on weight. TODO flesh out weighting options
+  }
   
   ## now we just finish by making some convenience objects and saving everything
-
+  
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-  ############################################################################################
+  
+  ## #########################################################################################
   ## for convenience, we also extract covariate values to the same df (and the true gp val) ##
-  ############################################################################################
-
-  message('\n\nPREPARE AND SAVE OBJECTS\n\n')
-
+  ## ##########################################################################################
+  
+  message('PREPARE AND SAVE OBJECTS\n')
+  
   cov.mat <- matrix(ncol = length(cov_layers),
                     nrow = nrow(sim.dat))
   for( cc in 1:length(cov_layers) ){
     tmp <- numeric(nrow(sim.dat))
-
-    if(dim(cov_layers[[cc]])[3] > 1){
+    
+    if(dim(cov_layers[[cc]])[3] > 1){ ## check for time-varying
       for(ll in 1:dim(cov_layers[[cc]])[3]){
         tmp[which(sim.dat[, year] == year_list[ll])] <- raster::extract(x = cov_layers[[cc]],
                                                                         y = sim.dat[year == year_list[ll], .(long, lat)],
                                                                         layer = ll)[, 1]
       }
-    } else{
+    } else{ ## space only rasters
       tmp <- raster::extract(x = cov_layers[[cc]], y = sim.dat[, .(long, lat)])
     }
-
+    
     cov.mat[, cc] <- tmp  
   }
   cov.mat <- as.data.table(cov.mat)
   setnames(cov.mat, names(cov_layers))
-
-  #####################################
+  
+  ## ###################################
   ## combine into a single master df ##
-  #####################################
+  ## ###################################
   sim.dat <- cbind(sim.dat, cov.mat)
-
-
-  ###################################
+  
+  
+  ## #################################
   ## save everything we might want ##
-  ###################################
+  ## #################################
   saveRDS(object = sim.dat,
           file = sprintf('%s/simulated_obj/sim_data.rds', out.dir))
-
+  
   saveRDS(object = cov_layers,
           file = sprintf('%s/simulated_obj/cov_gp_rasters.rds', out.dir))
-
+  
   saveRDS(object = reg.mesh,
           file = sprintf('%s/simulated_obj/region_mesh.rds', out.dir))
-
+  
   #########################
   ## return a named list ##
   #########################
