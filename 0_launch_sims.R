@@ -5,7 +5,7 @@
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
-logging_note <- 'no nug and no covs. binom'
+logging_note <- 'no nug and no covs. binom and normal. w/ and w/o bias correct. 250 and 1000 clusters'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -139,7 +139,7 @@ data.lik <- c('binom', 'normal') ## either 'binom' or 'normal'
 sd.norm <- 0.1 ## sd of observations if normal
 
 ## loopvars 25
-bias.correct <- (TRUE, FALSE) ## applies to both INLA and TMB!
+bias.correct <- c(TRUE, FALSE) ## applies to both INLA and TMB!
 
 ## 
 
@@ -219,17 +219,17 @@ for(ii in 1:nrow(loopvars)){
   ## save loopvars to this dir to reload into the parallel env
   saveRDS(file = paste0(out.dir, '/loopvars.rds'), obj = loopvars)
 
-  ## ## save and reload loopvars in parallel env. that way, we only need to pass in iter/row #
-  ## qsub.string <- qsub_sim(iter = ii, ## sets which loopvar to use in parallel
-  ##                         run_date = run_date,
-  ##                         slots = 4, 
-  ##                         codepath = '/homes/azimmer/tmb_transition/realistic_sims/1_run_simulation.R', 
-  ##                         singularity = 'default',
-  ##                         singularity_opts = NULL,
-  ##                         logloc = NULL ## defaults to input/output dir in sim run_date dir
-  ##                         )
+  ## save and reload loopvars in parallel env. that way, we only need to pass in iter/row #
+  qsub.string <- qsub_sim(iter = ii, ## sets which loopvar to use in parallel
+                          run_date = run_date,
+                          slots = 4, 
+                          codepath = '/homes/azimmer/tmb_transition/realistic_sims/1_run_simulation.R', 
+                          singularity = 'default',
+                          singularity_opts = NULL,
+                          logloc = NULL ## defaults to input/output dir in sim run_date dir
+                          )
 
-  ## ## launch the job
+  ## launch the job
   
-  ## system(qsub.string)
+  system(qsub.string)
 }

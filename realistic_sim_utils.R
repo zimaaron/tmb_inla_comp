@@ -17,10 +17,10 @@ qsub_sim <- function(iter, ## if looping through muliple models, used to give di
     stop()
   }
 
-  if(sp.range < 0 | sp.var < 0 | sp.alpha < 0 | nug.var < 0){
-    message('sp range, var, alpha, or nugget var is not positive. fix and rerun!')
-    stop()
-  }
+  ## if(sp.range < 0 | sp.var < 0 | sp.alpha < 0 | nug.var < 0){
+  ##   message('sp range, var, alpha, or nugget var is not positive. fix and rerun!')
+  ##   stop()
+  ## }
 
   ## setup some stuff that I don't think I'll want to change
   proj <- 'proj_geo_nodes'
