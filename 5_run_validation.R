@@ -266,7 +266,7 @@ for(i in 1:nperiods){ ## for s-t
       
       ## pixel scatter
       par(mar = c(4, 4, 2, 2),bty='n')
-      plot(x=as.vector(rinla)[samp],y=as.vector(rtmb)[samp],xlab='R-INLA',ylab='TMB',cex=.01,pch=19,main=paste0('(sub)SCATTER COMPARE: ', thing))
+      plot(x=as.vector(rinla)[samp],y=as.vector(rtmb)[samp],xlab='R-INLA',ylab='TMB',cex=.05,pch=19,main=paste0('(sub)SCATTER COMPARE: ', thing))
       lines(x=zrange,y=zrange,col='red')
 
       ## residual

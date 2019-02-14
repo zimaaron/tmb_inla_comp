@@ -13,8 +13,8 @@
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-par.iter <- 1  ## as.numeric(  commandArgs()[4]) ## all we need is to grab the (parallel) iteration of this run
-## as.character(commandArgs()[5]) ## and the run_date so we know where to load from
+par.iter <- as.numeric(  commandArgs()[4]) ## all we need is to grab the (parallel) iteration of this run
+run_date <- as.character(commandArgs()[5]) ## and the run_date so we know where to load from
 
 #############################################
 ## setup the environment for singularity R ##
@@ -93,7 +93,8 @@ l.tau.pri       <- NULL  ## taken from INLA spde mesh obj
 l.kap.pri       <- NULL  ## taken from INLA spde mesh obj
 Nsim <-  as.numeric(loopvars[par.iter, 22]) ## number of times to repeat simulation
 data.lik <- as.character(loopvars[par.iter, 23])
-sd.norm <-  as.numeric(loopvars[par.iter, 24])
+sd.norm  <-  as.numeric(loopvars[par.iter, 24])
+bias.correct <- as.logical(loopvars[par.iter, 25])
 
 ## TODO? add in some validation options? or maybe just always do them all
 
@@ -378,21 +379,19 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## required for predict
   ## ~~~
 
-  ## get space-time-locs grid to predict onto
-  f_orig <- data.table(cbind(coordinates(simple_raster), t=1))
-  ## add time periods
-  fullsamplespace <- copy(f_orig)
+  ## get space-locs grid to predict onto
+  pcoords <- xyFromCell(simple_raster, which(!is.na(values(simple_raster))))
+
+  ## replicate in time if needed
   if(nperiods > 1){
-    for(p in 2:nperiods){
-      tmp <- f_orig
-      tmp[,t := p]
-      fullsamplespace <- rbind(fullsamplespace,tmp)
-    }
+    pcoords <- do.call(rbind,
+                       replicate(nperiod,
+                                 pcoords,
+                                 simplify = FALSE))
   }
 
-  ## get surface to project on to
-  pcoords <- cbind(x=fullsamplespace$x, y=fullsamplespace$y)
-  groups_periods <- fullsamplespace$t
+  ## get time groupings
+  groups_periods <- rep(1:nperiods, each = nrow(pcoords))
 
   ## use inla helper functions to project the spatial effect.
   A.pred <- inla.spde.make.A(
@@ -420,7 +419,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
 
   cov_vals <- list()
   for(p in 1:nperiods){
-    cov_vals[[p]] <- raster::extract(new_cl[[p]], pcoords[1:(nrow(fullsamplespace)/nperiods),])
+    cov_vals[[p]] <- raster::extract(new_cl[[p]], pcoords[1:(sum(!is.na(values(simple_raster)))/nperiods),])
     cov_vals[[p]] <- (cbind(int = 1, cov_vals[[p]]))
   }
   
@@ -532,8 +531,8 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   fit_time_tmb <- proc.time()[3] - ptm
 
   ## Get standard errors
-  SD0 = TMB::sdreport(obj, getJointPrecision=TRUE)##,
-##                      bias.correct = TRUE,
+  SD0 = TMB::sdreport(obj, getJointPrecision=TRUE,
+                      bias.correct = bias.correct,
 ##                      bias.correct.control = list(sd = TRUE))
   tmb_total_fit_time <- proc.time()[3] - ptm 
   tmb_sdreport_time <-  tmb_total_fit_time - fit_time_tmb
@@ -616,10 +615,8 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                       sd = (apply(pred_tmb, 1, sd)))
   }
     
-  ras_med_tmb  <- rasterFromXYZT(data.table(pcoords,p=summ_tmb[,1],
-                                            t=rep(1:nperiods,each=nrow(pred_tmb)/nperiods)),"p","t")
-  ras_sdv_tmb  <- rasterFromXYZT(data.table(pcoords,p=summ_tmb[,2],
-                                            t=rep(1:nperiods,each=nrow(pred_tmb)/nperiods)),"p","t")
+  ras_med_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 1], ncol = nperiods))
+  ras_sdv_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 2], ncol = nperiods))
 
   saveRDS(file = sprintf('%s/modeling/tmb/outputs/tmb_preds_median_raster_%i.rds', out.dir, iii), object = ras_med_tmb)
   saveRDS(file = sprintf('%s/modeling/tmb/outputs/tmb_preds_stdev_raster_%i.rds', out.dir, iii), object = ras_sdv_tmb)
@@ -698,7 +695,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## ##########
 
   ptm <- proc.time()[3]
-  inla_draws <- inla.posterior.sample(ndraws, res_fit)
+  inla_draws <- inla.posterior.sample(ndraws, res_fit, use.improved.mean = bias.correct)
   inla_get_draws_time <- proc.time()[3] - ptm
 
   ## get parameter names
@@ -748,10 +745,8 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                       sd = (apply(pred_inla, 1, sd)))
   }
     
-  ras_med_inla  <- rasterFromXYZT(data.table(pcoords,p=summ_inla[,1],
-                                            t=rep(1:nperiods,each=nrow(pred_inla)/nperiods)),"p","t")
-  ras_sdv_inla  <- rasterFromXYZT(data.table(pcoords,p=summ_inla[,2],
-                                            t=rep(1:nperiods,each=nrow(pred_inla)/nperiods)),"p","t")
+  ras_med_inla <- insertRaster(simple_raster, matrix(summ_inla[, 1], ncol = nperiods))
+  ras_sdv_inla <- insertRaster(simple_raster, matrix(summ_inla[, 2], ncol = nperiods))
 
   saveRDS(file = sprintf('%s/modeling/inla/outputs/inla_preds_median_raster_%i.rds', out.dir, iii), object = ras_med_inla)
   saveRDS(file = sprintf('%s/modeling/inla/outputs/inla_preds_stdev_raster_%i.rds', out.dir, iii), object = ras_sdv_inla)

@@ -5,7 +5,7 @@
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
-logging_note <- 'no nug and no covs'
+logging_note <- 'no nug and no covs. binom'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -97,7 +97,7 @@ t.rho <-  0.8            ## annual temporal auto-corr
 mesh_s_max_edge <- c("c(0.2,5)")
 
 ## loopvars 13
-n.clust <-  50                   ## clusters PER TIME slice
+n.clust <-  c(250, 1000)         ## clusters PER TIME slice
 
 ## loopvars 14
 m.clust <- 35                    ## mean number of obs per cluster (poisson)
@@ -133,12 +133,15 @@ inla.approx <- 'simplified.laplace' ## can be 'gaussian', 'simplified.laplace' (
 Nsim <- 5 ## number of times to repeat simulation
 
 ## loopvars 23
-data.lik <- 'normal' ## either 'binom' or 'normal'
+data.lik <- c('binom', 'normal') ## either 'binom' or 'normal'
 
 ## loopvars 24
-sd.norm <- 0.1
+sd.norm <- 0.1 ## sd of observations if normal
 
 ## loopvars 25
+bias.correct <- (TRUE, FALSE) ## applies to both INLA and TMB!
+
+## 
 
 ## TODO always add all vars to exand.grid() 
 loopvars <- expand.grid(reg, ## 1
@@ -164,7 +167,8 @@ loopvars <- expand.grid(reg, ## 1
                         inla.approx, 
                         Nsim,
                         data.lik,
-                        sd.norm)
+                        sd.norm,
+                        bias.correct)
 
 
 ## prepare a set of run_dates so we can write the complete loopvars to each run_date dir
