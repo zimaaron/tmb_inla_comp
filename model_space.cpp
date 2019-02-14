@@ -119,9 +119,11 @@ Type objective_function<Type>::operator() ()
 
   // Define objects for derived values
   vector<Type> fe_i(num_i);              // main effect alpha + X_betas %*% t(betas)
-  vector<Type> latent_field_i(num_i);      // Logit estimated prob for each point i
+  vector<Type> latent_field_i(num_i);    // Logit estimated prob for each point i
   vector<Type> epsilon_s(num_s);         // Epsilon_s (array) unlisted into a vector for easier matrix multiplication
   vector<Type> projepsilon_i(num_i);     // value of gmrf at data points
+  // vector<Type> nug_i(num_i);             // value of nugget at data points
+
   
   // evaluate fixed effects for intercept and covs of applicable
   fe_i = X_alpha * Type(0.0); // initialize
