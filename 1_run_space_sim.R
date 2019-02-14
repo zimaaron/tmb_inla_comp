@@ -88,7 +88,7 @@ alphaj.pri      <- eval(parse(text = as.character(loopvars[par.iter, 18]))) ## n
 nug.pri         <- eval(parse(text = as.character(loopvars[par.iter, 19])))  ## gamma for nug preciion with shape and inv-scale ## TODO pass this to INLA and TMB
 inla.int.strat  <- as.character(loopvars[par.iter, 20]) ## can be one of: 'eb', 'ccd', 'grid'
 
-inla.approx     <- as.character(loopvars[par.iter, 21]) ## can be one of: 'eb', 'ccd', 'grid'
+inla.approx     <- as.character(loopvars[par.iter, 21]) ## can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
 l.tau.pri       <- NULL  ## taken from INLA spde mesh obj
 l.kap.pri       <- NULL  ## taken from INLA spde mesh obj
 Nsim <-  as.numeric(loopvars[par.iter, 22]) ## number of times to repeat simulation
@@ -380,7 +380,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
 
   ## get space-time-locs grid to predict onto
   f_orig <- data.table(cbind(coordinates(simple_raster), t=1))
-                                        # add time periods
+  ## add time periods
   fullsamplespace <- copy(f_orig)
   if(nperiods > 1){
     for(p in 2:nperiods){
@@ -504,6 +504,9 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   }else{
     rand_effs <- c(rand_effs, 'nug_i')
   }
+  if(data.lik == 'binom'){
+    ADmap[['log_obs_sigma']] <- factor(NA)
+  }
   
   ## make the autodiff generated liklihood func & gradient
   obj <- MakeADFun(data=data_full,
@@ -556,9 +559,9 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   }
   L <- try(suppressWarnings(Cholesky(SD0$jointPrecision, super = T)), silent = TRUE)
   if(class(L) == "try-error"){
-    message('\nTMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
-    message('\nTMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
-    message('\nTMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
+    message('TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
+    message('TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
+    message('TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
     SD0$jointPrecision <- Matrix(nearPD(SD0$jointPrecision)$mat, sparse = T)
     L <- Cholesky(SD0$jointPrecision, super = T)
   }
