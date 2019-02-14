@@ -94,8 +94,7 @@ nug.var <- NA ## .5 ^ 2        ## nugget variance
 t.rho <-  0.8            ## annual temporal auto-corr
 
 ## loopvars 12
-mesh_s_max_edge <- c("c(0.2,5)",
-                     "c(0.3,5)")
+mesh_s_max_edge <- c("c(0.2,5)")
 
 ## loopvars 13
 n.clust <-  50                   ## clusters PER TIME slice

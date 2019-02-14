@@ -244,7 +244,7 @@ for(i in 1:nperiods){ ## for s-t
       tmp <- subset(dt, period_id==i) ## for s-t
       
       ## rasters: true, tmb, inla, inla - tmb with data locs
-      par(mar = c(0, 0, 1.4, 2),bty='n')
+      par(mar = c(0, 0, 1.4, 4),bty='n')
       maxes <- max(c(as.vector(rtmb), as.vector(rinla), as.vector(true)), na.rm=TRUE)
       mins  <- min(c(as.vector(rtmb), as.vector(rinla), as.vector(true)), na.rm=TRUE)
       zrange <- c(mins, maxes)
@@ -252,12 +252,13 @@ for(i in 1:nperiods){ ## for s-t
         plot(true, maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend=T, legend.width = 3, main=paste0('TRUE ', thing) ,zlim=zrange)
         plot(simple_polygon, add = T)
       }else{
-        plot.new();abline(a = 0, b = 1, lwd = 2);abline(a = 1, b = -1, lwd = 2) ## no true sd surface to plot....
+        plot.new() ## ;abline(a = 0, b = 1, lwd = 2);abline(a = 1, b = -1, lwd = 2) ## no true sd surface to plot....
       }
       plot(rtmb,  maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend.width = 3,
            legend.args=list(text='', side=2, font=1, line=0, cex=0.1), main=paste0('TMB: ', thing), zlim=zrange)
       plot(simple_polygon, add = T)
-      plot(rinla, maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend=FALSE, main=paste0('R-INLA: ', thing), zlim=zrange)
+      plot(rinla, maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend.width = 3,
+           legend.args=list(text='', side=2, font=1, line=0, cex=0.1), main=paste0('R-INLA: ', thing), zlim=zrange)
       plot(simple_polygon, add = T)
       plot(rinla-rtmb, maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend=T,  legend.width = 3, main=paste0('DIFFERENCE: ',thing))
       plot(simple_polygon, add = T)
@@ -289,8 +290,8 @@ layout(matrix(1, 1, 1, byrow = TRUE))
 ## Compare mean and distribution of random effects
 summ_gp_tmb  <- t(cbind((apply(epsilon_tmb_draws,1,quantile,probs=c(.1,.5,.9)))))
 summ_gp_inla <- t(cbind((apply(pred_s,1,quantile,probs=c(.1,.5,.9)))))
-## all time-space random effects
 
+## all time-space random effects
 plot_d <- data.table(tmb_median = summ_gp_tmb[,2],inla_median = summ_gp_inla[,2],
                      tmb_low    = summ_gp_tmb[,1],inla_low    = summ_gp_inla[,1],
                      tmb_up     = summ_gp_tmb[,3],inla_up     = summ_gp_inla[,3])
@@ -302,9 +303,10 @@ if(nrow(plot_d)>2500)
   plot_d <- plot_d[sample(nrow(plot_d),2500,replace=F),]
 
 
-ggplot(plot_d, aes(x=tmb_median,y=inla_median,col=period)) + theme_bw() +
-geom_point() + geom_line(aes(group=loc)) + geom_abline(intercept=0,slope=1,col='red') +
-ggtitle('Posterior Medians of Random Effects at Mesh Nodes, TMB v R-INLA. Connected dots same location different periods. ')
+## ## plot spatial RE differences over time
+## ggplot(plot_d, aes(x=tmb_median,y=inla_median,col=period)) + theme_bw() +
+## geom_point() + geom_line(aes(group=loc)) + geom_abline(intercept=0,slope=1,col='red') +
+## ggtitle('Posterior Medians of Random Effects at Mesh Nodes, TMB v R-INLA. Connected dots same location different periods. ')
 
 ## plot locations where they are different, are they near or far from data?
 plot_d[, absdiff := abs(tmb_median-inla_median)]

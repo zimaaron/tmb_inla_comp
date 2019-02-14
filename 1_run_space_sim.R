@@ -15,7 +15,6 @@
 
 par.iter <- 1  ## as.numeric(  commandArgs()[4]) ## all we need is to grab the (parallel) iteration of this run
 ## as.character(commandArgs()[5]) ## and the run_date so we know where to load from
-run_date <- "2019_02_13_12_51_18"
 
 #############################################
 ## setup the environment for singularity R ##
@@ -155,8 +154,7 @@ pop_raster         <- raster_list[['pop_raster']]
 
 ## make an object with true param values
 true.param.names <- true.param.vals <- c()
-if(!is.null(alpha){
-  
+if(!is.null(alpha)){
 }
 
 true.params <- data.table(param = c('int',
@@ -185,10 +183,10 @@ saveRDS(file = sprintf('%s/simulated_obj/true_param_table.rds', out.dir),
 
 for(iii in 1:Nsim){ ## repeat Nsim times
 
-  ## TODO get this logic working to speed things up...
-  ## if(iii == 1){ ## first time, must load covs, after that, we can reuse them
   
-  sim.obj <- sim.realistic.data(reg = reg,
+  if(iii == 1){ ## first time, must load covs, after that, we can reuse them
+  
+    sim.obj <- sim.realistic.data(reg = reg,
                                   year_list = year_list,
                                   data.lik = data.lik,
                                   sd.norm = sd.norm, 
@@ -211,28 +209,30 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                                   sp.field.sim.strat = 'SPDE', 
                                   seed = NULL)
 
-  ## }else{
-  ##    sim.obj <- sim.realistic.data(reg = reg,
-  ##                                 year_list = year_list,
-  ##                                 betas = betas,
-  ##                                 sp.kappa = sp.kappa,
-  ##                                 sp.alpha = sp.alpha,
-  ##                                 t.rho = t.rho,
-  ##                                 nug.var = nug.var, 
-  ##                                 n.clust = n.clust,
-  ##                                 m.clust = m.clust,
-  ##                                 covs = covs,
-  ##                                 cov_layers = cov_list, ## which is created from each sim.obj after stripping GP from the list. ~line228
-  ##                                 simple_raster = simple_raster,
-  ##                                 simple_polygon = simple_polygon,
-  ##                                 pop_raster = pop_raster, 
-  ##                                 obs.loc.strat = obs.loc.strat,
-  ##                                 urban.pop.pct = urban.pop.pct,
-  ##                                 urban.strat.pct = urban.strat.pct, 
-  ##                                 out.dir = paste(out.dir, iii, sep = '/'),
-  ##                                 sp.field.sim.strat = 'SPDE', 
-  ##                                 seed = NULL)
-  ## }
+  }else{
+     sim.obj <- sim.realistic.data(reg = reg,
+                                   year_list = year_list,
+                                   data.lik = data.lik,
+                                   sd.norm = sd.norm, 
+                                   betas = betas,
+                                   sp.kappa = sp.kappa,
+                                   sp.alpha = sp.alpha,
+                                   t.rho = t.rho,
+                                   nug.var = nug.var, 
+                                   n.clust = n.clust,
+                                   m.clust = m.clust,
+                                   covs = covs,
+                                   cov_layers = cov_list, ## which is created from each sim.obj after stripping GP from the list. ~line243
+                                   simple_raster = simple_raster,
+                                   simple_polygon = simple_polygon,
+                                   pop_raster = pop_raster, 
+                                   obs.loc.strat = obs.loc.strat,
+                                   urban.pop.pct = urban.pop.pct,
+                                   urban.strat.pct = urban.strat.pct, 
+                                   out.dir = paste(out.dir, iii, sep = '/'),
+                                   sp.field.sim.strat = 'SPDE', 
+                                   seed = NULL)
+  }
 
   saveRDS(file = sprintf('%s/simulated_obj/sim_obj_%i.rds', out.dir, iii),
           object = sim.obj)
@@ -244,17 +244,17 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   true.rast <- sim.obj$true.rast
 
   ## save (if desired) this simulated dataset to .../mbg/input_data for mbg pipeline
-  if(save.as.input.data){
-    df <- data.table(longitude = dt$long,
-                     latitude = dt$lat,
-                     year = dt$year,
-                     country = reg,
-                     N = dt$N,
-                     simulation = dt$Y, 
-                     weight = 1)
-    write.csv(file = sprintf('/share/geospatial/mbg/input_data/simulation%s.csv', data.tag),
-              x = df)
-  }
+  ## if(save.as.input.data){
+  ##   df <- data.table(longitude = dt$long,
+  ##                    latitude = dt$lat,
+  ##                    year = dt$year,
+  ##                    country = reg,
+  ##                    N = dt$N,
+  ##                    simulation = dt$Y, 
+  ##                    weight = 1)
+  ##   write.csv(file = sprintf('/share/geospatial/mbg/input_data/simulation%s.csv', data.tag),
+  ##             x = df)
+  ## }
 
 
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -274,60 +274,60 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## load in some real data (if desired) ##
   ## ######################################
 
-  if(use_real_data){
+  ## if(use_real_data){
 
-    reg <- 'sssa'
-    indicator = 'hiv_test'
-    indicator_group = 'hiv'
-    age <- holdout <- test <- 0
-    yearload <- 'annual'
-    withtag <- TRUE
-    datatag <- '_survey'
-    use_share <- 'FALSE'
-    year_list <- 2000:2016
+  ##   reg <- 'sssa'
+  ##   indicator = 'hiv_test'
+  ##   indicator_group = 'hiv'
+  ##   age <- holdout <- test <- 0
+  ##   yearload <- 'annual'
+  ##   withtag <- TRUE
+  ##   datatag <- '_survey'
+  ##   use_share <- 'FALSE'
+  ##   year_list <- 2000:2016
     
-    pathaddin <- paste0('_bin',age,'_',reg,'_',holdout)
+  ##   pathaddin <- paste0('_bin',age,'_',reg,'_',holdout)
 
     
-    ## load in the region shapefile and prep the boundary
-    gaul_list           <- get_gaul_codes(reg)
-    simple_polygon_list <- load_simple_polygon(gaul_list = gaul_list, buffer = 1, tolerance = 0.4, use_premade = T)
-    subset_shape        <- simple_polygon_list[[1]]
-    simple_polygon      <- simple_polygon_list[[2]]
+  ##   ## load in the region shapefile and prep the boundary
+  ##   gaul_list           <- get_gaul_codes(reg)
+  ##   simple_polygon_list <- load_simple_polygon(gaul_list = gaul_list, buffer = 1, tolerance = 0.4, use_premade = T)
+  ##   subset_shape        <- simple_polygon_list[[1]]
+  ##   simple_polygon      <- simple_polygon_list[[2]]
 
-    ## Load list of raster inputs (pop and simple)
-    raster_list        <- build_simple_raster_pop(subset_shape)
-    simple_raster      <- raster_list[['simple_raster']]
-    pop_raster         <- raster_list[['pop_raster']]
+  ##   ## Load list of raster inputs (pop and simple)
+  ##   raster_list        <- build_simple_raster_pop(subset_shape)
+  ##   simple_raster      <- raster_list[['simple_raster']]
+  ##   pop_raster         <- raster_list[['pop_raster']]
 
-    run_date <- make_time_stamp(TRUE)
-    dt <- load_input_data(indicator   = gsub(paste0('_age',age),'',indicator),
-                          simple      = simple_polygon,
-                          agebin      = age,
-                          removeyemen = TRUE,
-                          pathaddin   = pathaddin,
-                          years       = yearload,
-                          withtag     = as.logical(withtag),
-                          datatag     = datatag,
-                          use_share   = as.logical(use_share),
-                          yl          = year_list)
+  ##   run_date <- make_time_stamp(TRUE)
+  ##   dt <- load_input_data(indicator   = gsub(paste0('_age',age),'',indicator),
+  ##                         simple      = simple_polygon,
+  ##                         agebin      = age,
+  ##                         removeyemen = TRUE,
+  ##                         pathaddin   = pathaddin,
+  ##                         years       = yearload,
+  ##                         withtag     = as.logical(withtag),
+  ##                         datatag     = datatag,
+  ##                         use_share   = as.logical(use_share),
+  ##                         yl          = year_list)
 
-    ## just to make sure everything goes smoothly, add in single datapoints to missing years
-    missing.yrs <- setdiff(year_list, unique(dt[, year]))
+  ##   ## just to make sure everything goes smoothly, add in single datapoints to missing years
+  ##   missing.yrs <- setdiff(year_list, unique(dt[, year]))
 
-    if(length(missing.yrs) > 0){
-      for(yy in missing.yrs){
-        new.row <- dt[1, ]
-        new.row[, weight := 0]
-        new.row[, year := yy]
-        dt <- rbind(dt, new.row)
-      }
-    }
+  ##   if(length(missing.yrs) > 0){
+  ##     for(yy in missing.yrs){
+  ##       new.row <- dt[1, ]
+  ##       new.row[, weight := 0]
+  ##       new.row[, year := yy]
+  ##       dt <- rbind(dt, new.row)
+  ##     }
+  ##   }
     
 
-    dt[, Y:= hiv_test]
+  ##   dt[, Y:= hiv_test]
 
-  }
+  ## }
 
 
   ## ############################
