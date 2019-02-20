@@ -5,7 +5,7 @@
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
-logging_note <- 'no nug and no covs. binom and normal. w/ and w/o bias correct. 250 and 1000 clusters'
+logging_note <- 'no nug and no covs. binom and normal. w/ bias correct. 1000 clusters'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -50,7 +50,7 @@ close(fileConn)
 setwd(tmb_repo)
 if(pull_tmb_git) system(sprintf('cd %s\ngit pull %s %s', core_repo, remote, branch))
 source('./realistic_sim_utils.R')
-
+sw
 ###############################
 ## setup things to loop over ##
 ###############################
@@ -97,7 +97,7 @@ t.rho <-  0.8            ## annual temporal auto-corr
 mesh_s_max_edge <- c("c(0.2,5)")
 
 ## loopvars 13
-n.clust <-  c(250, 1000)         ## clusters PER TIME slice
+n.clust <-  c(1000)         ## clusters PER TIME slice
 
 ## loopvars 14
 m.clust <- 35                    ## mean number of obs per cluster (poisson)
@@ -139,7 +139,7 @@ data.lik <- c('binom', 'normal') ## either 'binom' or 'normal'
 sd.norm <- 0.1 ## sd of observations if normal
 
 ## loopvars 25
-bias.correct <- c(TRUE, FALSE) ## applies to both INLA and TMB!
+bias.correct <- c(TRUE) ## applies to both INLA and TMB!
 
 ## 
 
@@ -207,9 +207,9 @@ for(ii in 1:nrow(loopvars)){
 
   ## now we can setup our main directory to save these results and log our note and stdouts
   out.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', run_date)
-  dir.create(out.dir)
-  dir.create(paste0(out.dir, '/errors'))
-  dir.create(paste0(out.dir, '/output'))
+  dir.create(out.dir, showWarnings = F)
+  dir.create(paste0(out.dir, '/errors'), showWarnings = F)
+  dir.create(paste0(out.dir, '/output'), showWarnings = F)
   
   ## write the log note
   fileConn <- file(sprintf("%s/run_notes.txt", out.dir))

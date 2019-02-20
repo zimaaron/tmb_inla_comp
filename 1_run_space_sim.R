@@ -243,6 +243,10 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   true.gp <- covs.gp[['gp']]
   cov_list <- covs.gp[!grepl('gp',names(covs.gp))]
   true.rast <- sim.obj$true.rast
+  if(data.lik == 'binom'){
+    true.rast.p <- true.rast
+    values(true.rast.p) <- plogis(values(true.rast))
+  }
 
   ## save (if desired) this simulated dataset to .../mbg/input_data for mbg pipeline
   ## if(save.as.input.data){
@@ -532,7 +536,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
 
   ## Get standard errors
   SD0 = TMB::sdreport(obj, getJointPrecision=TRUE,
-                      bias.correct = bias.correct,
+                      bias.correct = bias.correct)
 ##                      bias.correct.control = list(sd = TRUE))
   tmb_total_fit_time <- proc.time()[3] - ptm 
   tmb_sdreport_time <-  tmb_total_fit_time - fit_time_tmb
@@ -604,23 +608,31 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## SAVE ##
   ## #######
 
-  ## make some useful files first
-  if(data.lik == 'normal'){
-    summ_tmb <- cbind(median = (apply(pred_tmb, 1, median)),
-                    sd = (apply(pred_tmb, 1, sd)))
-  }else if(data.lik == 'binom'){
-    ## convert to prev space
-    pred_tmb <- plogis(pred_tmb)
-    summ_tmb <- cbind(median = (apply(pred_tmb, 1, median)),
-                      sd = (apply(pred_tmb, 1, sd)))
-  }
-    
+  ## summarize the latent field
+  summ_tmb <- cbind(median = (apply(pred_tmb, 1, median)),
+                     sd     = (apply(pred_tmb, 1, sd)))
+
   ras_med_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 1], ncol = nperiods))
   ras_sdv_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 2], ncol = nperiods))
 
   saveRDS(file = sprintf('%s/modeling/tmb/outputs/tmb_preds_median_raster_%i.rds', out.dir, iii), object = ras_med_tmb)
   saveRDS(file = sprintf('%s/modeling/tmb/outputs/tmb_preds_stdev_raster_%i.rds', out.dir, iii), object = ras_sdv_tmb)
+  
+  if(data.lik == 'binom'){
+    ## convert to prevalence space and summarize, rasterize, and save again
+    pred_tmb_p <- plogis(pred_tmb)
+    
+    summ_tmb_p <- cbind(median = (apply(pred_tmb_p, 1, median)),
+                         sd     = (apply(pred_tmb_p, 1, sd)))
 
+    ras_med_tmb_p <- insertRaster(simple_raster, matrix(summ_tmb_p[, 1], ncol = nperiods))
+    ras_sdv_tmb_p <- insertRaster(simple_raster, matrix(summ_tmb_p[, 2], ncol = nperiods))
+
+    saveRDS(file = sprintf('%s/modeling/tmb/outputs/tmb_preds_median_raster_PREV_%i.rds', out.dir, iii),
+            object = ras_med_tmb_p)
+    saveRDS(file = sprintf('%s/modeling/tmb/outputs/tmb_preds_stdev_raster_PREV_%i.rds', out.dir, iii),
+            object = ras_sdv_tmb_p)
+  }
 
   ## #######
   ## #######
@@ -735,21 +747,32 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## SAVE ##
   ## #######
 
-  if(data.lik == 'normal'){
-    summ_inla <- cbind(median = (apply(pred_inla, 1, median)),
-                    sd = (apply(pred_inla, 1, sd)))
-  }else if(data.lik == 'binom'){
-    ## convert to prev space
-    pred_inla <- plogis(pred_inla)
-    summ_inla <- cbind(median = (apply(pred_inla, 1, median)),
-                      sd = (apply(pred_inla, 1, sd)))
-  }
-    
+  ## summarize the latent field
+  summ_inla <- cbind(median = (apply(pred_inla, 1, median)),
+                     sd     = (apply(pred_inla, 1, sd)))
+
   ras_med_inla <- insertRaster(simple_raster, matrix(summ_inla[, 1], ncol = nperiods))
   ras_sdv_inla <- insertRaster(simple_raster, matrix(summ_inla[, 2], ncol = nperiods))
 
   saveRDS(file = sprintf('%s/modeling/inla/outputs/inla_preds_median_raster_%i.rds', out.dir, iii), object = ras_med_inla)
   saveRDS(file = sprintf('%s/modeling/inla/outputs/inla_preds_stdev_raster_%i.rds', out.dir, iii), object = ras_sdv_inla)
+  
+  if(data.lik == 'binom'){
+    ## convert to prevalence space and summarize, rasterize, and save again
+    pred_inla_p <- plogis(pred_inla)
+    
+    summ_inla_p <- cbind(median = (apply(pred_inla_p, 1, median)),
+                         sd     = (apply(pred_inla_p, 1, sd)))
+
+    ras_med_inla_p <- insertRaster(simple_raster, matrix(summ_inla_p[, 1], ncol = nperiods))
+    ras_sdv_inla_p <- insertRaster(simple_raster, matrix(summ_inla_p[, 2], ncol = nperiods))
+
+    saveRDS(file = sprintf('%s/modeling/inla/outputs/inla_preds_median_raster_PREV_%i.rds', out.dir, iii),
+            object = ras_med_inla_p)
+    saveRDS(file = sprintf('%s/modeling/inla/outputs/inla_preds_stdev_raster_PREV_%i.rds', out.dir, iii),
+            object = ras_sdv_inla_p)
+  }
+    
 
   ## #############
   ## #############
@@ -766,6 +789,8 @@ for(iii in 1:Nsim){ ## repeat Nsim times
 
 } ## end iii loop repeating iterations over 1:Nsim
 
+
+## TODO summarize INLA and TMB results before writing final table
 write.csv(complete.surface.metrics, sprintf('%s/validation/surface_metrics_complete.csv',out.dir))
 
 

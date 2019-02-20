@@ -25,7 +25,7 @@ qsub_sim <- function(iter, ## if looping through muliple models, used to give di
   ## setup some stuff that I don't think I'll want to change
   proj <- 'proj_geo_nodes'
   node.flag <- '-l geos_node=TRUE'
-  shell <- '/share/code/geosptial/lbd_core/mbg_central/share_scripts/shell_sing.sh'
+  shell <- '/share/code/geospatial/lbd_core/mbg_central/share_scripts/shell_sing.sh'
   sing_image <- get_singularity(image = singularity)
   if(is.null(singularity_opts)) singularity_opts <- list(SET_OMP_THREADS=1, SET_MKL_THREADS=1)
   if(is.null(logloc)) logloc <- sprintf('/homes/azimmer/tmb_inla_sim/%s', run_date)

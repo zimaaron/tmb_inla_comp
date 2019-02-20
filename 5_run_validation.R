@@ -228,17 +228,24 @@ for(i in 1:nperiods){ ## for s-t
     for(thing in c('median','stdev')){ 
       
       if(thing=='median'){
-        rinla <- ras_med_inla[[i]]
-        rtmb  <- ras_med_tmb[[i]]
         if(data.lik == 'binom'){
           true  <- invlogit(true.rast[[i]])
-        }else{
+          rinla <- ras_med_inla_p[[i]]
+          rtmb  <- ras_med_tmb_p[[i]]
+        }else if(data.lik == 'normal'){
           true <- true.rast[[i]]
+          rinla <- ras_med_inla[[i]]
+          rtmb  <- ras_med_tmb[[i]]
         }
       }
       if(thing=='stdev'){
-        rinla <- ras_sdv_inla[[i]]
-        rtmb  <- ras_sdv_tmb[[i]]
+        if(data.lik == 'binom'){
+          rinla <- ras_sdv_inla_p[[i]]
+          rtmb  <- ras_sdv_tmb_p[[i]]
+        }else if(data.lik == 'normal'){
+          rinla <- ras_sdv_inla[[i]]
+          rtmb  <- ras_sdv_tmb[[i]]
+        }
       }
       
       tmp <- subset(dt, period_id==i) ## for s-t
@@ -288,13 +295,13 @@ for(i in 1:nperiods){ ## for s-t
 layout(matrix(1, 1, 1, byrow = TRUE))
 
 ## Compare mean and distribution of random effects
-summ_gp_tmb  <- t(cbind((apply(epsilon_tmb_draws,1,quantile,probs=c(.1,.5,.9)))))
-summ_gp_inla <- t(cbind((apply(pred_s,1,quantile,probs=c(.1,.5,.9)))))
+summ_gp_tmb  <- t(cbind((apply(epsilon_tmb_draws, 1, quantile,probs=c(.1,.5,.9)))))
+summ_gp_inla <- t(cbind((apply(pred_s, 1, quantile,probs=c(.1,.5,.9)))))
 
 ## all time-space random effects
-plot_d <- data.table(tmb_median = summ_gp_tmb[,2],inla_median = summ_gp_inla[,2],
-                     tmb_low    = summ_gp_tmb[,1],inla_low    = summ_gp_inla[,1],
-                     tmb_up     = summ_gp_tmb[,3],inla_up     = summ_gp_inla[,3])
+plot_d <- data.table(tmb_median = summ_gp_tmb[, 2],inla_median = summ_gp_inla[, 2],
+                     tmb_low    = summ_gp_tmb[, 1],inla_low    = summ_gp_inla[, 1],
+                     tmb_up     = summ_gp_tmb[, 3],inla_up     = summ_gp_inla[, 3])
 
 plot_d$period <- factor(rep(1:nperiods, each=nrow(plot_d)/nperiods))
 plot_d$loc    <- rep(1:(nrow(plot_d)/nperiods), rep=nperiods)
@@ -344,41 +351,64 @@ dev.off()
 ## ###############################################
 
 ## there are two types of predictive metrics we might look at:
-##  (i) metrics comparing true surfaces
+##  (i) metrics comparing true surfaces: in latent space and in inv-link space if needed
 ## (ii) metrics comparing data to estimated surfaces
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## (i) compare true surface to fitted surface
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+## NOTE: these are in latent space for all models!
 all.preds <- data.table(rbind(pred_tmb, pred_inla))
 
 ## make a data.table with prediction draws, model type, and truth
 ## NOTE! the truth and the median.fit are in logit-space!
-d <- data.table(truth        = rep(values(true.rast), 2),
-                truth.p      = ilogit(rep(values(true.rast), 2)),
+non.na.idx <- which(!is.na(values(true.rast)))
+d <- data.table(truth        = rep(values(true.rast)[non.na.idx], 2),
                 model        = c(rep('tmb', nrow(pred_tmb)),
                                  rep('inla', nrow(pred_inla))), 
-                median.fit   = apply(all.preds, 1, median),
-                median.p.fit = apply(ilogit(all.preds), 1, median))
-
+                median.fit   = apply(all.preds, 1, median))
 
 ## get some coverage probs
-coverage_probs <- c(50, 80, 95)
+coverage_probs <- c(25, 50, 80, 90, 95)
 for(c in coverage_probs){
   message(paste0('For ',c,'% coverage.'))
-  coverage <- c/100
-  li       <- apply(all.preds, 1, quantile, p=(1-coverage)/2, na.rm=T)
-  ui       <- apply(all.preds, 1, quantile, p=coverage+(1-coverage)/2, na.rm=T)
-  d[,paste0('pixel_covered_',c)] = d[['truth']]>=li & d[['truth']] <= ui
+  coverage <- c / 100
+  li       <- apply(all.preds, 1, quantile, p = (1 - coverage)/2, na.rm=T)
+  ui       <- apply(all.preds, 1, quantile, p = coverage + (1 - coverage) / 2, na.rm=T)
+  d[, paste0('pix.cov.',c)] = d[['truth']] >= li & d[['truth']] <= ui
 }
 
 ## get error and pred var
 d[, error := truth - median.fit]
 d[, var := apply(all.preds, 1, var)]
-d[, error.p := truth.p - median.p.fit]
-d[, var.p := apply(ilogit(all.preds), 1, var)]
 
+if(data.lik == 'binom'){
+  ## NOTE: these are in latent space for all models!
+  all.preds <- data.table(rbind(pred_tmb_p, pred_inla_p))
+
+  ## make a data.table with prediction draws, model type, and truth
+  ## NOTE! the truth and the median.fit are in logit-space!
+  non.na.idx <- which(!is.na(values(true.rast.p)))
+  d[,`:=`(truth.p  = rep(values(true.rast.p)[non.na.idx], 2),
+          model.p  = c(rep('tmb', nrow(pred_tmb_p)),
+                       rep('inla', nrow(pred_inla_p))), 
+          median.fit.p   = apply(all.preds, 1, median))]
+  
+  ## get some coverage probs
+  coverage_probs <- c(25, 50, 80, 90, 95)
+  for(c in coverage_probs){
+    message(paste0('For ',c,'% coverage.'))
+    coverage <- c / 100
+    li       <- apply(all.preds, 1, quantile, p = (1 - coverage)/2, na.rm=T)
+    ui       <- apply(all.preds, 1, quantile, p = coverage + (1 - coverage) / 2, na.rm=T)
+    d[, paste0('p.pix.cov.',c)] = d[['truth.p']] >= li & d[['truth.p']] <= ui
+  }
+
+  ## get error and pred var
+  d[, error.p := truth.p - median.fit.p]
+  d[, var.p := apply(all.preds, 1, var)]
+}
 
 ## summarize metrics across surfaces and models
 
@@ -409,29 +439,38 @@ crpsNormal <- function(truth, my.est, my.var){
   return(res)
 }
 
-surface.metrics <- data.table(cbind(mean_l     = d[, .(truth = mean(truth, na.rm = T)), by = c('model')], 
-                                    mean_lhat  = d[, .(est = mean(median.fit, na.rm = T)), by = c('model')]$est, 
-                                    bias       = d[, .(bias = mean(error, na.rm = T)), by = c('model')]$bias,
-                                    rmse       = d[, .(rmse = sqrt(mean(error ^ 2, na.rm = T))), by = c('model')]$rmse,
-                                    cor        = d[, .(cor = my.cor(truth, median.fit)), by = c('model')]$cor,
-                                    CoV        = d[, .(cov = mean(error / var, na.rm = T)), by = c('model')]$cov,
-                                    crps       = d[, .(crps = mean(crpsNormal(truth, median.fit, var), na.rm = T)), by = c('model')]$crps, 
-                                    mean_p     = d[, .(truth.p = mean(truth.p, na.rm = T)), by = c('model')]$truth.p, 
-                                    mean_phat  = d[, .(est.p = mean(median.p.fit, na.rm = T)), by = c('model')]$est.p, 
-                                    bias_p     = d[, .(bias.p = mean(error.p, na.rm = T)), by = c('model')]$bias.p,
-                                    rmse_p     = d[, .(rmse.p = sqrt(mean(error.p ^ 2, na.rm = T))), by = c('model')]$rmse.p,
-                                    cor_p      = d[, .(cor.p = my.cor(truth.p, median.p.fit)), by = c('model')]$cor.p,
-                                    CoV_p      = d[, .(cov.p = mean(error.p / var.p, na.rm = T)), by = c('model')]$cov.p,
-                                    cov50      = d[, .(cov50 = mean(pixel_covered_50, na.rm = T)), by = c('model')]$cov50,
-                                    cov80      = d[, .(cov80 = mean(pixel_covered_80, na.rm = T)), by = c('model')]$cov80,
-                                    cov95      = d[, .(cov95 = mean(pixel_covered_95, na.rm = T)), by = c('model')]$cov95
+surface.metrics <- data.table(cbind(mean.l      = d[, .(truth = mean(truth, na.rm = T)), by = c('model')], 
+                                    mean.l.est  = d[, .(est = mean(median.fit, na.rm = T)), by = c('model')]$est, 
+                                    bias        = d[, .(bias = mean(error, na.rm = T)), by = c('model')]$bias,
+                                    rmse        = d[, .(rmse = sqrt(mean(error ^ 2, na.rm = T))), by = c('model')]$rmse,
+                                    cor         = d[, .(cor = my.cor(truth, median.fit)), by = c('model')]$cor,
+                                    CoV         = d[, .(cov = mean(error / var, na.rm = T)), by = c('model')]$cov,
+                                    crps        = d[, .(crps = mean(crpsNormal(truth, median.fit, var), na.rm = T)), by = c('model')]$crps,
+                                    cov25       = d[, .(cov25 = mean(pix.cov.25, na.rm = T)), by = c('model')]$cov25,
+                                    cov50       = d[, .(cov50 = mean(pix.cov.50, na.rm = T)), by = c('model')]$cov50,
+                                    cov80       = d[, .(cov80 = mean(pix.cov.80, na.rm = T)), by = c('model')]$cov80,
+                                    cov90       = d[, .(cov90 = mean(pix.cov.90, na.rm = T)), by = c('model')]$cov90,
+                                    cov95       = d[, .(cov95 = mean(pix.cov.95, na.rm = T)), by = c('model')]$cov95))
+
+if(data.lik == 'binom'){
+  surface.metrics.p <- data.table(cbind(
+                                    mean.p      = d[, .(truth.p = mean(truth.p, na.rm = T)), by = c('model')]$truth.p, 
+                                    mean.p.est  = d[, .(est.p = mean(median.fit.p, na.rm = T)), by = c('model')]$est.p, 
+                                    bias.p      = d[, .(bias.p = mean(error.p, na.rm = T)), by = c('model')]$bias.p,
+                                    rmse.p      = d[, .(rmse.p = sqrt(mean(error.p ^ 2, na.rm = T))), by = c('model')]$rmse.p,
+                                    cor.p       = d[, .(cor.p = my.cor(truth.p, median.fit.p)), by = c('model')]$cor.p,
+                                    CoV.p       = d[, .(cov.p = mean(error.p / var.p, na.rm = T)), by = c('model')]$cov.p
                                     ))
+  surface.metrics <- cbind(surface.metrics, surface.metrics.p)
+}
 
-
+## note iteration
 surface.metrics[, iter := iii]
 
+## save
 write.csv(surface.metrics, sprintf('%s/validation/surface_metrics_%i.csv',out.dir, iii))
 
+## append into overall metrics for assessing monte carlo variance of metrics
 if(iii == 1){
   complete.surface.metrics <- surface.metrics
 }else{
