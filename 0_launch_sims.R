@@ -6,6 +6,12 @@
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 'no nug and no covs. binom and normal. w/ bias correct. 1000 clusters'
+
+## make a master run_date to store all these runs in a single location
+main.dir.name     <- NULL ## if NULL, run_date is made, OW uses name given
+
+if(is.null(main.dir.name)) main.dir.name <- make_time_stamp(TRUE)
+print(main.dir.name)
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -50,7 +56,7 @@ close(fileConn)
 setwd(tmb_repo)
 if(pull_tmb_git) system(sprintf('cd %s\ngit pull %s %s', core_repo, remote, branch))
 source('./realistic_sim_utils.R')
-sw
+
 ###############################
 ## setup things to loop over ##
 ###############################
@@ -94,7 +100,7 @@ nug.var <- NA ## .5 ^ 2        ## nugget variance
 t.rho <-  0.8            ## annual temporal auto-corr
 
 ## loopvars 12
-mesh_s_max_edge <- c("c(0.2,5)")
+mesh_s_params <- c("c(0.1, 1 ,5)") ## cutoff, largest allowed triangle edge length inner, and outer
 
 ## loopvars 13
 n.clust <-  c(1000)         ## clusters PER TIME slice
@@ -136,7 +142,7 @@ Nsim <- 5 ## number of times to repeat simulation
 data.lik <- c('binom', 'normal') ## either 'binom' or 'normal'
 
 ## loopvars 24
-sd.norm <- 0.1 ## sd of observations if normal
+norm.var <- 0.1 ## sd of observations if normal
 
 ## loopvars 25
 bias.correct <- c(TRUE) ## applies to both INLA and TMB!
@@ -155,7 +161,7 @@ loopvars <- expand.grid(reg, ## 1
                         sp.alpha,
                         nug.var, ## 10
                         t.rho,
-                        mesh_s_max_edge,
+                        mesh_s_params,
                         n.clust,
                         m.clust,
                         sample.strat, ## 15
@@ -167,61 +173,65 @@ loopvars <- expand.grid(reg, ## 1
                         inla.approx, 
                         Nsim,
                         data.lik,
-                        sd.norm,
+                        norm.var,
                         bias.correct)
 
 
-## prepare a set of run_dates so we can write the complete loopvars to each run_date dir
-all_rds <- make_time_stamp(TRUE)
-if(nrow(loopvars) > 1){
-  for(ii in 2:nrow(loopvars)){
-    split.rd <- strsplit(all_rds[ii - 1], split = '_')[[1]]
-    if(split.rd[6] < 60){
-      split.rd[6] <- as.character(as.numeric(split.rd[6]) + 1)
-      if(as.numeric(split.rd[6]) < 10) split.rd[6] <- paste0('0', split.rd[6])
-    }else if(split.rd[5] < 60){
-      split.rd[5] <- as.character(as.numeric(split.rd[5]) + 1)
-      if(as.numeric(split.rd[5]) < 10) split.rd[5] <- paste0('0', split.rd[5])
-      split.rd[6] <- '00'
-    }else if(split.rd[4] < 24){
-      split.rd[4] <- as.character(as.numeric(split.rd[4]) + 1)
-      if(as.numeric(split.rd[4]) < 10) split.rd[4] <- paste0('0', split.rd[4])
-      split.rd[5] <- '00'
-      split.rd[6] <- '00'
-    }else {
-      split.rd[3] <- split.rd[3] + 1
-      split.rd[4] <- '00'
-      split.rd[5] <- '00'
-      split.rd[6] <- '00'
-    }
-    all_rds <- c(all_rds, paste(split.rd, sep='', collapse='_'))
-  }
-}
 
-loopvars$run_date <- all_rds ## keep track of run_dates to later compare runs
+
+## loopvars$master.dir            <- main.dir 
+
+## ## prepare a set of run_dates so we can write the complete loopvars to each run_date dir
+## all_rds <- make_time_stamp(TRUE)
+## if(nrow(loopvars) > 1){
+##   for(ii in 2:nrow(loopvars)){
+##     split.rd <- strsplit(all_rds[ii - 1], split = '_')[[1]]
+##     if(split.rd[6] < 60){
+##       split.rd[6] <- as.character(as.numeric(split.rd[6]) + 1)
+##       if(as.numeric(split.rd[6]) < 10) split.rd[6] <- paste0('0', split.rd[6])
+##     }else if(split.rd[5] < 60){
+##       split.rd[5] <- as.character(as.numeric(split.rd[5]) + 1)
+##       if(as.numeric(split.rd[5]) < 10) split.rd[5] <- paste0('0', split.rd[5])
+##       split.rd[6] <- '00'
+##     }else if(split.rd[4] < 24){
+##       split.rd[4] <- as.character(as.numeric(split.rd[4]) + 1)
+##       if(as.numeric(split.rd[4]) < 10) split.rd[4] <- paste0('0', split.rd[4])
+##       split.rd[5] <- '00'
+##       split.rd[6] <- '00'
+##     }else {
+##       split.rd[3] <- split.rd[3] + 1
+##       split.rd[4] <- '00'
+##       split.rd[5] <- '00'
+##       split.rd[6] <- '00'
+##     }
+##     all_rds <- c(all_rds, paste(split.rd, sep='', collapse='_'))
+##   }
+## }
+
+## loopvars$rd <- all_rds ## keep track of run_dates to later compare runs
 
 for(ii in 1:nrow(loopvars)){
 
   ## make a run_date and setup output directory
-  run_date <- loopvars$run_date[ii]
+  ## run_date <- loopvars$rd[ii]
 
   ## now we can setup our main directory to save these results and log our note and stdouts
-  out.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', run_date)
-  dir.create(out.dir, showWarnings = F)
-  dir.create(paste0(out.dir, '/errors'), showWarnings = F)
-  dir.create(paste0(out.dir, '/output'), showWarnings = F)
+  main.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', main.dir.name)
+  dir.create(main.dir, showWarnings = F, recursive = TRUE)
+  dir.create(paste(main.dir, ii, 'errors', sep = '/'), showWarnings = F, recursive = TRUE)
+  dir.create(paste(main.dir, ii, 'output', sep = '/'), showWarnings = F, recursive = TRUE)
   
   ## write the log note
-  fileConn <- file(sprintf("%s/run_notes.txt", out.dir))
+  fileConn <- file(sprintf("%s/run_notes.txt", main.dir))
   writeLines(logging_note, fileConn)
   close(fileConn)
 
   ## save loopvars to this dir to reload into the parallel env
-  saveRDS(file = paste0(out.dir, '/loopvars.rds'), obj = loopvars)
+  write.csv(file = paste0(main.dir, '/loopvars.csv'), x = loopvars, row.names = FALSE)
 
   ## save and reload loopvars in parallel env. that way, we only need to pass in iter/row #
   qsub.string <- qsub_sim(iter = ii, ## sets which loopvar to use in parallel
-                          run_date = run_date,
+                          main.dir = main.dir.name,
                           slots = 4, 
                           codepath = '/homes/azimmer/tmb_transition/realistic_sims/1_run_simulation.R', 
                           singularity = 'default',

@@ -13,11 +13,12 @@ dir.create(sprintf('%s/validation', out.dir))
 ## 1) summarize fitted param values ##
 ## ###################################
 
+## make a dt for comparing results and store some relevant computing and mesh params
 res <- data.table(st_mesh_nodes = rep(nrow(epsilon_tmb_draws),2))
-res[,cores           := rep(cores,2)]
-res[,s_mesh_max_edge := rep(eval(parse(text = mesh_s_max_edge))[1],2)]
-res[,periods         := c(nperiods,nperiods)]
-res[,draws           := c(ndraws,ndraws)]
+res[, cores           := rep(cores,2)]
+res[, s_mesh_max_edge := rep(eval(parse(text = mesh_s_max_edge))[2],2)]
+res[, s_mesh_cutoff   := rep(eval(parse(text = mesh_s_max_edge))[1],2)]
+res[, draws           := c(ndraws,ndraws)]
 
 ## time variables
 res[,fit_time  := c(fit_time_inla,fit_time_tmb)]
@@ -26,14 +27,23 @@ res[,pt_tmb_sdreport_time := c(NA,tmb_sdreport_time)]
 res[,pt_get_draws_time := c(inla_get_draws_time,tmb_get_draws_time)]
 
 ## fe coefficients
-for(i in 1:length(res_fit$names.fixed)){
-  fn <- res_fit$names.fixed[i]
-  res[[paste0('fixedeff_',fn,'_mean')]] <- c(res_fit$summary.fixed$mean[i], SD0$par.fixed[i])
-  res[[paste0('fixedeff_',fn,'_sd')]]   <- c(res_fit$summary.fixed$sd[i], sqrt(SD0$cov.fixed[i,i]))
+if(!is.null(alpha) | !is.null(betas)){
+  res[, paste0('fe_',res_fit$names.fixed,'_mean') := rbind(res_fit$summary.fixed$mean, SD0$par.fixed[1:length(res_fit$names.fixed)])]
+  res[, paste0('fe_',res_fit$names.fixed,'_sd')   := rbind(res_fit$summary.fixed$sd, sqrt(diag(SD0$cov.fixed))[1:length(res_fit$names.fixed)])]
+}
+
+## nugget
+if(!is.null()){
+  ## TODO  
+}
+
+## normal var
+if(!is.null()){
+  ## TODO  
 }
 
 ## hyperparameters
-res[,hyperpar_logtau_mean := c(res_fit$summary.hyperpar[1,1], SD0$par.fixed['log_tau']) ]
+res[,hyperpar_logtau_mean := unname(c(res_fit$summary.hyperpar[1,1], SD0$par.fixed['log_tau']))]
 res[,hyperpar_logtau_sd := c(res_fit$summary.hyperpar[1,2], sqrt(SD0$cov.fixed['log_tau','log_tau'])) ]
 
 res[,hyperpar_logkappa_mean := c(res_fit$summary.hyperpar[2,1], SD0$par.fixed['log_kappa']) ]
@@ -42,7 +52,8 @@ res[,hyperpar_logkappa_sd := c(res_fit$summary.hyperpar[2,2], sqrt(SD0$cov.fixed
 ## res[,hyperpar_rho_mean := c(res_fit$summary.hyperpar[3,1], SD0$par.fixed['trho']) ]
 ## res[,hyperpar_rho_sd := c(res_fit$summary.hyperpar[3,2], sqrt(SD0$cov.fixed['trho','trho'])) ]
 
-## truth
+## combine with the truth
+## TODO
 res.true.params <- c(rep(NA, 9),
                      alpha, NA, ## intercept
                      c(rbind(betas, rep(NA, length(betas)))), ## fixed effect coefs

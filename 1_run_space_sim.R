@@ -13,8 +13,8 @@
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-par.iter <- as.numeric(  commandArgs()[4]) ## all we need is to grab the (parallel) iteration of this run
-run_date <- as.character(commandArgs()[5]) ## and the run_date so we know where to load from
+par.iter      <- as.numeric(  commandArgs()[4]) ## all we need is to grab the (parallel) iteration of this run
+main.dir.name <- as.character(commandArgs()[5]) ## and the main directory for all experiments in this run so we know where to load from
 
 #############################################
 ## setup the environment for singularity R ##
@@ -58,8 +58,9 @@ source('./realistic_sim_utils.R')
 ############################################################################
 ## load in the loopvars from launch and setup all the params for this job ##
 ############################################################################
-out.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', run_date)
-loopvars <- readRDS(file = paste0(out.dir, '/loopvars.rds'))
+main.dir <- sprintf('/homes/azimmer/tmb_inla_sim/%s', main.dir.name)
+out.dir  <- sprintf('%s/%i', main.dir, par.iter)
+loopvars <- read.csv(file = paste0(main.dir, '/loopvars.csv'))
 
 reg             <- as.character(loopvars[par.iter, 1])
 year_list       <- eval(parse(text = loopvars[par.iter, 2]))
@@ -74,7 +75,7 @@ sp.alpha        <- as.numeric(loopvars[par.iter, 9])
 nug.var         <- as.numeric(loopvars[par.iter, 10]);if(is.na(nug.var)) nug.var <- NULL
 
 t.rho           <- as.numeric(loopvars[par.iter, 11])
-mesh_s_max_edge <- as.character(loopvars[par.iter, 12])
+mesh_s_params   <- as.character(loopvars[par.iter, 12])
 n.clust         <- as.numeric(loopvars[par.iter, 13])
 m.clust         <- as.numeric(loopvars[par.iter, 14])
 sample.strat    <- eval(parse(text = as.character(loopvars[par.iter, 15])))
@@ -93,11 +94,31 @@ l.tau.pri       <- NULL  ## taken from INLA spde mesh obj
 l.kap.pri       <- NULL  ## taken from INLA spde mesh obj
 Nsim <-  as.numeric(loopvars[par.iter, 22]) ## number of times to repeat simulation
 data.lik <- as.character(loopvars[par.iter, 23])
-sd.norm  <-  as.numeric(loopvars[par.iter, 24])
+norm.var  <-  as.numeric(loopvars[par.iter, 24])
 bias.correct <- as.logical(loopvars[par.iter, 25])
+
 
 ## TODO? add in some validation options? or maybe just always do them all
 
+## make a vector of all possible params to use throughout (mostly in validation)
+true.params <- data.table(param = c('int',
+                                    cov_names,
+                                    'sp gp range',
+                                    'sp gp var',
+                                    'nug var',
+                                    'norm obs var'
+                                    ),
+                          truth = c(ifelse(is.null(alpha), NA, alpha),
+                                    switch(2 - is.null(betas), rep(NA, length(cov_names)), betas),
+                                    sp.range,
+                                    sp.var,
+                                    ifelse(is.null(nug.var), NA, nug.var),
+                                    ifelse(data.lik == 'normal', norm.var, NA)
+                                    )
+                          )
+
+write.csv(file = sprintf('%s/simulated_obj/true_param_table.csv', out.dir),
+          x = true.params, row.names = FALSE)
 
 ## from these imputs, make a table of covariate names and measures
 covs <- data.table(name = cov_names, meas = cov_measures)
@@ -151,33 +172,6 @@ pop_raster         <- raster_list[['pop_raster']]
 ## simulate data ##
 ###################
 
-##TODO fix up truths now that things can be shut off... (betas, alpha, covs, ...)
-
-## make an object with true param values
-true.param.names <- true.param.vals <- c()
-if(!is.null(alpha)){
-}
-
-true.params <- data.table(param = c('int',
-                                    cov_names,
-                                    'nom. range',
-                                    'nom. var',
-                                    'time rho'
-                                    ),
-                          truth = c(alpha,
-                                    betas,
-                                    sp.range,
-                                    sp.var,
-                                    t.rho))
-
-## true.par.vec <- c(alpha, betas, logtau, logkappa, trho_trans)
-## names(true.par.vec) <- c(rep('alpha_j', length(betas) + 1), 'logtau', 'logkappa', 'trho_trans')
-## if(length(year_list) == 1) true.par.vec <- true.par.vec[-length(true.par.vec)]
-
-saveRDS(file = sprintf('%s/simulated_obj/true_param_table.rds', out.dir),
-        object = true.params)
-
-
 ###########
 ###########
 ###########
@@ -190,7 +184,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
     sim.obj <- sim.realistic.data(reg = reg,
                                   year_list = year_list,
                                   data.lik = data.lik,
-                                  sd.norm = sd.norm, 
+                                  sd.norm = sqrt(norm.var), 
                                   betas = betas,
                                   sp.kappa = sp.kappa,
                                   sp.alpha = sp.alpha,
@@ -214,7 +208,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
      sim.obj <- sim.realistic.data(reg = reg,
                                    year_list = year_list,
                                    data.lik = data.lik,
-                                   sd.norm = sd.norm, 
+                                   sd.norm = sqrt(norm.var),
                                    betas = betas,
                                    sp.kappa = sp.kappa,
                                    sp.alpha = sp.alpha,
@@ -238,6 +232,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   saveRDS(file = sprintf('%s/simulated_obj/sim_obj_%i.rds', out.dir, iii),
           object = sim.obj)
 
+  ## process parts of the returned sim obj list into pieces we need for model fitting
   dt <- sim.obj$sim.dat ## simulated data, lat-long, year, covs, true surface
   covs.gp <- sim.obj$cov.gp.rasters   ## rasters of covs and true simulated gp field
   true.gp <- covs.gp[['gp']]
@@ -343,22 +338,37 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## required for model fit
   ## ~~~
 
+  ## setup space time data locs
   dt[, id := 1:.N]
   dt[, period_id := as.numeric(as.factor(dt[, year]))]
-  dt.coords <- cbind(dt$long, dt$lat)
+  dt.coords <- as.matrix(dt[, .(long, lat)])
   dt.pers   <- dt[, period_id]
   nperiods  <- length(year_list)
 
-  ## Build spatial mesh over modeling area
-  mesh_s <- build_space_mesh(d           = dt,
-                             simple      = simple_polygon,
-                             max_edge    = mesh_s_max_edge,
-                             mesh_offset = "c(1, 5)")
+  ## get triangulation params 
+  mesh.params    <- eval(parse(text=mesh_s_params))
+  cutoff   <- mesh.params[1]
+  max.edge <- mesh.params[-1]
+  mesh.offset <- c(-0.05, -0.05)
+
+  ## use both data locs and the simple polygon boundary 
+  boundary <- inla.sp2segment(simple_polygon)
+  boundary.loc <- cbind(boundary$loc[, 1], boundary$loc[, 2])
+  mesh.loc <- rbind(dt.coords, boundary.loc)
+
+  ## make triangulation
+  mesh_s <- inla.mesh.2d(
+    loc = mesh.loc,
+    max.edge = max.edge,
+    offset = mesh.offset,
+    cutoff = cutoff
+  )
 
   pdf(sprintf('%s/modeling/inputs/mesh_%i.pdf', out.dir, iii))
   plot(mesh_s)
   plot(simple_raster, add = TRUE) ## just to show loc of simple_raster under mesh for scale
   plot(mesh_s, add = TRUE)
+  points(all.loc, col = 'red', pch = '.')
   dev.off()
 
   nodes <- mesh_s$n ## get number of mesh nodes
@@ -537,7 +547,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## Get standard errors
   SD0 = TMB::sdreport(obj, getJointPrecision=TRUE,
                       bias.correct = bias.correct)
-##                      bias.correct.control = list(sd = TRUE))
+##                      bias.correct.control = list(sd = TRUE)) ## TODO
   tmb_total_fit_time <- proc.time()[3] - ptm 
   tmb_sdreport_time <-  tmb_total_fit_time - fit_time_tmb
 
@@ -561,7 +571,9 @@ for(iii in 1:Nsim){ ## repeat Nsim times
     mu + z
   }
   L <- try(suppressWarnings(Cholesky(SD0$jointPrecision, super = T)), silent = TRUE)
+  tmb.prec.pd <- TRUE
   if(class(L) == "try-error"){
+    tmb.prec.pd <- FAL
     message('TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
     message('TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
     message('TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
@@ -858,6 +870,4 @@ write.csv(complete.surface.metrics, sprintf('%s/validation/surface_metrics_compl
 ## dev.off()
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
 
