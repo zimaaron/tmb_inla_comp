@@ -9,9 +9,6 @@ logging_note <- 'no nug and no covs. binom and normal. w/ bias correct. 1000 clu
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name     <- NULL ## if NULL, run_date is made, OW uses name given
-
-if(is.null(main.dir.name)) main.dir.name <- make_time_stamp(TRUE)
-print(main.dir.name)
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -56,6 +53,10 @@ close(fileConn)
 setwd(tmb_repo)
 if(pull_tmb_git) system(sprintf('cd %s\ngit pull %s %s', core_repo, remote, branch))
 source('./realistic_sim_utils.R')
+
+## name overall directory with run_date if it is not named
+if(is.null(main.dir.name)) main.dir.name <- make_time_stamp(TRUE)
+print(main.dir.name)
 
 ###############################
 ## setup things to loop over ##
@@ -218,8 +219,8 @@ for(ii in 1:nrow(loopvars)){
   ## now we can setup our main directory to save these results and log our note and stdouts
   main.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', main.dir.name)
   dir.create(main.dir, showWarnings = F, recursive = TRUE)
-  dir.create(paste(main.dir, ii, 'errors', sep = '/'), showWarnings = F, recursive = TRUE)
-  dir.create(paste(main.dir, ii, 'output', sep = '/'), showWarnings = F, recursive = TRUE)
+  dir.create(paste(main.dir, ii, 'logs/errors', sep = '/'), showWarnings = F, recursive = TRUE)
+  dir.create(paste(main.dir, ii, 'logs/output', sep = '/'), showWarnings = F, recursive = TRUE)
   
   ## write the log note
   fileConn <- file(sprintf("%s/run_notes.txt", main.dir))

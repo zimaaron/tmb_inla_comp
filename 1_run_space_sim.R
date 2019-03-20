@@ -62,6 +62,19 @@ main.dir <- sprintf('/homes/azimmer/tmb_inla_sim/%s', main.dir.name)
 out.dir  <- sprintf('%s/%i', main.dir, par.iter)
 loopvars <- read.csv(file = paste0(main.dir, '/loopvars.csv'))
 
+## create a directory for some common objects that can be shared by all experiments launched
+common.dir <- sprintf('/homes/azimmer/tmb_inla_sim/%s/common/', main.dir.name)
+dir.create(common.dir, recursive = TRUE)
+
+
+## create some directories for output organization
+dir.create(sprintf('%s/simulated_obj', out.dir), recursive = TRUE, showWarnings = F)
+dir.create(sprintf('%s/modeling/inputs', out.dir), recursive = TRUE, showWarnings = F)
+dir.create(sprintf('%s/modeling/outputs/tmb', out.dir), recursive = TRUE, showWarnings = F)
+dir.create(sprintf('%s/modeling/outputs/inla', out.dir), recursive = TRUE, showWarnings = F)
+dir.create(sprintf('%s/validation', out.dir))
+
+## load in all parameters for this experiment
 reg             <- as.character(loopvars[par.iter, 1])
 year_list       <- eval(parse(text = loopvars[par.iter, 2]))
 cov_names       <- eval(parse(text = as.character(loopvars[par.iter, 3])))
@@ -96,7 +109,6 @@ Nsim <-  as.numeric(loopvars[par.iter, 22]) ## number of times to repeat simulat
 data.lik <- as.character(loopvars[par.iter, 23])
 norm.var  <-  as.numeric(loopvars[par.iter, 24])
 bias.correct <- as.logical(loopvars[par.iter, 25])
-
 
 ## TODO? add in some validation options? or maybe just always do them all
 
@@ -155,18 +167,37 @@ trho_trans <- log((-1 - t.rho) / (t.rho - 1))
 ###########################################
 ## load in region/counry shapes and covs ##
 ###########################################
-dir.create(sprintf('%s/simulated_obj', out.dir), recursive = TRUE)
 
 ## load in the region shapefile and prep the boundary
-gaul_list           <- get_adm0_codes(reg)
-simple_polygon_list <- load_simple_polygon(gaul_list = gaul_list, buffer = 1, tolerance = 0.4, use_premade = T)
-subset_shape        <- simple_polygon_list[[1]]
-simple_polygon      <- simple_polygon_list[[2]]
+if(!file.exists(sprintf('%s/poly_shape.rdata', common.dir))){
+  
+  gaul_list           <- get_adm0_codes(reg)
+  simple_polygon_list <- load_simple_polygon(gaul_list = gaul_list, buffer = 1, tolerance = 0.4, use_premade = T)
+  subset_shape        <- simple_polygon_list[[1]]
+  simple_polygon      <- simple_polygon_list[[2]]
+  rm(simple_polygon_list)
 
-## Load list of raster inputs (pop and simple)
-raster_list        <- build_simple_raster_pop(subset_shape)
-simple_raster      <- raster_list[['simple_raster']]
-pop_raster         <- raster_list[['pop_raster']]
+  ## Load list of raster inputs (pop and simple)
+  raster_list        <- build_simple_raster_pop(subset_shape)
+  simple_raster      <- raster_list[['simple_raster']]
+  pop_raster         <- raster_list[['pop_raster']]
+  rm(raster_list)
+
+  ## save these since they will be common across runs (assuming the geography is fixed)
+  if(par.iter == 1){
+    ## only save from the first one to avoid simultaneously writing to the same file
+    save(gaul_list,
+         subset_shape, 
+         simple_polygon,
+         simple_raster,
+         pop_raster,
+         file = sprintf('%s/poly_shape.rdata', common.dir))
+  }
+  
+}else{
+  message('loading in pre-made simple raster, polygon and population objects')
+  load(sprintf('%s/poly_shape.rdata', common.dir))
+}
 
 ###################
 ## simulate data ##
@@ -180,7 +211,6 @@ for(iii in 1:Nsim){ ## repeat Nsim times
 
   
   if(iii == 1){ ## first time, must load covs, after that, we can reuse them
-  
     sim.obj <- sim.realistic.data(reg = reg,
                                   year_list = year_list,
                                   data.lik = data.lik,
@@ -200,33 +230,34 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                                   obs.loc.strat = obs.loc.strat,
                                   urban.pop.pct = urban.pop.pct,
                                   urban.strat.pct = urban.strat.pct, 
-                                  out.dir = paste(out.dir, iii, sep = '/'),
+                                  out.dir = out.dir,
                                   sp.field.sim.strat = 'SPDE', 
                                   seed = NULL)
 
   }else{
-     sim.obj <- sim.realistic.data(reg = reg,
-                                   year_list = year_list,
-                                   data.lik = data.lik,
-                                   sd.norm = sqrt(norm.var),
-                                   betas = betas,
-                                   sp.kappa = sp.kappa,
-                                   sp.alpha = sp.alpha,
-                                   t.rho = t.rho,
-                                   nug.var = nug.var, 
-                                   n.clust = n.clust,
-                                   m.clust = m.clust,
-                                   covs = covs,
-                                   cov_layers = cov_list, ## which is created from each sim.obj after stripping GP from the list. ~line243
-                                   simple_raster = simple_raster,
-                                   simple_polygon = simple_polygon,
-                                   pop_raster = pop_raster, 
-                                   obs.loc.strat = obs.loc.strat,
-                                   urban.pop.pct = urban.pop.pct,
-                                   urban.strat.pct = urban.strat.pct, 
-                                   out.dir = paste(out.dir, iii, sep = '/'),
-                                   sp.field.sim.strat = 'SPDE', 
-                                   seed = NULL)
+    ## reuse covs
+    sim.obj <- sim.realistic.data(reg = reg,
+                                  year_list = year_list,
+                                  data.lik = data.lik,
+                                  sd.norm = sqrt(norm.var),
+                                  betas = betas,
+                                  sp.kappa = sp.kappa,
+                                  sp.alpha = sp.alpha,
+                                  t.rho = t.rho,
+                                  nug.var = nug.var, 
+                                  n.clust = n.clust,
+                                  m.clust = m.clust,
+                                  covs = covs,
+                                  cov_layers = cov_list, ## which is created from each sim.obj after stripping GP from the list. ~line243
+                                  simple_raster = simple_raster,
+                                  simple_polygon = simple_polygon,
+                                  pop_raster = pop_raster, 
+                                  obs.loc.strat = obs.loc.strat,
+                                  urban.pop.pct = urban.pop.pct,
+                                  urban.strat.pct = urban.strat.pct, 
+                                  out.dir = out.dir,
+                                  sp.field.sim.strat = 'SPDE', 
+                                  seed = NULL)
   }
 
   saveRDS(file = sprintf('%s/simulated_obj/sim_obj_%i.rds', out.dir, iii),
@@ -266,9 +297,6 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## setup for tmb and INLA modeling ##
   ## ##################################
   ## ##################################
-  dir.create(sprintf('%s/modeling/inputs', out.dir), recursive = TRUE, showWarnings = F)
-  dir.create(sprintf('%s/modeling/tmb/outputs', out.dir), recursive = TRUE, showWarnings = F)
-  dir.create(sprintf('%s/modeling/inla/outputs', out.dir), recursive = TRUE, showWarnings = F)
 
   ## ######################################
   ## load in some real data (if desired) ##
@@ -368,7 +396,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   plot(mesh_s)
   plot(simple_raster, add = TRUE) ## just to show loc of simple_raster under mesh for scale
   plot(mesh_s, add = TRUE)
-  points(all.loc, col = 'red', pch = '.')
+  points(dt.coords, col = 'red', pch = '.')
   dev.off()
 
   nodes <- mesh_s$n ## get number of mesh nodes
@@ -627,8 +655,8 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ras_med_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 1], ncol = nperiods))
   ras_sdv_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 2], ncol = nperiods))
 
-  saveRDS(file = sprintf('%s/modeling/tmb/outputs/tmb_preds_median_raster_%i.rds', out.dir, iii), object = ras_med_tmb)
-  saveRDS(file = sprintf('%s/modeling/tmb/outputs/tmb_preds_stdev_raster_%i.rds', out.dir, iii), object = ras_sdv_tmb)
+  saveRDS(file = sprintf('%s/modeling/outputs/tmb/tmb_preds_median_raster_%i.rds', out.dir, iii), object = ras_med_tmb)
+  saveRDS(file = sprintf('%s/modeling/outputs/tmb/tmb_preds_stdev_raster_%i.rds', out.dir, iii), object = ras_sdv_tmb)
   
   if(data.lik == 'binom'){
     ## convert to prevalence space and summarize, rasterize, and save again
@@ -640,9 +668,9 @@ for(iii in 1:Nsim){ ## repeat Nsim times
     ras_med_tmb_p <- insertRaster(simple_raster, matrix(summ_tmb_p[, 1], ncol = nperiods))
     ras_sdv_tmb_p <- insertRaster(simple_raster, matrix(summ_tmb_p[, 2], ncol = nperiods))
 
-    saveRDS(file = sprintf('%s/modeling/tmb/outputs/tmb_preds_median_raster_PREV_%i.rds', out.dir, iii),
+    saveRDS(file = sprintf('%s/modeling/outputs/tmb/tmb_preds_median_raster_PREV_%i.rds', out.dir, iii),
             object = ras_med_tmb_p)
-    saveRDS(file = sprintf('%s/modeling/tmb/outputs/tmb_preds_stdev_raster_PREV_%i.rds', out.dir, iii),
+    saveRDS(file = sprintf('%s/modeling/outputs/tmb/tmb_preds_stdev_raster_PREV_%i.rds', out.dir, iii),
             object = ras_sdv_tmb_p)
   }
 
@@ -766,8 +794,8 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ras_med_inla <- insertRaster(simple_raster, matrix(summ_inla[, 1], ncol = nperiods))
   ras_sdv_inla <- insertRaster(simple_raster, matrix(summ_inla[, 2], ncol = nperiods))
 
-  saveRDS(file = sprintf('%s/modeling/inla/outputs/inla_preds_median_raster_%i.rds', out.dir, iii), object = ras_med_inla)
-  saveRDS(file = sprintf('%s/modeling/inla/outputs/inla_preds_stdev_raster_%i.rds', out.dir, iii), object = ras_sdv_inla)
+  saveRDS(file = sprintf('%s/modeling/outputs/inla/inla_preds_median_raster_%i.rds', out.dir, iii), object = ras_med_inla)
+  saveRDS(file = sprintf('%s/modeling/outputs/inla/inla_preds_stdev_raster_%i.rds', out.dir, iii), object = ras_sdv_inla)
   
   if(data.lik == 'binom'){
     ## convert to prevalence space and summarize, rasterize, and save again
@@ -779,9 +807,9 @@ for(iii in 1:Nsim){ ## repeat Nsim times
     ras_med_inla_p <- insertRaster(simple_raster, matrix(summ_inla_p[, 1], ncol = nperiods))
     ras_sdv_inla_p <- insertRaster(simple_raster, matrix(summ_inla_p[, 2], ncol = nperiods))
 
-    saveRDS(file = sprintf('%s/modeling/inla/outputs/inla_preds_median_raster_PREV_%i.rds', out.dir, iii),
+    saveRDS(file = sprintf('%s/modeling/outputs/inla/inla_preds_median_raster_PREV_%i.rds', out.dir, iii),
             object = ras_med_inla_p)
-    saveRDS(file = sprintf('%s/modeling/inla/outputs/inla_preds_stdev_raster_PREV_%i.rds', out.dir, iii),
+    saveRDS(file = sprintf('%s/modeling/outputs/inla/inla_preds_stdev_raster_PREV_%i.rds', out.dir, iii),
             object = ras_sdv_inla_p)
   }
     

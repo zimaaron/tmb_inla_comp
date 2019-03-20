@@ -7,7 +7,6 @@
 ## 1) summarize fitted params
 ## 2) big plots showing difference in fits
 ## 3) calcualte and summarize predictive metrics  
-dir.create(sprintf('%s/validation', out.dir))
 
 ## ###################################
 ## 1) summarize fitted param values ##
@@ -16,8 +15,8 @@ dir.create(sprintf('%s/validation', out.dir))
 ## make a dt for comparing results and store some relevant computing and mesh params
 res <- data.table(st_mesh_nodes = rep(nrow(epsilon_tmb_draws),2))
 res[, cores           := rep(cores,2)]
-res[, s_mesh_max_edge := rep(eval(parse(text = mesh_s_max_edge))[2],2)]
-res[, s_mesh_cutoff   := rep(eval(parse(text = mesh_s_max_edge))[1],2)]
+res[, s_mesh_max_edge := rep(eval(parse(text = mesh_s_params))[2],2)]
+res[, s_mesh_cutoff   := rep(eval(parse(text = mesh_s_params))[1],2)]
 res[, draws           := c(ndraws,ndraws)]
 
 ## time variables
@@ -33,12 +32,13 @@ if(!is.null(alpha) | !is.null(betas)){
 }
 
 ## nugget
-if(!is.null()){
-  ## TODO  
+if(!is.null(nug.var)){
+  ## TODO! this is not currently correct...
+  res[,hyperpar_nug_var:= unname(c(res_fit$summary.hyperpar[1,1], SD0$par.fixed['log_tau']))]
 }
 
 ## normal var
-if(!is.null()){
+if(data.lik == 'normal'{
   ## TODO  
 }
 
@@ -48,9 +48,6 @@ res[,hyperpar_logtau_sd := c(res_fit$summary.hyperpar[1,2], sqrt(SD0$cov.fixed['
 
 res[,hyperpar_logkappa_mean := c(res_fit$summary.hyperpar[2,1], SD0$par.fixed['log_kappa']) ]
 res[,hyperpar_logkappa_sd := c(res_fit$summary.hyperpar[2,2], sqrt(SD0$cov.fixed['log_kappa','log_kappa'])) ]
-
-## res[,hyperpar_rho_mean := c(res_fit$summary.hyperpar[3,1], SD0$par.fixed['trho']) ]
-## res[,hyperpar_rho_sd := c(res_fit$summary.hyperpar[3,2], sqrt(SD0$cov.fixed['trho','trho'])) ]
 
 ## combine with the truth
 ## TODO
