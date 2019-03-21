@@ -116,6 +116,8 @@ Type objective_function<Type>::operator() ()
   Type range = sqrt(8.0) / exp(log_kappa);
   Type sigma = 1.0 / sqrt(4.0 * 3.14159265359 * exp(2.0 * log_tau) * exp(2.0 * log_kappa));
   Type nugget_sigma  = exp(log_nugget_sigma);
+  Type nugget_prec = 1.0 / exp(log_nugget_sigma * 2.0);
+    
 
   // Define objects for derived values
   vector<Type> fe_i(num_i);              // main effect alpha + X_betas %*% t(betas)
@@ -246,8 +248,9 @@ Type objective_function<Type>::operator() ()
   // ADREPORT
   // ~~~~~~~~~~~
   if(options[0] == 1){
-    ADREPORT(betas);
-    ADREPORT(Epsilon_s);
+    // ADREPORT(betas);
+    // ADREPORT(Epsilon_s);
+    ADREPORT(nugget_prec);
   }
 
   return jnll;

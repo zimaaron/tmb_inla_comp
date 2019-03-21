@@ -65,6 +65,9 @@ print(main.dir.name)
 ## NOTES
 ## this list should align with the args in 1_run_simulation.R
 ## NULLs can't be passed this way, so NAs are stand-ins for NULL and this gets fixed in 1_run_space_sim.R
+## NAs passed in can be used to turn things off (e.g. nug.var == NULL) removes the nugget
+## 
+
 
 
 ## loopvars 1
@@ -89,13 +92,13 @@ alpha <- 0
 sp.range <-  sqrt(8)     ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
 
 ## loopvars 8
-sp.var <- 0.5            ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
+sp.var <- 0.5 ^ 2        ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
 
 ## loopvars 9
 sp.alpha <- 2.0          ## matern smoothness = sp.alpha - 1 (for R^2 domain)
 
 ## loopvars 10
-nug.var <- NA ## .5 ^ 2        ## nugget variance
+nug.var <- 0.1 ^ 2       ## nugget variance
 
 ## loopvars 11
 t.rho <-  0.8            ## annual temporal auto-corr
@@ -140,7 +143,7 @@ inla.approx <- 'simplified.laplace' ## can be 'gaussian', 'simplified.laplace' (
 Nsim <- 5 ## number of times to repeat simulation
 
 ## loopvars 23
-data.lik <- c('binom', 'normal') ## either 'binom' or 'normal'
+data.lik <- c('binom') ## either 'binom' or 'normal'
 
 ## loopvars 24
 norm.var <- 0.1 ## sd of observations if normal
@@ -211,24 +214,28 @@ loopvars <- expand.grid(reg, ## 1
 
 ## loopvars$rd <- all_rds ## keep track of run_dates to later compare runs
 
+
+
+## setup the main dir to store all experiments
+main.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', main.dir.name)
+
+## write the log note
+fileConn <- file(sprintf("%s/run_notes.txt", main.dir))
+writeLines(logging_note, fileConn)
+close(fileConn)
+
+## save loopvars to this dir to reload into the parallel env
+write.csv(file = paste0(main.dir, '/loopvars.csv'), x = loopvars, row.names = FALSE)
+
 for(ii in 1:nrow(loopvars)){
 
   ## make a run_date and setup output directory
   ## run_date <- loopvars$rd[ii]
 
   ## now we can setup our main directory to save these results and log our note and stdouts
-  main.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', main.dir.name)
   dir.create(main.dir, showWarnings = F, recursive = TRUE)
   dir.create(paste(main.dir, ii, 'logs/errors', sep = '/'), showWarnings = F, recursive = TRUE)
   dir.create(paste(main.dir, ii, 'logs/output', sep = '/'), showWarnings = F, recursive = TRUE)
-  
-  ## write the log note
-  fileConn <- file(sprintf("%s/run_notes.txt", main.dir))
-  writeLines(logging_note, fileConn)
-  close(fileConn)
-
-  ## save loopvars to this dir to reload into the parallel env
-  write.csv(file = paste0(main.dir, '/loopvars.csv'), x = loopvars, row.names = FALSE)
 
   ## save and reload loopvars in parallel env. that way, we only need to pass in iter/row #
   qsub.string <- qsub_sim(iter = ii, ## sets which loopvar to use in parallel

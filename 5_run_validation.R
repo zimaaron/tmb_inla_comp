@@ -34,20 +34,27 @@ if(!is.null(alpha) | !is.null(betas)){
 ## nugget
 if(!is.null(nug.var)){
   ## TODO! this is not currently correct...
-  res[,hyperpar_nug_var:= unname(c(res_fit$summary.hyperpar[1,1], SD0$par.fixed['log_tau']))]
+  res[,hyperpar_nug_var:= unname(c(res_fit$summary.hyperpar[grep('nug.id',rownames(res_fit$summary.hyperpar)),3],
+                                   SD0$par.fixed['log_nugget_sigma']))]
+  res[,hyperpar_logtau_sd := c(res_fit$summary.hyperpar[grep('nug.id',rownames(res_fit$summary.hyperpar)),2],
+                             sqrt(SD0$cov.fixed['log_nugget_sigma'])) ]
 }
 
 ## normal var
-if(data.lik == 'normal'{
+if(data.lik == 'normal'){
   ## TODO  
 }
 
 ## hyperparameters
-res[,hyperpar_logtau_mean := unname(c(res_fit$summary.hyperpar[1,1], SD0$par.fixed['log_tau']))]
-res[,hyperpar_logtau_sd := c(res_fit$summary.hyperpar[1,2], sqrt(SD0$cov.fixed['log_tau','log_tau'])) ]
+res[,hyperpar_logtau_mean := unname(c(res_fit$summary.hyperpar[grep('Theta1',rownames(res_fit$summary.hyperpar)),1],
+                                      SD0$par.fixed['log_tau']))]
+res[,hyperpar_logtau_sd := c(res_fit$summary.hyperpar[grep('Theta1',rownames(res_fit$summary.hyperpar)),3],
+                             sqrt(SD0$cov.fixed['log_tau','log_tau'])) ]
 
-res[,hyperpar_logkappa_mean := c(res_fit$summary.hyperpar[2,1], SD0$par.fixed['log_kappa']) ]
-res[,hyperpar_logkappa_sd := c(res_fit$summary.hyperpar[2,2], sqrt(SD0$cov.fixed['log_kappa','log_kappa'])) ]
+res[,hyperpar_logkappa_mean := c(res_fit$summary.hyperpar[grep('Theta2',rownames(res_fit$summary.hyperpar)),3],
+                                 SD0$par.fixed['log_kappa']) ]
+res[,hyperpar_logkappa_sd := c(res_fit$summary.hyperpar[grep('Theta2',rownames(res_fit$summary.hyperpar)),2],
+                               sqrt(SD0$cov.fixed['log_kappa','log_kappa'])) ]
 
 ## combine with the truth
 ## TODO
