@@ -99,7 +99,7 @@ urban.strat.pct <- sample.strat[['urban.strat.pct']]
 cores           <- as.numeric(loopvars[par.iter, 16]) 
 ndraws          <- as.numeric(loopvars[par.iter, 17])
 alphaj.pri      <- eval(parse(text = as.character(loopvars[par.iter, 18]))) ## normal mean and sd ## TODO pass this to INLA and TMB
-nug.prec.pri         <- eval(parse(text = as.character(loopvars[par.iter, 19])))  ## gamma for nug preciion with shape and inv-scale ## TODO pass this to INLA and TMB
+nug.prec.pri    <- eval(parse(text = as.character(loopvars[par.iter, 19])))  ## gamma for nug preciion with shape and inv-scale ## TODO pass this to INLA and TMB
 inla.int.strat  <- as.character(loopvars[par.iter, 20]) ## can be one of: 'eb', 'ccd', 'grid'
 
 inla.approx     <- as.character(loopvars[par.iter, 21]) ## can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
@@ -108,7 +108,7 @@ l.kap.pri       <- NULL  ## taken from INLA spde mesh obj
 Nsim <-  as.numeric(loopvars[par.iter, 22]) ## number of times to repeat simulation
 data.lik <- as.character(loopvars[par.iter, 23])
 norm.var  <-  as.numeric(loopvars[par.iter, 24])
-norm.prec.pri  <-  as.character(loopvars[par.iter, 25])
+norm.prec.pri  <-  eval(parse(text = as.character(loopvars[par.iter, 25])))
 
 bias.correct <- as.logical(loopvars[par.iter, 26])
 
@@ -419,6 +419,11 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   saveRDS(file = sprintf('%s/modeling/inputs/mesh_%i.rds', out.dir, iii), mesh_s)
   saveRDS(file = sprintf('%s/modeling/inputs/spde_%i.rds', out.dir, iii), spde)
 
+  ## now that the mesh is made, we can grabb the default priors that it generates
+  mesh.info <- param2.matern.orig(mesh_s)
+  spde.theta1.pri <- c(mesh.info$theta.prior.mean[1], mesh.info$theta.prior.prec[1, 1])
+  spde.theta2.pri <- c(mesh.info$theta.prior.mean[2], mesh.info$theta.prior.prec[2, 2])
+
   ## ~~~
   ## required for predict
   ## ~~~
@@ -511,12 +516,18 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                     Aproj = A.proj,             # Projection matrix
                     options = c(1, ## if 1, run adreport 
                                 1, ## if 1, use priors
-                                ifelse(is.null(alpha), 0, 1), # if 1, run with intercept
-                                ifelse(is.null(betas), 0, 1), # if 1, run with covs
-                                ifelse(is.null(nug.var), 0, 1), # if 1, run with nugget
-                                tmb.lik.dict(data.lik)  # if 0, normal data. if 1, binom data lik
+                                ifelse(is.null(alpha), 0, 1), ## if 1, run with intercept
+                                ifelse(is.null(betas), 0, 1), ## if 1, run with covs
+                                ifelse(is.null(nug.var), 0, 1), ## if 1, run with nugget
+                                tmb.lik.dict(data.lik), ## if 0, normal data. if 1, binom data lik
+                                1 ## use normalization trick?
                                 ),
-                    flag = 1 # normalization flag. if 1, use norm trick
+                    flag = 1 # normalization flag. when 0, prior is returned. when 1 data is included in jnll
+                    norm_prec_pri = norm.prec.pri, ## gamma on log(prec)
+                    nug_prec_pri = nug.prec.pri, ## gamma on log(prec)
+                    alphaj_pri = alphaj.pri, ## normal
+                    logtau_pri = theta1.prior.prec, ## normal logtau
+                    logkappa_pri = theta2.prior.prec ## normal logkappa
                     )
 
   ## Specify starting values for TMB parameters for GP
@@ -560,8 +571,8 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                    DLL=templ)
 
   ## should we use the normalization flag?
-  if(data_full$flag == 1){
-    obj <- normalize(obj, flag="flag"), value = 1
+  if(data_full$options[7] == 1){
+    obj <- normalize(obj, flag="flag", value = 0) ## value: Value of 'flag' that signifies to not include the data term.
   }
 
   ## Run optimizer
@@ -720,7 +731,9 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   formula <- formula(paste('Y ~ -1',
                            ifelse(is.null(alpha), '', ' + int'), 
                            ifelse(is.null(betas), '', paste0(' + ', (paste(inla.covs, collapse = ' + ')))),
-                           ifelse(is.null(nug.var), '', ' + f(nug.id, model = \'iid\')'), 
+                           ifelse(is.null(nug.var), '',
+                                  paste0(' + f(nug.id, model = \'iid\', hyper = list(theta = list(prior = \'loggamma\', param = c(',
+                                         nug.prec.pri[1],', ', nug.prec.pri[2], '))))')), 
                            ' + f(space, model = spde, group = space.group, control.group = list(model = \'ar1\'))',
                            sep = ''))
 
@@ -739,13 +752,19 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                   control.predictor = list(A = inla.stack.A(stack.obs),
                                            ## link = 1, ## removed after looking at NMM
                                            compute = FALSE),
-                  control.fixed = list(expand.factor.strategy = 'inla'),
+                  control.fixed = list(expand.factor.strategy = 'inla',
+                                       prec = list(default = 1 / alphaj.pri[2] ^ 2)),
                   control.inla = list(strategy = inla.approx,
                                       int.strategy = inla.int.strat ##,
                                       ## h = 1e-3, ## removed after looking at NMM
                                       ## tolerance = 1e-6 ## removed after looking at NMM
                                       ),
                   control.compute=list(config = TRUE),
+                  control.family = ifelse(data.lik == 'normal',
+                                          list(hyper = list(prec = list(prior = "loggamma", 
+                                                                        param = norm.prec.pri))),
+                                               list()
+                                               ), 
                   family = inla.lik.dict(data.lik),
                   num.threads = cores, #
                   Ntrials = dt$N,
