@@ -507,7 +507,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                     M1    = spde$param.inla$M1, # SPDE sparse matrix
                     M2    = spde$param.inla$M2, # SPDE sparse matrix
                     Aproj = A.proj,             # Projection matrix
-                    options = c(0, ## if 1, run adreport 
+                    options = c(1, ## if 1, run adreport 
                                 1, ## if 1, use priors
                                 ifelse(is.null(alpha), 0, 1), # if 1, run with intercept
                                 ifelse(is.null(betas), 0, 1), # if 1, run with covs
@@ -694,7 +694,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                                   n.group = nperiods)
 
   inla.covs <- covs$name
-  design_matrix <- data.frame(int = rep(1, nrow(dt)), dt[, inla.covs, with=F])
+  design_matrix <- data.frame(int = rep(1, nrow(dt)), dt[, inla.covs, with=F], nug.id = 1:nrow(dt))
   stack.obs <- inla.stack(tag='est',
                           data=list(Y=dt$Y), ## response
                           A=list(A,1), ## proj matrix, not sure what the 1 is for
@@ -704,10 +704,11 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                           )
 
   formula <- formula(paste('Y ~ -1',
-                           ifelse(is.null(alpha), '', 'int'), 
-                           ifelse(is.null(betas), '', (paste(inla.covs, collapse = ' + '))),
-                           'f(space, model = spde, group = space.group, control.group = list(model = \'ar1\'))',
-                           sep = ' + '))
+                           ifelse(is.null(alpha), '', ' + int'), 
+                           ifelse(is.null(betas), '', paste0(' + ', (paste(inla.covs, collapse = ' + ')))),
+                           ifelse(is.null(nug.var), '', ' + f(nug.id, model = \'iid\')'), 
+                           ' + f(space, model = spde, group = space.group, control.group = list(model = \'ar1\'))',
+                           sep = ''))
 
   ## function to convert from data lik string to integer
   ## allows easily adding more options even though overkill for just 2
@@ -755,7 +756,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
 
   ## index to spatial field and linear coefficient samples
   s_idx <- grep('^space.*', par_names)
-  l_idx <- which(!c(1:length(par_names)) %in% grep('^space.*|Predictor', par_names))
+  l_idx <- which(!c(1:length(par_names)) %in% grep('^space.*|Predictor|[*:*]', par_names))
 
   ## get spatial draws as matrices and project to deaws at locations 
   pred_s <- sapply(inla_draws, function (x) x$latent[s_idx])
