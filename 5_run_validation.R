@@ -27,63 +27,80 @@ res[,pt_get_draws_time := c(inla_get_draws_time,tmb_get_draws_time)]
 
 ## fe coefficients
 if(!is.null(alpha) | !is.null(betas)){
-  res[, paste0('fe_',res_fit$names.fixed,'_mean') := rbind(res_fit$summary.fixed$mean, SD0$par.fixed[1:length(res_fit$names.fixed)])]
+  res[, paste0('fe_',res_fit$names.fixed,'_med') := rbind(res_fit$summary.fixed$mean, SD0$par.fixed[1:length(res_fit$names.fixed)])]
   res[, paste0('fe_',res_fit$names.fixed,'_sd')   := rbind(res_fit$summary.fixed$sd, sqrt(diag(SD0$cov.fixed))[1:length(res_fit$names.fixed)])]
 }
 
 ## nugget
 if(!is.null(nug.var)){
-  ## TODO! this is not currently correct...
-  res[,hyperpar_nug_var:= unname(c(res_fit$summary.hyperpar[grep('nug.id',rownames(res_fit$summary.hyperpar)),3],
-                                   SD0$par.fixed['log_nugget_sigma']))]
-  res[,hyperpar_logtau_sd := c(res_fit$summary.hyperpar[grep('nug.id',rownames(res_fit$summary.hyperpar)),2],
-                             sqrt(SD0$cov.fixed['log_nugget_sigma'])) ]
+  res[,nug_prec := unname(c(res_fit$summary.hyperpar[grep('nug.id',rownames(res_fit$summary.hyperpar)),4],
+                                   SD0$value[grep('nugget_prec', names(SD0$value))]))]
+  res[,nug_prec_sd := c(res_fit$summary.hyperpar[grep('nug.id',rownames(res_fit$summary.hyperpar)),2],
+                             sqrt(SD0$cov[grep('nugget_prec', names(SD0$value)), grep('nugget_prec', names(SD0$value))])) ]
 }
 
 ## normal var
 if(data.lik == 'normal'){
-  ## TODO  
+  res[,gauss_prec := unname(c(res_fit$summary.hyperpar[grep('Gaussian',rownames(res_fit$summary.hyperpar)),4],
+                                   SD0$value[grep('gauss_prec', names(SD0$value))]))]
+  res[,gauss_prec_sd := c(res_fit$summary.hyperpar[grep('Gaussian',rownames(res_fit$summary.hyperpar)),2],
+                             sqrt(SD0$cov[grep('gauss_prec', names(SD0$value)), grep('gauss_prec', names(SD0$value))])) ]
 }
 
 ## hyperparameters
-res[,hyperpar_logtau_mean := unname(c(res_fit$summary.hyperpar[grep('Theta1',rownames(res_fit$summary.hyperpar)),1],
+res[,matern_logtau_mean := unname(c(res_fit$summary.hyperpar[grep('Theta1',rownames(res_fit$summary.hyperpar)),4],
                                       SD0$par.fixed['log_tau']))]
-res[,hyperpar_logtau_sd := c(res_fit$summary.hyperpar[grep('Theta1',rownames(res_fit$summary.hyperpar)),3],
+res[,matern_logtau_sd := c(res_fit$summary.hyperpar[grep('Theta1',rownames(res_fit$summary.hyperpar)),2],
                              sqrt(SD0$cov.fixed['log_tau','log_tau'])) ]
 
-res[,hyperpar_logkappa_mean := c(res_fit$summary.hyperpar[grep('Theta2',rownames(res_fit$summary.hyperpar)),3],
+res[,matern_logkappa_mean := c(res_fit$summary.hyperpar[grep('Theta2',rownames(res_fit$summary.hyperpar)),4],
                                  SD0$par.fixed['log_kappa']) ]
-res[,hyperpar_logkappa_sd := c(res_fit$summary.hyperpar[grep('Theta2',rownames(res_fit$summary.hyperpar)),2],
+res[,matern_logkappa_sd := c(res_fit$summary.hyperpar[grep('Theta2',rownames(res_fit$summary.hyperpar)),2],
                                sqrt(SD0$cov.fixed['log_kappa','log_kappa'])) ]
 
-## combine with the truth
-## TODO
-res.true.params <- c(rep(NA, 9),
-                     alpha, NA, ## intercept
-                     c(rbind(betas, rep(NA, length(betas)))), ## fixed effect coefs
-                     -0.5 * log(4 * pi * sp.var * sp.kappa^2), NA, ## log tau
-                     log(sp.kappa), NA) ## log kappa
-if(nperiods > 1){
-  res.true.params <- c(res.true.params, c(t.rho, NA))
-}
+## add extra row to fille with the truth
+res <- rbind(lapply(1:ncol(res), function(x){NA}), res)
+
+## slot in the truth and also make a list of all params in the model
+params <- NULL
+if(!is.null(alpha)){ res[1, fe_int_mean := alpha]; params <- c(params, 'alpha')}
+if(!is.null(betas) & is.null(alpha)) { res[1, grep('fe.*med', colnames(res)) := betas]; params <- c(params, rep('beta', length(betas)))}
+if(!is.null(betas) & !is.null(alpha)){ res[1, grep('fe.*med', colnames(res))[-1] := betas]; params <- c(params, rep('beta', length(betas)))}
+if(!is.null(nug.var)) {res[1, nugget_prec := 1 / nug.var];params <- c(params, 'nug.prec')}
+if(data.lik == 'normal') {res[1, gauss_prec := 1 / norm.var]; params <- c(params, 'gauss.prec')}
+res[1, matern_logtau_mean := log(sp.tau)]; params <- c(params, 'logkappa')
+res[1, matern_logkappa_mean := log(sp.kappa)]; params <- c(params, 'logtau')
+
+## if(nperiods > 1){
+##   res.true.params <- c(res.true.params, c(t.rho, NA))
+## }
 
 rr <- data.table(item=colnames(res))
-rr <- cbind(rr,res.true.params, t(res))
+rr <- cbind(rr, t(res))
 names(rr) <- c('quantity','TRUE', 'R-INLA','TMB')
 rr$diff <- rr[,3]-rr[,4]
+
+write.csv(x = rr, row.names = FALSE, 
+          file = sprintf('%s/validation/param_summary_table.csv', out.dir))
 
 ## we can now plot this table with: grid.table(rr)
 
 ## ####################
 ## 2) setup big plot ##
 ## ####################
-pdf(sprintf('%s/validation/inla_tmb_summary_comparison_plot_%i_new.pdf',out.dir, iii), height=15,width=30)
+## pdf(sprintf('%s/validation/inla_tmb_summary_comparison_plot_%i_new.pdf',out.dir, iii), height=15,width=30)
+## TODO? one overall plot? or somehow stitch together later...
 
 
 ## ~~~
 ## plot the table of results
 ## ~~~
+png(sprintf('%s/validation/experiment%04d_plot_01_sumary_table.png', out.dir, iii),
+    height=7, width=9, units = 'in', res = 250)
+cols <- names(rr)[2:5]
+rr[,(cols) := round(.SD, 3), .SDcols=cols]
 grid.table(rr)
+dev.off()
 
 ## ~~~
 ## plot priors and posteriors
@@ -95,9 +112,10 @@ grid.table(rr)
 ## 3) log nugget precision is gamma
 
 ## NOTE: also assume that intercept is the first 'beta' and that betas are listed first!
-## TODO add in nugget variance and log_obs_sd for normals!!
-## TODO add in truths!
-params <- c('alpha', rep('beta', length(betas)), 'logkappa', 'logtau')#, 'nug.var')
+
+png(sprintf('%s/validation/experiment%04d_plot_02_parameter_densities.png', out.dir, iii),
+    height=9, width=9, units = 'in', res = 250)
+
 num.dists <- length(params)
 
 par(mfrow = rep(ceiling(sqrt(num.dists)), 2))
@@ -183,12 +201,37 @@ for(ii in 1:num.dists){
     param.name <- "log tau"
     true.val <- logtau
   }
-  if(param == 'nug.var'){
-    prior.shape  <- nug.pri[1]
-    prior.iscale <- nug.pri[2]
+  if(param == 'gauss.prec'){
+    prior.shape  <- norm.prec.pri[1]
+    prior.iscale <- norm.prec.pri[2]
     x.prior <- seq(0, 5, by = 0.01) ## TODO automate this?
     y.prior <- dgamma(x.prior, shape = prior.shape, scale = 1 / prior.iscale)
-
+    
+    tmb.post.draws <- 1 / exp(log_gauss_sigma_draws * 2)
+    inla.post.draws <- base::sample(x = res_fit$marginals.hyperpar[['Precision for the Gaussian observations']][, 1],
+                                    size = ndraws,
+                                    replace = TRUE, 
+                                    res_fit$marginals.hyperpar[['Precision for the Gaussian observations']][, 2])
+    tmb.post.median <- median(tmb.post.draws)
+    inla.post.median <- median(inla.post.draws)
+    param.name <- "log gauss prec"
+    true.val <- 1 / norm.var
+  }
+   if(param == 'nug.prec'){
+    prior.shape  <- nug.prec.pri[1]
+    prior.iscale <- nug.prec.pri[2]
+    x.prior <- seq(0, 5, by = 0.01) ## TODO automate this?
+    y.prior <- dgamma(x.prior, shape = prior.shape, scale = 1 / prior.iscale)
+    
+    tmb.post.draws <- 1 / exp(log_nugget_sigma_draws * 2)
+    inla.post.draws <- base::sample(x = res_fit$marginals.hyperpar[[names(res_fit$marginals.hyperpar)[grep('nug.id', names(res_fit$marginals.hyperpar))]]][, 1],
+                                    size = ndraws,
+                                    replace = TRUE, 
+                                    res_fit$marginals.hyperpar[[names(res_fit$marginals.hyperpar)[grep('nug.id', names(res_fit$marginals.hyperpar))]]][, 2])
+    tmb.post.median <- median(tmb.post.draws)
+    inla.post.median <- median(inla.post.draws)
+    param.name <- "log nugget prec"
+    true.val <- 1 / nug.var
   }
 
   ## get posterior samples (we'll use density curves)
@@ -198,8 +241,8 @@ for(ii in 1:num.dists){
   yrange <- range(c(y.prior, tmb.dens$y, inla.dens$y))
 
   prior.col <- "black"
-  tmb.col <- "red"
-  inla.col <- "blue"
+  tmb.col   <- "red"
+  inla.col  <- "blue"
 
   ## setup plot and plot prior
   plot(x.prior, y.prior, pch = ".", col = prior.col, main = param.name,
@@ -220,92 +263,112 @@ for(ii in 1:num.dists){
   abline(v = true.val, col = prior.col, lwd = 2)
   
   ## add legend
-  legend("topright", legend = c("prior", "tmb", "inla"), col = c(prior.col, tmb.col, inla.col), lwd = rep(2, 3))
+  legend("topright", legend = c("prior/truth", "tmb", "inla"), col = c(prior.col, tmb.col, inla.col), lwd = rep(2, 3))
 }
+dev.off()
 
 
 ## plot results in logit space or in prevalence space?
-plot.in.logit.space <- FALSE
-
-## setup layout of main plots
-layout(matrix(1:(nperiods * 2 * 5), (nperiods * 2), 5, byrow = TRUE))
+## plot.in.logit.space <- FALSE ## TODO ?
 
 ## randomly select pixels for plotting tmb v inla scatter
 samp <- sample(cellIdx(ras_med_inla[[1]]),1e4) 
 
-for(i in 1:nperiods){ ## for s-t
-
-  ## TODO: allow plotting in logit space
-  if(plot.in.logit.space){
+for(sum.meas in c('median','stdev')){ 
+  
+  if(sum.meas=='median'){
     
-  }else{
-
-    for(thing in c('median','stdev')){ 
-      
-      if(thing=='median'){
-        if(data.lik == 'binom'){
-          true  <- invlogit(true.rast[[i]])
-          rinla <- ras_med_inla_p[[i]]
-          rtmb  <- ras_med_tmb_p[[i]]
-        }else if(data.lik == 'normal'){
-          true <- true.rast[[i]]
-          rinla <- ras_med_inla[[i]]
-          rtmb  <- ras_med_tmb[[i]]
-        }
-      }
-      if(thing=='stdev'){
-        if(data.lik == 'binom'){
-          rinla <- ras_sdv_inla_p[[i]]
-          rtmb  <- ras_sdv_tmb_p[[i]]
-        }else if(data.lik == 'normal'){
-          rinla <- ras_sdv_inla[[i]]
-          rtmb  <- ras_sdv_tmb[[i]]
-        }
-      }
-      
-      tmp <- subset(dt, period_id==i) ## for s-t
-      
-      ## rasters: true, tmb, inla, inla - tmb with data locs
-      par(mar = c(0, 0, 1.4, 4),bty='n')
-      maxes <- max(c(as.vector(rtmb), as.vector(rinla), as.vector(true)), na.rm=TRUE)
-      mins  <- min(c(as.vector(rtmb), as.vector(rinla), as.vector(true)), na.rm=TRUE)
-      zrange <- c(mins, maxes)
-      if(thing == 'median'){
-        plot(true, maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend=T, legend.width = 3, main=paste0('TRUE ', thing) ,zlim=zrange)
-        plot(simple_polygon, add = T)
-      }else{
-        plot.new() ## ;abline(a = 0, b = 1, lwd = 2);abline(a = 1, b = -1, lwd = 2) ## no true sd surface to plot....
-      }
-      plot(rtmb,  maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend.width = 3,
-           legend.args=list(text='', side=2, font=1, line=0, cex=0.1), main=paste0('TMB: ', thing), zlim=zrange)
-      plot(simple_polygon, add = T)
-      plot(rinla, maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend.width = 3,
-           legend.args=list(text='', side=2, font=1, line=0, cex=0.1), main=paste0('R-INLA: ', thing), zlim=zrange)
-      plot(simple_polygon, add = T)
-      plot(rinla-rtmb, maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend=T,  legend.width = 3, main=paste0('DIFFERENCE: ',thing))
-      plot(simple_polygon, add = T)
-      points( x=tmp$long,y=tmp$lat, pch=19, cex=(tmp$N / max(tmp$N)) )
-      
-      ## pixel scatter
-      par(mar = c(4, 4, 2, 2),bty='n')
-      plot(x=as.vector(rinla)[samp],y=as.vector(rtmb)[samp],xlab='R-INLA',ylab='TMB',cex=.05,pch=19,main=paste0('(sub)SCATTER COMPARE: ', thing))
-      lines(x=zrange,y=zrange,col='red')
-
-      ## residual
-      ##  tmp$inla<-extract(ras_med_inla[[i]],cbind(tmp$longitude,y=tmp$latitude))
-      ##  tmp$tmb<-extract(ras_med_tmb[[i]],cbind(tmp$longitude,y=tmp$latitude))
-      ##  tmp$dat <- tmp$died/tmp$N
-      ##  tmp$resid_inla <- tmp$dat-tmp$inla
-      ##  tmp$resid_tmb  <- tmp$dat-tmp$tmb
-      ##  tmp<-subset(tmp,dat<quantile(tmp$dat,.9))
-      ##  plot(x=tmp$dat,y=tmp$resid_inla, pch=19,col='red',cex=.1,main='RESIDUALS')
-      ##  points(x=tmp$dat,y=tmp$resid_tmb, pch=19,col='blue',cex=.1)
+    if(data.lik == 'binom'){
+      true  <- invlogit(true.rast[[1]])
+      rinla <- ras_med_inla_p[[1]]
+      rtmb  <- ras_med_tmb_p[[1]]
+    }else if(data.lik == 'normal'){
+      true <- true.rast[[1]]
+      rinla <- ras_med_inla[[1]]
+      rtmb  <- ras_med_tmb[[1]]
     }
+    all.vec <- c(as.vector(rtmb), as.vector(rinla), as.vector(true))
+    all.diff.vec <- c( as.vector(true- rtmb), as.vector(true - rinla), as.vector(rtmb - rinla))
+    rast.list <- list('TRUE' = true,
+                      'TMB' = rtmb,
+                      'INLA' = rinla)
+    
+    png(sprintf('%s/validation/experiment%04d_plot_03_median_rasters.png', out.dir, iii),
+        height=12, width=12, units = 'in', res = 250)
   }
-}
 
+   if(sum.meas=='stdev'){
+    if(data.lik == 'binom'){
+      rinla <- ras_sdv_inla_p[[1]]
+      rtmb  <- ras_sdv_tmb_p[[1]]
+    }else if(data.lik == 'normal'){
+      rinla <- ras_sdv_inla[[1]]
+      rtmb  <- ras_sdv_tmb[[1]]
+    }
+    all.vec <- c(as.vector(rtmb), as.vector(rinla))
+    all.diff.vec <- as.vector(rtmb - rinla)
+    rast.list <- list('TMB' = rtmb,
+                      'INLA' = rinla)
+    
+    png(sprintf('%s/validation/experiment%04d_plot_04_stdev_rasters.png', out.dir, iii),
+        height=12, width=12, units = 'in', res = 250)
+  }
 
+  layout(matrix(1:length(rast.list) ^ 2, byrow = T, ncol = length(rast.list)))
+  
+  tmp <- subset(dt, period_id==1) ## for s-t
+
+  ## get limits
+  rast.zrange <- range(all.vec, na.rm = T)
+  diff.zrange <- range(all.diff.vec, na.rm = T)
+
+  for(i in 1:length(rast.list)){
+    for(j in 1:length(rast.list)){
+
+      if(i == j){
+        ## plot raster
+        par(mar = c(0, 0, 1.4, 8), bty='n')
+        plot(rast.list[[i]],  maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend.width = 5,
+             legend.args=list(text='', side=2, font=1, line=0, cex=0.1), main=paste0(names(rast.list)[i], ': ', sum.meas),
+             zlim=rast.zrange)
+      }
+
+      if(i < j){
+        ## plot scatter
+        par(mar = c(4, 4, 2, 2),bty='n')
+        plot(x=as.vector(rast.list[[j]])[samp],
+             y=as.vector(rast.list[[i]])[samp],
+             xlab=names(rast.list)[j],
+             ylab=names(rast.list)[i],
+             cex=.05, pch=19,
+             main=paste0('(sub)SCATTER (', names(rast.list)[i], ' vs ', names(rast.list)[j], '): '))
+        lines(x=rast.zrange, y=rast.zrange, col='red')
+      }
+
+      if(i > j){
+        ## plot difference rasters
+        par(mar = c(0, 0, 1.4, 8), bty='n')
+        plot(rast.list[[i]] - rast.list[[j]],  maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend.width = 5,
+             legend.args=list(text='', side=2, font=1, line=0, cex=0.1),
+             main=paste0('Diff: ', names(rast.list)[i], ' - ', names(rast.list)[j]),
+             zlim=diff.zrange)
+        points( x=tmp$long,y=tmp$lat, pch=19, cex=.1 )
+
+      }
+      
+    } ## j
+  } ## i
+
+  dev.off()
+  
+} ## sum.meas
+
+## ~~~
 ## now make caterpillar plots
+## ~~~
+
+png(sprintf('%s/validation/experiment%04d_plot_05_spatial_re_caterpillars.png', out.dir, iii),
+      height=8, width=12, units = 'in', res = 250)
 
 layout(matrix(1, 1, 1, byrow = TRUE))
 
@@ -353,10 +416,10 @@ for(i in 1:nperiods){
 plot_d <- plot_d[order(period,tmb_median)]
 plot_d[,i := seq(1,.N), by = period]
 gg_cat <- ggplot(plot_d, aes(i, tmb_median, col=i)) + theme_bw() + # [seq(1, nrow(plot_d), 5)]
-          geom_linerange(aes(ymin = tmb_low, ymax = tmb_up), col='blue', size=.8, alpha=.3) +
-          geom_linerange(aes(x=i,ymin = inla_low, ymax = inla_up), col='red', size=.8, alpha=.3) +
+          geom_linerange(aes(ymin = tmb_low, ymax = tmb_up), col='red', size=.8, alpha=.3) +
+          geom_linerange(aes(x=i,ymin = inla_low, ymax = inla_up), col='blue', size=.8, alpha=.3) +
           facet_wrap(~period) +
-          ggtitle('Comparison of random effects (10% to 90% quantiles) ... RED == R-INLA ... BLUE == TMB')
+          ggtitle('Comparison of random effects (10% to 90% quantiles) ... BLUE == R-INLA ... RED == TMB')
 print(gg_cat)
 
 dev.off()
@@ -483,7 +546,7 @@ if(data.lik == 'binom'){
 surface.metrics[, iter := iii]
 
 ## save
-write.csv(surface.metrics, sprintf('%s/validation/surface_metrics_%i.csv',out.dir, iii))
+write.csv(surface.metrics, sprintf('%s/validation/surface_metrics_%04d.csv',out.dir, iii))
 
 ## append into overall metrics for assessing monte carlo variance of metrics
 if(iii == 1){
