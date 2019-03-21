@@ -131,7 +131,7 @@ ndraws <- 250
 alphaj.pri <- "c(0, 3)" ## normal mean and sd
 
 ## loopvars 19
-nug.pri <- "c(1, 1e-5)" ## gamma for nug preciion with shape and inv-scale
+nug.prec.pri <- "c(1, 1e-5)" ## gamma for nug precision with shape and inv-scale
 
 ## loopvars 20
 inla.int.strat <- 'eb' ## can be 'eb', 'ccd', or 'grid'
@@ -149,6 +149,9 @@ data.lik <- c('binom') ## either 'binom' or 'normal'
 norm.var <- 0.1 ## sd of observations if normal
 
 ## loopvars 25
+norm.prec.pri <- "c(1, 1e-5)" ## gamma for normal obs  precision with shape and inv-scale
+
+## loopvars 26
 bias.correct <- c(TRUE) ## applies to both INLA and TMB!
 
 ## 
@@ -172,12 +175,13 @@ loopvars <- expand.grid(reg, ## 1
                         cores,
                         ndraws,
                         alphaj.pri,
-                        nug.pri,
+                        nug.prec.pri,
                         inla.int.strat, ## 20
                         inla.approx, 
                         Nsim,
                         data.lik,
                         norm.var,
+                        norm.prec.pri, ## 25
                         bias.correct)
 
 
