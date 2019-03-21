@@ -126,7 +126,8 @@ for(ii in 1:num.dists){
   
   ## get prior curves and posterior draws
   if(param == 'alpha'){
-    
+    param.name <- names(res_fit$marginals.fixed)[ii]
+
     if(param.name == 'int'){
       true.val <- alpha
     }else{
@@ -146,12 +147,11 @@ for(ii in 1:num.dists){
     
     tmb.post.median <- median(tmb.post.draws)
     inla.post.median <- median(inla.post.draws)
-    param.name <- names(res_fit$marginals.fixed)[ii]
   }
   
   if(param == 'beta'){
 
-    
+    param.name <- names(res_fit$marginals.fixed)[ii]
     if(param.name == 'int'){
       true.val <- alpha
     }else{
@@ -170,7 +170,6 @@ for(ii in 1:num.dists){
 
     tmb.post.median <- median(tmb.post.draws)
     inla.post.median <- median(inla.post.draws)
-    param.name <- names(res_fit$marginals.fixed)[ii]
   }
   
   if(param == 'logkappa'){
