@@ -80,7 +80,8 @@ Type objective_function<Type>::operator() ()
   // options[3] == 1 : fit with cov effects
   // options[4] == 1 : fit with nugget
   // options[5] == 0 : use normal data lik
-  // options[5] == 1 : use binom  data lik 
+  // options[5] == 1 : use binom  data lik
+  // options[6] == 1 : use normalization trick
 
   // Fixed effects
   PARAMETER( alpha );            // Intercept
@@ -194,13 +195,13 @@ Type objective_function<Type>::operator() ()
   // 'GP' field contribution (i.e. log-lik of Gaussian-Markov random fields, GMRFs)
   // NOTE: likelihoods from namespace 'density' already return NEGATIVE log-liks so we add
   //       other likelihoods return positibe log-liks
-  //if(flag == 1){
+  if(options[6] == 1){
     // then we are not calculating the normalizing constant in the inner opt.
     // that norm constant means taking an expensive determinant of Q_ss
-  jnll += GMRF(Q_ss, false)(epsilon_s);
-    //}else{
-    //jnll += GMRF(Q_ss)(epsilon_s);
-    //}
+    jnll += GMRF(Q_ss, false)(epsilon_s);
+  }else{
+    jnll += GMRF(Q_ss)(epsilon_s);
+  }
 
   // nugget contribution to the likelihood
   if(options[4] == 1 ){
@@ -213,9 +214,10 @@ Type objective_function<Type>::operator() ()
   // (3) //
   /////////
   // Likelihood contribution from each datapoint i
-
-  if (flag == 0) return jnll; // return without data ll contrib to avoid unneccesary log(det(Q)) calcs
-
+  if(options[6]){
+    if (flag == 0) return jnll; // return without data ll contrib to avoid unneccesary log(det(Q)) calcs
+  }
+  
   for (int i = 0; i < num_i; i++){
 
     // latent field estimate at each obs
