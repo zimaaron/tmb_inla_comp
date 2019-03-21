@@ -10,8 +10,8 @@ qsub_sim <- function(iter, ## if looping through muliple models, used to give di
                      singularity_opts = NULL,
                      extra_name = '',
                      launch.on.fair = FALSE,
-                     mem = 20G,
-                     time = 5:00:00, 
+                     mem = '20G',
+                     time = '5:00:00', 
                      logloc = NULL ## defaults to input/output dir in main.dir/iter/
                      ){
 
