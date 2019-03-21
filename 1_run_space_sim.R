@@ -111,6 +111,8 @@ norm.var  <-  as.numeric(loopvars[par.iter, 24])
 norm.prec.pri  <-  eval(parse(text = as.character(loopvars[par.iter, 25])))
 
 bias.correct <- as.logical(loopvars[par.iter, 26])
+sd.correct <- as.logical(loopvars[par.iter, 27])
+
 
 ## TODO? add in some validation options? or maybe just always do them all
 
@@ -590,7 +592,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## Get standard errors
   SD0 = TMB::sdreport(obj, getJointPrecision=TRUE,
                       bias.correct = bias.correct)
-##                      bias.correct.control = list(sd = TRUE)) ## TODO
+                      bias.correct.control = list(sd = sd.correct)) 
   tmb_total_fit_time <- proc.time()[3] - ptm 
   tmb_sdreport_time <-  tmb_total_fit_time - fit_time_tmb
 
