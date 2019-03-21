@@ -83,7 +83,7 @@ cov_names <- "c('access2', 'distrivers', 'evi'   , 'mapincidence')"
 cov_measures <- "c('mean'   , 'mean'      , 'median', 'mean')"
 
 ## loopvars 5
-betas <- ## "c(.5, 1), 1, -.5)"
+betas <- NA ## "c(.5, 1), 1, -.5)"
 
 ## loopvars 6
 alpha <- -1
@@ -211,7 +211,7 @@ for(ii in 1:nrow(loopvars)){
   qsub.string <- qsub_sim(iter = ii, ## sets which loopvar to use in parallel
                           main.dir = main.dir.name,
                           slots = 4, 
-                          codepath = '/homes/azimmer/tmb_transition/realistic_sims/1_run_simulation.R', 
+                          codepath = '/homes/azimmer/tmb_inla_comp/1_run_space_sim.R', 
                           singularity = 'default',
                           singularity_opts = NULL,
                           logloc = NULL ## defaults to input/output dir in sim run_date dir
