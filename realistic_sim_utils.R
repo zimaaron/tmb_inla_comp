@@ -8,6 +8,7 @@ qsub_sim <- function(iter, ## if looping through muliple models, used to give di
                      slots, 
                      singularity = 'default',
                      singularity_opts = NULL,
+                     extra_name = ''
                      logloc = NULL ## defaults to input/output dir in main.dir/iter/
                      ){
 
@@ -43,7 +44,7 @@ qsub_sim <- function(iter, ## if looping through muliple models, used to give di
 
   ## append job name, shell, and code to run 
   qsub <- paste0(qsub,
-                 sprintf(" -N sim_job_%i", iter), ## job name
+                 sprintf(" -N sim_job_%s_%i", extra_name, iter), ## job name
                  " ", shell, " ", codepath) ## shell and code path
 
   ## add on all remaining arguments 
