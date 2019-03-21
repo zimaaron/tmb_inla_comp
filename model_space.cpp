@@ -214,7 +214,7 @@ Type objective_function<Type>::operator() ()
   // (3) //
   /////////
   // Likelihood contribution from each datapoint i
-  if(options[6]){
+  if(options[6] == 1){
     if (flag == 0) return jnll; // return without data ll contrib to avoid unneccesary log(det(Q)) calcs
   }
   
