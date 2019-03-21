@@ -83,6 +83,14 @@ Type objective_function<Type>::operator() ()
   // options[5] == 1 : use binom  data lik
   // options[6] == 1 : use normalization trick
 
+  // Prior specifications
+  DATA_VECTOR( norm_prec_pri );
+  DATA_VECTOR( nug_prec_pri );
+  DATA_VECTOR( alphaj_pri );
+  DATA_VECTOR( logtau_pri );
+  DATA_VECTOR( logkappa_pri );
+
+
   // Fixed effects
   PARAMETER( alpha );            // Intercept
   PARAMETER_VECTOR( betas );     // Covariate coefficients
@@ -162,29 +170,29 @@ Type objective_function<Type>::operator() ()
   if(options[1] == 1) {
 
     // add in priors for spde gp
-    jnll -= dnorm(log_tau,   Type(0.0), Type(1.0), true); // N(0,1) prior for logtau
-    jnll -= dnorm(log_kappa, Type(0.0), Type(1.0), true); // N(0,1) prior for logkappa
+    jnll -= dnorm(log_tau,   logtau_pri[0], logtau_pri[1], true); // N(0,1) prior for logtau
+    jnll -= dnorm(log_kappa, logkappa_pri[0], logkappa_pri[1], true); // N(0,1) prior for logkappa
 
     // prior for intercept
     if(options[2] == 1){
-      jnll -= dnorm(alpha, Type(0.0), Type(3), true); // N(0, 3)
+      jnll -= dnorm(alpha, alphaj_pri[0], alphaj_pri[1], true); // N(0, 3)
     }
 
     // prior for covariate coefs
     if(options[3] == 1){
       for( int j = 0; j < betas.size(); j++){
-	jnll -= dnorm(betas(j), Type(0.0), Type(3), true); // N(0, 3)
+	jnll -= dnorm(betas(j), alphaj_pri[0], alphaj_pri[1], true); // N(0, 3)
       }
     }
 
     // prior for log(nugget sd)
     if(options[4] == 1){
-      jnll -= dnorm(log_nugget_sigma, Type(-4.0), Type(2.0), true); // N(-4, 2)
+      jnll -= dgamma(nugget_prec, nug_prec_pri[0], nug_prec_pri[1], true); // N(-4, 2)
     }
 
     // prior for log(obs sd) of using normal data lik
     if(options[5] == 0){
-      jnll -= dnorm(log_obs_sigma, Type(-4.0), Type(2.0), true); // N(-4, 2)
+      jnll -= dgamma(gauss_prec, norm_prec_pri[0], norm_prec_pri[1], true); // N(-4, 2)
     }
     
   } 
