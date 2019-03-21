@@ -117,6 +117,7 @@ Type objective_function<Type>::operator() ()
   Type sigma = 1.0 / sqrt(4.0 * 3.14159265359 * exp(2.0 * log_tau) * exp(2.0 * log_kappa));
   Type nugget_sigma  = exp(log_nugget_sigma);
   Type nugget_prec = 1.0 / exp(log_nugget_sigma * 2.0);
+  Type gauss_prec = 1.0 / exp(log_obs_sigma * 2.0);
     
 
   // Define objects for derived values
@@ -251,6 +252,7 @@ Type objective_function<Type>::operator() ()
     // ADREPORT(betas);
     // ADREPORT(Epsilon_s);
     ADREPORT(nugget_prec);
+    ADREPORT(gauss_prec);
   }
 
   return jnll;
