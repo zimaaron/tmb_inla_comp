@@ -8,7 +8,7 @@ qsub_sim <- function(iter, ## if looping through muliple models, used to give di
                      slots, 
                      singularity = 'default',
                      singularity_opts = NULL,
-                     extra_name = ''
+                     extra_name = '', 
                      logloc = NULL ## defaults to input/output dir in main.dir/iter/
                      ){
 
