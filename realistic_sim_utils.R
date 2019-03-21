@@ -8,7 +8,10 @@ qsub_sim <- function(iter, ## if looping through muliple models, used to give di
                      slots, 
                      singularity = 'default',
                      singularity_opts = NULL,
-                     extra_name = '', 
+                     extra_name = '',
+                     launch.on.fair = FALSE,
+                     mem = 20G,
+                     time = 5:00:00, 
                      logloc = NULL ## defaults to input/output dir in main.dir/iter/
                      ){
 
@@ -35,8 +38,19 @@ qsub_sim <- function(iter, ## if looping through muliple models, used to give di
   qsub <- paste0("qsub",
                  " -e ", logloc, "/errors/",
                  " -o ", logloc, "/output/",
-                 " -pe multi_slot ", slots,
+                 " -q all.q", 
                  " -P ", proj, " ", node.flag)
+
+  ## if on fair
+  if(launch.on.fair){
+    qsub <- paste0(qsub,
+                   ' -l m_mem_free=', mem,
+                   ' -l fthread=1',
+                   ' -l h_rt=', time)
+  }else{
+    qsub <- paste0(qsub,
+                   " -pe multi_slot ", slots)
+  }
 
   ## add on stuff to launch singularity
   qsub <- qsub_sing_envs(qsub, singularity_opts,
