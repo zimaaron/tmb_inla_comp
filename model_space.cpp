@@ -231,7 +231,7 @@ Type objective_function<Type>::operator() ()
       // if normal
       if(options[5] ==  0){
 	// Uses the dbinom_robust function, which takes the logit probability
-	jnll -= dnorm( y_i(i), latent_field_i(i), exp(log_obs_sigma)/n_i(i), true );
+	jnll -= dnorm( y_i(i), latent_field_i(i), exp(log_obs_sigma)/sqrt(n_i(i)), true );
       }
 
       // if binom
