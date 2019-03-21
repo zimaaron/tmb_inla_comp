@@ -5,7 +5,7 @@
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
-logging_note <- 'no nug and no covs. binom and normal. w/ bias correct. 1000 clusters'
+logging_note <- 'test run. 1000 clusters'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name     <- NULL ## if NULL, run_date is made, OW uses name given
@@ -83,10 +83,10 @@ cov_names <- "c('access2', 'distrivers', 'evi'   , 'mapincidence')"
 cov_measures <- "c('mean'   , 'mean'      , 'median', 'mean')"
 
 ## loopvars 5
-betas <- NA ## "c(.5, -1, 1, -.5)"
+betas <- ## "c(.5, 1), 1, -.5)"
 
 ## loopvars 6
-alpha <- 0
+alpha <- -1
 
 ## loopvars 7
 sp.range <-  sqrt(8)     ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
@@ -98,7 +98,7 @@ sp.var <- 0.5 ^ 2        ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
 sp.alpha <- 2.0          ## matern smoothness = sp.alpha - 1 (for R^2 domain)
 
 ## loopvars 10
-nug.var <- 0.1 ^ 2       ## nugget variance
+nug.var <- NA ##0.1 ^ 2       ## nugget variance
 
 ## loopvars 11
 t.rho <-  0.8            ## annual temporal auto-corr
@@ -143,7 +143,7 @@ inla.approx <- 'simplified.laplace' ## can be 'gaussian', 'simplified.laplace' (
 Nsim <- 5 ## number of times to repeat simulation
 
 ## loopvars 23
-data.lik <- c('binom') ## either 'binom' or 'normal'
+data.lik <- c('normal') ## either 'binom' or 'normal'
 
 ## loopvars 24
 norm.var <- 0.1 ## sd of observations if normal
@@ -154,7 +154,8 @@ norm.prec.pri <- "c(1, 1e-5)" ## gamma for normal obs  precision with shape and 
 ## loopvars 26
 bias.correct <- c(TRUE) ## applies to both INLA and TMB!
 
-## 
+## loopvars 27
+sd.correct <- c(TRUE) ## only applies to TMB
 
 ## TODO always add all vars to exand.grid() 
 loopvars <- expand.grid(reg, ## 1
@@ -182,43 +183,8 @@ loopvars <- expand.grid(reg, ## 1
                         data.lik,
                         norm.var,
                         norm.prec.pri, ## 25
-                        bias.correct)
-
-
-
-
-## loopvars$master.dir            <- main.dir 
-
-## ## prepare a set of run_dates so we can write the complete loopvars to each run_date dir
-## all_rds <- make_time_stamp(TRUE)
-## if(nrow(loopvars) > 1){
-##   for(ii in 2:nrow(loopvars)){
-##     split.rd <- strsplit(all_rds[ii - 1], split = '_')[[1]]
-##     if(split.rd[6] < 60){
-##       split.rd[6] <- as.character(as.numeric(split.rd[6]) + 1)
-##       if(as.numeric(split.rd[6]) < 10) split.rd[6] <- paste0('0', split.rd[6])
-##     }else if(split.rd[5] < 60){
-##       split.rd[5] <- as.character(as.numeric(split.rd[5]) + 1)
-##       if(as.numeric(split.rd[5]) < 10) split.rd[5] <- paste0('0', split.rd[5])
-##       split.rd[6] <- '00'
-##     }else if(split.rd[4] < 24){
-##       split.rd[4] <- as.character(as.numeric(split.rd[4]) + 1)
-##       if(as.numeric(split.rd[4]) < 10) split.rd[4] <- paste0('0', split.rd[4])
-##       split.rd[5] <- '00'
-##       split.rd[6] <- '00'
-##     }else {
-##       split.rd[3] <- split.rd[3] + 1
-##       split.rd[4] <- '00'
-##       split.rd[5] <- '00'
-##       split.rd[6] <- '00'
-##     }
-##     all_rds <- c(all_rds, paste(split.rd, sep='', collapse='_'))
-##   }
-## }
-
-## loopvars$rd <- all_rds ## keep track of run_dates to later compare runs
-
-
+                        bias.correct,
+                        sd.correct)
 
 ## setup the main dir to store all experiments
 main.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', main.dir.name)
