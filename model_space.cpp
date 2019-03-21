@@ -54,7 +54,7 @@ Type objective_function<Type>::operator() ()
   // ~~~~~~~~~------------------------------------------------------~~
 
   // normalization flag
-  DATA_INTEGER( flag ); // flag == 1 => no data contribution added to jnll
+  DATA_INTEGER( flag ); // flag == 0 => no data contribution added to jnll
   
   // Indices
   DATA_INTEGER( num_i );   // Number of data points in space
@@ -214,7 +214,7 @@ Type objective_function<Type>::operator() ()
   /////////
   // Likelihood contribution from each datapoint i
 
-  if (flag == 1) return jnll; // return without data ll contrib to avoid unneccesary log(det(Q)) calcs
+  if (flag == 0) return jnll; // return without data ll contrib to avoid unneccesary log(det(Q)) calcs
 
   for (int i = 0; i < num_i; i++){
 
