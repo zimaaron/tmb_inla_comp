@@ -72,7 +72,7 @@ dir.create(sprintf('%s/simulated_obj', out.dir), recursive = TRUE, showWarnings 
 dir.create(sprintf('%s/modeling/inputs', out.dir), recursive = TRUE, showWarnings = F)
 dir.create(sprintf('%s/modeling/outputs/tmb', out.dir), recursive = TRUE, showWarnings = F)
 dir.create(sprintf('%s/modeling/outputs/inla', out.dir), recursive = TRUE, showWarnings = F)
-dir.create(sprintf('%s/validation', out.dir))
+dir.create(sprintf('%s/validation', out.dir), showWarnings = F)
 
 ## load in all parameters for this experiment
 reg             <- as.character(loopvars[par.iter, 1])
@@ -99,7 +99,7 @@ urban.strat.pct <- sample.strat[['urban.strat.pct']]
 cores           <- as.numeric(loopvars[par.iter, 16]) 
 ndraws          <- as.numeric(loopvars[par.iter, 17])
 alphaj.pri      <- eval(parse(text = as.character(loopvars[par.iter, 18]))) ## normal mean and sd ## TODO pass this to INLA and TMB
-nug.pri         <- eval(parse(text = as.character(loopvars[par.iter, 19])))  ## gamma for nug preciion with shape and inv-scale ## TODO pass this to INLA and TMB
+nug.prec.pri         <- eval(parse(text = as.character(loopvars[par.iter, 19])))  ## gamma for nug preciion with shape and inv-scale ## TODO pass this to INLA and TMB
 inla.int.strat  <- as.character(loopvars[par.iter, 20]) ## can be one of: 'eb', 'ccd', 'grid'
 
 inla.approx     <- as.character(loopvars[par.iter, 21]) ## can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
@@ -108,7 +108,9 @@ l.kap.pri       <- NULL  ## taken from INLA spde mesh obj
 Nsim <-  as.numeric(loopvars[par.iter, 22]) ## number of times to repeat simulation
 data.lik <- as.character(loopvars[par.iter, 23])
 norm.var  <-  as.numeric(loopvars[par.iter, 24])
-bias.correct <- as.logical(loopvars[par.iter, 25])
+norm.prec.pri  <-  as.character(loopvars[par.iter, 25])
+
+bias.correct <- as.logical(loopvars[par.iter, 26])
 
 ## TODO? add in some validation options? or maybe just always do them all
 
@@ -514,7 +516,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                                 ifelse(is.null(nug.var), 0, 1), # if 1, run with nugget
                                 tmb.lik.dict(data.lik)  # if 0, normal data. if 1, binom data lik
                                 ),
-                    flag = 0 # normalization flag. if 1, use norm trick
+                    flag = 1 # normalization flag. if 1, use norm trick
                     )
 
   ## Specify starting values for TMB parameters for GP
@@ -559,7 +561,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
 
   ## should we use the normalization flag?
   if(data_full$flag == 1){
-    obj <- normalize(obj, flag="flag") 
+    obj <- normalize(obj, flag="flag"), value = 1
   }
 
   ## Run optimizer
@@ -619,7 +621,8 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   if(!is.matrix(betas_tmb_draws)) betas_tmb_draws <- matrix(betas_tmb_draws, nrow = 1)
   log_kappa_tmb_draws <- tmb_draws[parnames == 'log_kappa',]
   log_tau_tmb_draws  <- tmb_draws[parnames == 'log_tau',]
-  log_nugget_sigma <- tmb_draws[parnames == 'log_nugget_sigma', ]
+  log_nugget_sigma_draws <- tmb_draws[parnames == 'log_nugget_sigma', ]
+  log_gauss_sigma_draws <- tmb_draws[parnames == 'log_obs_sigma', ]
 
   ## values of S at each cell (long by nperiods)
   ## rows: pixels, cols: posterior draws
@@ -631,7 +634,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   }
 
   if(!is.null(betas)){
-    ## add on ovariate values by draw
+    ## add on covariate values by draw
     tmb_vals <- list()
     for(p in 1:nperiods) tmb_vals[[p]] <- cov_vals[[p]] %*% betas_tmb_draws
 
@@ -639,6 +642,17 @@ for(iii in 1:Nsim){ ## repeat Nsim times
 
     ## add together linear and st components
     pred_tmb <- cell_b + pred_tmb
+  }
+
+  if(!is.null(nug.var)){
+    ## simulate nugget noise
+    cell_nug <- do.call(cbind, lapply(1:ndraws,
+                                      FUN = function(x){rnorm(n = nrow(pred_tmb),
+                                                              mean = 0,
+                                                              sd = exp(log_nugget_sigma_draws)[x])})
+                        )
+    ## add it on
+    pred_tmb <- cell_nug + pred_tmb
   }
 
   ## save prediction timing
@@ -778,6 +792,20 @@ for(iii in 1:Nsim){ ## repeat Nsim times
     cov_effs <- do.call(rbind, cov_effs)
     
     pred_inla <- pred_inla + cov_effs
+  }
+  
+  if(!is.null(nug.var)){
+    ## get draws of nugget precision
+    pred_n <- sapply(inla_draws, function(x) {
+      nug.idx <- which(grepl('nug.id', names(inla_draws[[1]]$hyper)))
+      x$hyperpar[[nug.idx]]}) ## this gets the precision for the nugget
+
+    ## simulate nugget noise
+    cell_n <- sapply(pred_n, function(x){rnorm(n = nrow(pred_inla),
+                                               sd = 1 / sqrt(x),
+                                               mean = 0)})
+    ## add it on
+    pred_inla <- cell_nug + pred_inla
   }
 
   ## make them into time bins
