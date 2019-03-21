@@ -81,7 +81,7 @@ names(rr) <- c('quantity','TRUE', 'R-INLA','TMB')
 rr$diff <- rr[,3]-rr[,4]
 
 write.csv(x = rr, row.names = FALSE, 
-          file = sprintf('%s/validation/param_summary_table.csv', out.dir))
+          file = sprintf('%s/validation/iter%04d_param_summary_table.csv', out.dir, iii))
 
 ## we can now plot this table with: grid.table(rr)
 
@@ -95,7 +95,7 @@ write.csv(x = rr, row.names = FALSE,
 ## ~~~
 ## plot the table of results
 ## ~~~
-png(sprintf('%s/validation/experiment%04d_plot_01_sumary_table.png', out.dir, iii),
+png(sprintf('%s/validation/iter%04d_plot_01_sumary_table.png', out.dir, iii),
     height=7, width=9, units = 'in', res = 250)
 cols <- names(rr)[2:5]
 rr[,(cols) := round(.SD, 3), .SDcols=cols]
@@ -113,7 +113,7 @@ dev.off()
 
 ## NOTE: also assume that intercept is the first 'beta' and that betas are listed first!
 
-png(sprintf('%s/validation/experiment%04d_plot_02_parameter_densities.png', out.dir, iii),
+png(sprintf('%s/validation/iter%04d_plot_02_parameter_densities.png', out.dir, iii),
     height=9, width=9, units = 'in', res = 250)
 
 num.dists <- length(params)
@@ -126,112 +126,145 @@ for(ii in 1:num.dists){
   
   ## get prior curves and posterior draws
   if(param == 'alpha'){
-    prior.mean <- alphaj.pri[1]
-    prior.sd   <- sqrt(alphaj.pri[2])
-    xlim       <- c(-3, 3) ## TODO for all plots ## prior.mean + c(-4, 4) * prior.sd
-    x.prior    <- seq(xlim[1], xlim[2], by = 0.01)
-    y.prior    <- dnorm(x.prior, mean = prior.mean, sd = prior.sd)
-
-    tmb.post.draws  <- alpha_tmb_draws[ii, ]
-    inla.post.draws <- pred_l[ii, ]
-    tmb.post.median <- median(tmb.post.draws)
-    inla.post.median <- median(inla.post.draws)
-    param.name <- names(res_fit$marginals.fixed)[ii]
-
+    
     if(param.name == 'int'){
       true.val <- alpha
     }else{
       true.val <- betas[ii - 1]
     }
+    
+    prior.mean <- alphaj.pri[1]
+    prior.sd   <- alphaj.pri[2]
 
+    tmb.post.draws  <- alpha_tmb_draws[ii, ]
+    inla.post.draws <- pred_l[ii, ]
+
+    xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val)) 
+    x.prior    <- seq(xlim[1], xlim[2], len = 1000)
+    y.prior    <- dnorm(x.prior, mean = prior.mean, sd = prior.sd)
+
+    
+    tmb.post.median <- median(tmb.post.draws)
+    inla.post.median <- median(inla.post.draws)
+    param.name <- names(res_fit$marginals.fixed)[ii]
   }
+  
   if(param == 'beta'){
-    prior.mean <- alphaj.pri[1]
-    prior.sd   <- sqrt(alphaj.pri[2])
-    xlim       <- c(-3, 3) ## TODO for all plots ## prior.mean + c(-4, 4) * prior.sd
-    x.prior    <- seq(xlim[1], xlim[2], by = 0.01)
-    y.prior    <- dnorm(x.prior, mean = prior.mean, sd = prior.sd)
 
-    tmb.post.draws  <- alpha_tmb_draws[ii, ]
-    inla.post.draws <- pred_l[ii, ]
-    tmb.post.median <- median(tmb.post.draws)
-    inla.post.median <- median(inla.post.draws)
-    param.name <- names(res_fit$marginals.fixed)[ii]
-
+    
     if(param.name == 'int'){
       true.val <- alpha
     }else{
       true.val <- betas[ii - 1]
     }
+    
+    prior.mean <- alphaj.pri[1]
+    prior.sd   <- sqrt(alphaj.pri[2])
+    
+    tmb.post.draws  <- alpha_tmb_draws[ii, ]
+    inla.post.draws <- pred_l[ii, ]
+    
+    xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val)) 
+    x.prior    <- seq(xlim[1], xlim[2], len = 1000)
+    y.prior    <- dnorm(x.prior, mean = prior.mean, sd = prior.sd)
 
+    tmb.post.median <- median(tmb.post.draws)
+    inla.post.median <- median(inla.post.draws)
+    param.name <- names(res_fit$marginals.fixed)[ii]
   }
+  
   if(param == 'logkappa'){
+    
+    true.val <- logkappa
+
     mesh.pri   <- param2.matern.orig(mesh_s) ## theta1 = logtau, theta2 = logkappa 
     prior.mean <- mesh.pri$theta.prior.mean[2]
     prior.prec <- mesh.pri$theta.prior.prec[2, 2]
     prior.sd   <- 1 / sqrt(prior.prec)
-    x.prior    <- seq(xlim[1], xlim[2], by = 0.01)
-    y.prior    <- dnorm(x.prior, mean = prior.mean, sd = prior.sd)
 
     tmb.post.draws  <- log_kappa_tmb_draws
     inla.post.draws <- base::sample(x = res_fit$marginals.hyperpar[['Theta2 for space']][, 1],
                                     size = ndraws,
                                     replace = TRUE, 
                                     res_fit$marginals.hyperpar[['Theta2 for space']][, 2])
+
+    xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val)) 
+
+    x.prior    <- seq(xlim[1], xlim[2], len = 1000)
+    y.prior    <- dnorm(x.prior, mean = prior.mean, sd = prior.sd)
+
+  
     tmb.post.median  <- median(tmb.post.draws)
     inla.post.median <- median(inla.post.draws)
     param.name <- "log kappa"
-    true.val <- logkappa
   }
   if(param == 'logtau'){
+
+    true.val <- logtau
+
     mesh.pri   <- param2.matern.orig(mesh_s) ## theta1 = logtau, theta2 = logkappa 
     prior.mean <- mesh.pri$theta.prior.mean[1]
     prior.prec <- mesh.pri$theta.prior.prec[1, 1]
     prior.sd   <- 1 / sqrt(prior.prec)
-    x.prior    <- seq(xlim[1], xlim[2], by = 0.01)
-    y.prior    <- dnorm(x.prior, mean = prior.mean, sd = prior.sd)
-
+    
     tmb.post.draws <- log_tau_tmb_draws
     inla.post.draws <- base::sample(x = res_fit$marginals.hyperpar[['Theta1 for space']][, 1],
                                     size = ndraws,
                                     replace = TRUE, 
                                     res_fit$marginals.hyperpar[['Theta1 for space']][, 2])
+
+    xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val)) 
+
+    x.prior    <- seq(xlim[1], xlim[2], len = 1000)
+    y.prior    <- dnorm(x.prior, mean = prior.mean, sd = prior.sd)
+
     tmb.post.median <- median(tmb.post.draws)
     inla.post.median <- median(inla.post.draws)
     param.name <- "log tau"
-    true.val <- logtau
   }
   if(param == 'gauss.prec'){
+
+    true.val <- 1 / norm.var
+
     prior.shape  <- norm.prec.pri[1]
     prior.iscale <- norm.prec.pri[2]
-    x.prior <- seq(0, 5, by = 0.01) ## TODO automate this?
-    y.prior <- dgamma(x.prior, shape = prior.shape, scale = 1 / prior.iscale)
     
     tmb.post.draws <- 1 / exp(log_gauss_sigma_draws * 2)
     inla.post.draws <- base::sample(x = res_fit$marginals.hyperpar[['Precision for the Gaussian observations']][, 1],
                                     size = ndraws,
                                     replace = TRUE, 
                                     res_fit$marginals.hyperpar[['Precision for the Gaussian observations']][, 2])
+
+    xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val)) 
+    
+    x.prior <- seq(xlim[1], xlim[2], len = 1000)
+    y.prior <- dgamma(x.prior, shape = prior.shape, scale = 1 / prior.iscale)
+    
     tmb.post.median <- median(tmb.post.draws)
     inla.post.median <- median(inla.post.draws)
     param.name <- "log gauss prec"
-    true.val <- 1 / norm.var
   }
-   if(param == 'nug.prec'){
+  if(param == 'nug.prec'){
+
+    true.val <- 1 / nug.var
+
     prior.shape  <- nug.prec.pri[1]
     prior.iscale <- nug.prec.pri[2]
-    x.prior <- seq(0, 5, by = 0.01) ## TODO automate this?
-    y.prior <- dgamma(x.prior, shape = prior.shape, scale = 1 / prior.iscale)
-    
+
     tmb.post.draws <- 1 / exp(log_nugget_sigma_draws * 2)
     inla.post.draws <- base::sample(x = res_fit$marginals.hyperpar[[names(res_fit$marginals.hyperpar)[grep('nug.id', names(res_fit$marginals.hyperpar))]]][, 1],
                                     size = ndraws,
                                     replace = TRUE, 
                                     res_fit$marginals.hyperpar[[names(res_fit$marginals.hyperpar)[grep('nug.id', names(res_fit$marginals.hyperpar))]]][, 2])
+    
+    xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val)) 
+    
+    x.prior <- seq(xlim[1], xlim[2], len = 1000)
+    y.prior <- dgamma(x.prior, shape = prior.shape, scale = 1 / prior.iscale)
+   
     tmb.post.median <- median(tmb.post.draws)
     inla.post.median <- median(inla.post.draws)
     param.name <- "log nugget prec"
-    true.val <- 1 / nug.var
   }
 
   ## get posterior samples (we'll use density curves)
@@ -293,7 +326,7 @@ for(sum.meas in c('median','stdev')){
                       'TMB' = rtmb,
                       'INLA' = rinla)
     
-    png(sprintf('%s/validation/experiment%04d_plot_03_median_rasters.png', out.dir, iii),
+    png(sprintf('%s/validation/iter%04d_plot_03_median_rasters.png', out.dir, iii),
         height=12, width=12, units = 'in', res = 250)
   }
 
@@ -310,7 +343,7 @@ for(sum.meas in c('median','stdev')){
     rast.list <- list('TMB' = rtmb,
                       'INLA' = rinla)
     
-    png(sprintf('%s/validation/experiment%04d_plot_04_stdev_rasters.png', out.dir, iii),
+    png(sprintf('%s/validation/iter%04d_plot_04_stdev_rasters.png', out.dir, iii),
         height=12, width=12, units = 'in', res = 250)
   }
 
@@ -367,7 +400,7 @@ for(sum.meas in c('median','stdev')){
 ## now make caterpillar plots
 ## ~~~
 
-png(sprintf('%s/validation/experiment%04d_plot_05_spatial_re_caterpillars.png', out.dir, iii),
+png(sprintf('%s/validation/iter%04d_plot_05_spatial_re_caterpillars.png', out.dir, iii),
       height=8, width=12, units = 'in', res = 250)
 
 layout(matrix(1, 1, 1, byrow = TRUE))
@@ -546,7 +579,7 @@ if(data.lik == 'binom'){
 surface.metrics[, iter := iii]
 
 ## save
-write.csv(surface.metrics, sprintf('%s/validation/surface_metrics_%04d.csv',out.dir, iii))
+write.csv(surface.metrics, sprintf('%s/validation/iter%04d_surface_metrics.csv',out.dir, iii))
 
 ## append into overall metrics for assessing monte carlo variance of metrics
 if(iii == 1){
