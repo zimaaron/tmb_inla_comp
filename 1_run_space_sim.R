@@ -235,7 +235,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                                   urban.pop.pct = urban.pop.pct,
                                   urban.strat.pct = urban.strat.pct, 
                                   out.dir = out.dir,
-                                  sp.field.sim.strat = 'RF', 
+                                  sp.field.sim.strat = 'SPDE', 
                                   seed = NULL,
                                   exp.iter = iii)
 
@@ -261,7 +261,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                                   urban.pop.pct = urban.pop.pct,
                                   urban.strat.pct = urban.strat.pct, 
                                   out.dir = out.dir,
-                                  sp.field.sim.strat = 'RF', 
+                                  sp.field.sim.strat = 'SPDE', 
                                   seed = NULL,
                                   exp.iter = iii)
   }
@@ -591,7 +591,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
 
   ## Get standard errors
   SD0 = TMB::sdreport(obj, getJointPrecision=TRUE,
-                      bias.correct = bias.correct)
+                      bias.correct = bias.correct, 
                       bias.correct.control = list(sd = sd.correct)) 
   tmb_total_fit_time <- proc.time()[3] - ptm 
   tmb_sdreport_time <-  tmb_total_fit_time - fit_time_tmb

@@ -49,7 +49,7 @@ qsub_sim <- function(iter, ## if looping through muliple models, used to give di
   ## add on all remaining arguments 
   qsub <- paste(qsub,
                 iter, ## which row in loopvars
-                main.dir, ## which dir to load from
+                main.dir.nm, ## which dir to load from
                 sep = " ")
 
   return(qsub)
@@ -275,6 +275,8 @@ sim.realistic.data <- function(reg,
                     mesh = reg.mesh,
                     n = length(year_list),
                     seed = seed)
+  }else{
+    reg.mesh <- NULL
   }
   
   ## use random fields package on simple_raster to simulate GP for spatial field
@@ -536,7 +538,7 @@ sim.realistic.data <- function(reg,
                                                                         y = sim.dat[year == year_list[ll], .(long, lat)],
                                                                         layer = ll)[, 1]
       }
-    } else{ ## space only rasters
+    }else{ ## space only rasters
       tmp <- raster::extract(x = cov_layers[[cc]], y = sim.dat[, .(long, lat)])
     }
     
@@ -559,9 +561,11 @@ sim.realistic.data <- function(reg,
   
   saveRDS(object = cov_layers,
           file = sprintf('%s/simulated_obj/iter%04d_cov_gp_rasters.rds', out.dir, exp.iter))
-  
-  saveRDS(object = reg.mesh,
-          file = sprintf('%s/simulated_obj/iter%04d_region_mesh.rds', out.dir, exp.iter))
+
+  if(sp.field.sim.strat == 'SPDE'){
+    saveRDS(object = reg.mesh,
+            file = sprintf('%s/simulated_obj/iter%04d_region_mesh.rds', out.dir, exp.iter))
+  }
   
   #########################
   ## return a named list ##
