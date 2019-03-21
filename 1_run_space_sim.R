@@ -64,7 +64,7 @@ loopvars <- read.csv(file = paste0(main.dir, '/loopvars.csv'))
 
 ## create a directory for some common objects that can be shared by all experiments launched
 common.dir <- sprintf('/homes/azimmer/tmb_inla_sim/%s/common/', main.dir.name)
-dir.create(common.dir, recursive = TRUE)
+dir.create(common.dir, recursive = TRUE, showWarnings = F)
 
 
 ## create some directories for output organization
@@ -233,8 +233,9 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                                   urban.pop.pct = urban.pop.pct,
                                   urban.strat.pct = urban.strat.pct, 
                                   out.dir = out.dir,
-                                  sp.field.sim.strat = 'SPDE', 
-                                  seed = NULL)
+                                  sp.field.sim.strat = 'RF', 
+                                  seed = NULL,
+                                  exp.iter = iii)
 
   }else{
     ## reuse covs
@@ -258,11 +259,12 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                                   urban.pop.pct = urban.pop.pct,
                                   urban.strat.pct = urban.strat.pct, 
                                   out.dir = out.dir,
-                                  sp.field.sim.strat = 'SPDE', 
-                                  seed = NULL)
+                                  sp.field.sim.strat = 'RF', 
+                                  seed = NULL,
+                                  exp.iter = iii)
   }
 
-  saveRDS(file = sprintf('%s/simulated_obj/sim_obj_%i.rds', out.dir, iii),
+  saveRDS(file = sprintf('%s/simulated_obj/iter%04d_sim_obj.rds', out.dir, iii),
           object = sim.obj)
 
   ## process parts of the returned sim obj list into pieces we need for model fitting
@@ -394,7 +396,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
     cutoff = cutoff
   )
 
-  pdf(sprintf('%s/modeling/inputs/mesh_%i.pdf', out.dir, iii))
+  pdf(sprintf('%s/modeling/inputs/iter%04d_mesh.pdf', out.dir, iii))
   plot(mesh_s)
   plot(simple_raster, add = TRUE) ## just to show loc of simple_raster under mesh for scale
   plot(mesh_s, add = TRUE)
@@ -416,8 +418,8 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                              group = dt.pers)
 
   ## save relevant objects
-  saveRDS(file = sprintf('%s/modeling/inputs/mesh_%i.rds', out.dir, iii), mesh_s)
-  saveRDS(file = sprintf('%s/modeling/inputs/spde_%i.rds', out.dir, iii), spde)
+  saveRDS(file = sprintf('%s/modeling/inputs/iter%04d_mesh.rds', out.dir, iii), mesh_s)
+  saveRDS(file = sprintf('%s/modeling/inputs/iter%04d_spde.rds', out.dir, iii), spde)
 
   ## now that the mesh is made, we can grabb the default priors that it generates
   mesh.info <- param2.matern.orig(mesh_s)
@@ -522,12 +524,12 @@ for(iii in 1:Nsim){ ## repeat Nsim times
                                 tmb.lik.dict(data.lik), ## if 0, normal data. if 1, binom data lik
                                 1 ## use normalization trick?
                                 ),
-                    flag = 1 # normalization flag. when 0, prior is returned. when 1 data is included in jnll
+                    flag = 1, # normalization flag. when 0, prior is returned. when 1 data is included in jnll
                     norm_prec_pri = norm.prec.pri, ## gamma on log(prec)
                     nug_prec_pri = nug.prec.pri, ## gamma on log(prec)
                     alphaj_pri = alphaj.pri, ## normal
-                    logtau_pri = theta1.prior.prec, ## normal logtau
-                    logkappa_pri = theta2.prior.prec ## normal logkappa
+                    logtau_pri = spde.theta1.pri, ## normal logtau
+                    logkappa_pri = spde.theta1.pri ## normal logkappa
                     )
 
   ## Specify starting values for TMB parameters for GP
@@ -614,7 +616,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   L <- try(suppressWarnings(Cholesky(SD0$jointPrecision, super = T)), silent = TRUE)
   tmb.prec.pd <- TRUE
   if(class(L) == "try-error"){
-    tmb.prec.pd <- FAL
+    tmb.prec.pd <- FALSE
     message('TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
     message('TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
     message('TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
@@ -680,8 +682,8 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ras_med_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 1], ncol = nperiods))
   ras_sdv_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 2], ncol = nperiods))
 
-  saveRDS(file = sprintf('%s/modeling/outputs/tmb/tmb_preds_median_raster_%i.rds', out.dir, iii), object = ras_med_tmb)
-  saveRDS(file = sprintf('%s/modeling/outputs/tmb/tmb_preds_stdev_raster_%i.rds', out.dir, iii), object = ras_sdv_tmb)
+  saveRDS(file = sprintf('%s/modeling/outputs/tmb/iter%04d_tmb_preds_median_raster.rds', out.dir, iii), object = ras_med_tmb)
+  saveRDS(file = sprintf('%s/modeling/outputs/tmb/iter%04d_tmb_preds_stdev_raster.rds', out.dir, iii), object = ras_sdv_tmb)
   
   if(data.lik == 'binom'){
     ## convert to prevalence space and summarize, rasterize, and save again
@@ -693,9 +695,9 @@ for(iii in 1:Nsim){ ## repeat Nsim times
     ras_med_tmb_p <- insertRaster(simple_raster, matrix(summ_tmb_p[, 1], ncol = nperiods))
     ras_sdv_tmb_p <- insertRaster(simple_raster, matrix(summ_tmb_p[, 2], ncol = nperiods))
 
-    saveRDS(file = sprintf('%s/modeling/outputs/tmb/tmb_preds_median_raster_PREV_%i.rds', out.dir, iii),
+    saveRDS(file = sprintf('%s/modeling/outputs/tmb/iter%04d_tmb_preds_median_raster_PREV.rds', out.dir, iii),
             object = ras_med_tmb_p)
-    saveRDS(file = sprintf('%s/modeling/outputs/tmb/tmb_preds_stdev_raster_PREV_%i.rds', out.dir, iii),
+    saveRDS(file = sprintf('%s/modeling/outputs/tmb/iter%04d_tmb_preds_stdev_raster_PREV.rds', out.dir, iii),
             object = ras_sdv_tmb_p)
   }
 
@@ -746,34 +748,53 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   }
   inla.setOption("enable.inla.argument.weights", TRUE)
 
-  ptm <- proc.time()[3] 
-  res_fit <- inla(formula,
-                  data = inla.stack.data(stack.obs),
-                  control.predictor = list(A = inla.stack.A(stack.obs),
-                                           ## link = 1, ## removed after looking at NMM
-                                           compute = FALSE),
-                  control.fixed = list(expand.factor.strategy = 'inla',
-                                       prec = list(default = 1 / alphaj.pri[2] ^ 2)),
-                  control.inla = list(strategy = inla.approx,
-                                      int.strategy = inla.int.strat ##,
-                                      ## h = 1e-3, ## removed after looking at NMM
-                                      ## tolerance = 1e-6 ## removed after looking at NMM
-                                      ),
-                  control.compute=list(config = TRUE),
-                  control.family = ifelse(data.lik == 'normal',
-                                          list(hyper = list(prec = list(prior = "loggamma", 
-                                                                        param = norm.prec.pri))),
-                                               list()
-                                               ), 
-                  family = inla.lik.dict(data.lik),
-                  num.threads = cores, #
-                  Ntrials = dt$N,
-                  scale = dt$N, 
-                  ## weights = rep(1, nrow(dt)),
-                  verbose = TRUE,
-                  keep = FALSE)
+  ptm <- proc.time()[3]
+  if(data.lik == 'normal'){
+     res_fit <- inla(formula,
+                     data = inla.stack.data(stack.obs),
+                     control.predictor = list(A = inla.stack.A(stack.obs),
+                                              ## link = 1, ## removed after looking at NMM
+                                              compute = FALSE),
+                     control.fixed = list(expand.factor.strategy = 'inla',
+                                          prec = list(default = 1 / alphaj.pri[2] ^ 2)),
+                     control.inla = list(strategy = inla.approx,
+                                         int.strategy = inla.int.strat ##,
+                                         ## h = 1e-3, ## removed after looking at NMM
+                                         ## tolerance = 1e-6 ## removed after looking at NMM
+                                         ),
+                     control.compute=list(config = TRUE),
+                     control.family = list(hyper = list(prec = list(prior = "loggamma", 
+                                                                    param = norm.prec.pri))),
+                     family = inla.lik.dict(data.lik),
+                     num.threads = cores, #
+                     Ntrials = dt$N,
+                     scale = dt$N, 
+                     ## weights = rep(1, nrow(dt)),
+                     verbose = TRUE,
+                     keep = FALSE)
+  }else if(data.lik == 'binom'){
+     res_fit <- inla(formula,
+                     data = inla.stack.data(stack.obs),
+                     control.predictor = list(A = inla.stack.A(stack.obs),
+                                              ## link = 1, ## removed after looking at NMM
+                                              compute = FALSE),
+                     control.fixed = list(expand.factor.strategy = 'inla',
+                                          prec = list(default = 1 / alphaj.pri[2] ^ 2)),
+                     control.inla = list(strategy = inla.approx,
+                                         int.strategy = inla.int.strat ##,
+                                         ## h = 1e-3, ## removed after looking at NMM
+                                         ## tolerance = 1e-6 ## removed after looking at NMM
+                                         ),
+                     control.compute=list(config = TRUE),
+                     family = inla.lik.dict(data.lik),
+                     num.threads = cores, #
+                     Ntrials = dt$N,
+                     scale = dt$N, 
+                     ## weights = rep(1, nrow(dt)),
+                     verbose = TRUE,
+                     keep = FALSE)
+  }
   fit_time_inla <- proc.time()[3] - ptm
-
 
 
   ## ##########
@@ -842,8 +863,8 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ras_med_inla <- insertRaster(simple_raster, matrix(summ_inla[, 1], ncol = nperiods))
   ras_sdv_inla <- insertRaster(simple_raster, matrix(summ_inla[, 2], ncol = nperiods))
 
-  saveRDS(file = sprintf('%s/modeling/outputs/inla/inla_preds_median_raster_%i.rds', out.dir, iii), object = ras_med_inla)
-  saveRDS(file = sprintf('%s/modeling/outputs/inla/inla_preds_stdev_raster_%i.rds', out.dir, iii), object = ras_sdv_inla)
+  saveRDS(file = sprintf('%s/modeling/outputs/inla/iter%04d_inla_preds_median_raster.rds', out.dir, iii), object = ras_med_inla)
+  saveRDS(file = sprintf('%s/modeling/outputs/inla/iter%04d_inla_preds_stdev_raster.rds', out.dir, iii), object = ras_sdv_inla)
   
   if(data.lik == 'binom'){
     ## convert to prevalence space and summarize, rasterize, and save again
@@ -855,9 +876,9 @@ for(iii in 1:Nsim){ ## repeat Nsim times
     ras_med_inla_p <- insertRaster(simple_raster, matrix(summ_inla_p[, 1], ncol = nperiods))
     ras_sdv_inla_p <- insertRaster(simple_raster, matrix(summ_inla_p[, 2], ncol = nperiods))
 
-    saveRDS(file = sprintf('%s/modeling/outputs/inla/inla_preds_median_raster_PREV_%i.rds', out.dir, iii),
+    saveRDS(file = sprintf('%s/modeling/outputs/inla/iter%04d_inla_preds_median_raster_PREV.rds', out.dir, iii),
             object = ras_med_inla_p)
-    saveRDS(file = sprintf('%s/modeling/outputs/inla/inla_preds_stdev_raster_PREV_%i.rds', out.dir, iii),
+    saveRDS(file = sprintf('%s/modeling/outputs/inla/iter%04d_inla_preds_stdev_raster_PREV.rds', out.dir, iii),
             object = ras_sdv_inla_p)
   }
     

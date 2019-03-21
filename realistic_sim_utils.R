@@ -136,7 +136,8 @@ sim.realistic.data <- function(reg,
                                urban.pop.pct = 1, ## percent (in percent = alpha*100% space - i.e. 1 for 1%) of population that comprises urban
                                urban.strat.pct = 40, ## percent of sample locations that should come from urban pixels
                                sp.field.sim.strat = 'RF', ## one of RF or SPDE ## TODO add t-dist, extremal
-                               seed = NULL){
+                               seed = NULL,
+                               exp.iter = 1){ ## exp.iter, used for file saving
 
   ## make some checks and set things
   if(is.null(pop_raster) & obs.loc.strat == 'pop.strat'){
@@ -325,7 +326,7 @@ sim.realistic.data <- function(reg,
   
   
   ## plot gp
-  pdf(sprintf('%s/simulated_obj/st_gp_plot.pdf', out.dir), width = 16, height = 16)
+  pdf(sprintf('%s/simulated_obj/iter%04d_st_gp_plot.pdf', out.dir, exp.iter), width = 16, height = 16)
   par(mfrow = rep( ceiling(sqrt( dim(sf.rast)[3] )), 2))
   for(yy in 1:dim(sf.rast)[3]){
     raster::plot(sf.rast[[yy]],
@@ -418,7 +419,7 @@ sim.realistic.data <- function(reg,
   ## and, add nugget if desired
   if(!is.null(nug.var)) true.rast <- true.rast + nug.rast
   
-  pdf(sprintf('%s/simulated_obj/true_surface_plot.pdf', out.dir), width = 16, height = 16)
+  pdf(sprintf('%s/simulated_obj/iter%04d_true_surface_plot.pdf', out.dir, exp.iter), width = 16, height = 16)
   par(mfrow = rep( ceiling(sqrt( dim(true.rast)[3] )), 2))
   for(yy in 1:dim(true.rast)[3]){
     raster::plot(true.rast[[yy]],
@@ -428,7 +429,7 @@ sim.realistic.data <- function(reg,
   }
   dev.off()
   
-  saveRDS(sprintf('%s/simulated_obj/true_surface_raster.rds', out.dir), object = true.rast)
+  saveRDS(sprintf('%s/simulated_obj/iter%04d_true_surface_raster.rds', out.dir, exp.iter), object = true.rast)
   
 
   ## now the surface simulation is done and all we need to do is simulate the data
@@ -554,13 +555,13 @@ sim.realistic.data <- function(reg,
   ## save everything we might want ##
   ## #################################
   saveRDS(object = sim.dat,
-          file = sprintf('%s/simulated_obj/sim_data.rds', out.dir))
+          file = sprintf('%s/simulated_obj/iter%04d_sim_data.rds', out.dir, exp.iter))
   
   saveRDS(object = cov_layers,
-          file = sprintf('%s/simulated_obj/cov_gp_rasters.rds', out.dir))
+          file = sprintf('%s/simulated_obj/iter%04d_cov_gp_rasters.rds', out.dir, exp.iter))
   
   saveRDS(object = reg.mesh,
-          file = sprintf('%s/simulated_obj/region_mesh.rds', out.dir))
+          file = sprintf('%s/simulated_obj/iter%04d_region_mesh.rds', out.dir, exp.iter))
   
   #########################
   ## return a named list ##
