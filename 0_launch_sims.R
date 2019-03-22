@@ -5,10 +5,11 @@
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
-logging_note <- 'test run. 1000 clusters'
+logging_note <- 'for jonno group. NORMAL vary norm sd, clsuter size, INLA approx'
 
 ## make a master run_date to store all these runs in a single location
-main.dir.name     <- NULL ## if NULL, run_date is made, OW uses name given
+main.dir.name  <- NULL ## if NULL, run_date is made, OW uses name given
+extra.job.name <- 'norm'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -92,13 +93,13 @@ alpha <- -1
 sp.range <-  sqrt(8)     ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
 
 ## loopvars 8
-sp.var <- 0.5 ^ 2        ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
+sp.var <- 1.0 ^ 2        ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
 
 ## loopvars 9
 sp.alpha <- 2.0          ## matern smoothness = sp.alpha - 1 (for R^2 domain)
 
 ## loopvars 10
-nug.var <- NA ##0.1 ^ 2       ## nugget variance
+nug.var <- NA# c(NA, .1 ^ 2, .1, .5 ^ 2, .5, 1) ##0.1 ^ 2       ## nugget variance
 
 ## loopvars 11
 t.rho <-  0.8            ## annual temporal auto-corr
@@ -107,7 +108,7 @@ t.rho <-  0.8            ## annual temporal auto-corr
 mesh_s_params <- c("c(0.1, 1 ,5)") ## cutoff, largest allowed triangle edge length inner, and outer
 
 ## loopvars 13
-n.clust <-  c(1000)         ## clusters PER TIME slice
+n.clust <-  c(100, 500, 1000, 5000)         ## clusters PER TIME slice
 
 ## loopvars 14
 m.clust <- 35                    ## mean number of obs per cluster (poisson)
@@ -122,7 +123,7 @@ sample.strat <- "list(obs.loc.strat='rand',
                       urban.strat.pct=40)"  ## random or by population for now. ## TODO cluser design
 
 ## loopvars 16
-cores <- 5
+cores <- 1
 
 ## loopvars 17
 ndraws <- 250
@@ -134,19 +135,19 @@ alphaj.pri <- "c(0, 3)" ## normal mean and sd
 nug.prec.pri <- "c(1, 1e-5)" ## gamma for nug precision with shape and inv-scale
 
 ## loopvars 20
-inla.int.strat <- 'eb' ## can be 'eb', 'ccd', or 'grid'
+inla.int.strat <- c('eb', 'ccd') ## can be 'eb', 'ccd', or 'grid'
 
 ## loopvars 21
 inla.approx <- 'simplified.laplace' ## can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
 
 ## loopvars 22
-Nsim <- 5 ## number of times to repeat simulation
+Nsim <- 25 ## number of times to repeat simulation
 
 ## loopvars 23
-data.lik <- c('normal') ## either 'binom' or 'normal'
+data.lik <- c('binom') ## either 'binom' or 'normal'
 
 ## loopvars 24
-norm.var <- 0.1 ## sd of observations if normal
+norm.var <- c(NA, .1 ^ 2, .1, .5 ^ 2, .5, 1)  ## sd of observations if normal
 
 ## loopvars 25
 norm.prec.pri <- "c(1, 1e-5)" ## gamma for normal obs  precision with shape and inv-scale
@@ -197,7 +198,7 @@ close(fileConn)
 ## save loopvars to this dir to reload into the parallel env
 write.csv(file = paste0(main.dir, '/loopvars.csv'), x = loopvars, row.names = FALSE)
 
-for(ii in 1:nrow(loopvars)){
+for(ii in 2:nrow(loopvars)){
 
   ## make a run_date and setup output directory
   ## run_date <- loopvars$rd[ii]
@@ -210,10 +211,12 @@ for(ii in 1:nrow(loopvars)){
   ## save and reload loopvars in parallel env. that way, we only need to pass in iter/row #
   qsub.string <- qsub_sim(iter = ii, ## sets which loopvar to use in parallel
                           main.dir = main.dir.name,
-                          slots = 4, 
+                          slots = 2, 
                           codepath = '/homes/azimmer/tmb_inla_comp/1_run_space_sim.R', 
                           singularity = 'default',
                           singularity_opts = NULL,
+                          extra_name = extra.job.name,
+                          launch.on.fair = TRUE, 
                           logloc = NULL ## defaults to input/output dir in sim run_date dir
                           )
 
