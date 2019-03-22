@@ -132,6 +132,8 @@ for(main.dir.name in main.dir.names){
       ## skip that iteration for now
     }
   }
+
+  cm.all <- data.table(cm.all)
   
 
   ## ####################################################################
@@ -160,7 +162,7 @@ for(main.dir.name in main.dir.names){
   long.cov[target_cov == 'cov90', n_target_cov := 0.90]
   long.cov[target_cov == 'cov95', n_target_cov := 0.95]
 
-  long.cov$noise_spatial_ratio <- long.cov$norm.var / long.cov$sp.var
+  long.cov$noise_spatial_ratio <- long.cov$nug.var / long.cov$sp.var
   long.cov$noise_spatial_ratio[is.na(long.cov$noise_spatial_ratio)] <- 0
 
   long.cov[model == 'tmb', fit.time := as.numeric(fit_time) + as.numeric(pt_tmb_sdreport_time)]
