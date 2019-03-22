@@ -38,7 +38,7 @@ qsub_sim <- function(iter, ## if looping through muliple models, used to give di
   qsub <- paste0("qsub",
                  " -e ", logloc, "/errors/",
                  " -o ", logloc, "/output/",
-                 " -q all.q", 
+                 " -q geospatial.q", 
                  " -P ", proj)
 
   ## if on fair
