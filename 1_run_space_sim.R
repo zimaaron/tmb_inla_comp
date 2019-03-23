@@ -47,18 +47,12 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## #############
   ## VALIDATION ##
   ## #############
-  
-  ## 1) summarize fitted params
-  ## 2) big plots showing difference in fits
-  ## 3) calcualte and summarize predictive metrics
-
   source('./6_run_validation.R')
 
 
 } ## end iii loop repeating iterations over 1:Nsim
 
-
-## TODO summarize INLA and TMB results before writing final table
+## save results from all Nsim monte carlo simulations in this run
 write.csv(complete.surface.metrics, sprintf('%s/validation/surface_metrics_complete.csv',out.dir))
 
 

@@ -99,6 +99,10 @@ if(data.lik == 'normal'){
 }
 fit_time_inla <- proc.time()[3] - ptm
 
+## check to see if INLA converged nicely
+## using the check suggested here: https://groups.google.com/forum/#!topic/r-inla-discussion-group/LsCpuCsr-Qo
+## and noting that failing this check may not be terrible
+inla.converge <- ifelse(res_fit$mode$mode.status == 0, TRUE, FALSE)
 
 ## ##########
 ## PREDICT ##
