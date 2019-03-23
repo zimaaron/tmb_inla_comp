@@ -158,34 +158,35 @@ bias.correct <- c(TRUE) ## applies to both INLA and TMB!
 ## loopvars 27
 sd.correct <- c(TRUE) ## only applies to TMB
 
-## TODO always add all vars to exand.grid() 
-loopvars <- expand.grid(reg, ## 1
-                        year_list,
-                        cov_names,
-                        cov_measures,
-                        betas, ## 5
-                        alpha,
-                        sp.range,
-                        sp.var,
-                        sp.alpha,
-                        nug.var, ## 10
-                        t.rho,
-                        mesh_s_params,
-                        n.clust,
-                        m.clust,
-                        sample.strat, ## 15
-                        cores,
-                        ndraws,
-                        alphaj.pri,
-                        nug.prec.pri,
-                        inla.int.strat, ## 20
-                        inla.approx, 
-                        Nsim,
-                        data.lik,
-                        norm.var,
-                        norm.prec.pri, ## 25
-                        bias.correct,
-                        sd.correct)
+## TODO always add all vars to exand.grid()
+## NOTE: I use a named list here to ensure the columns in loopvars are named
+loopvars <- expand.grid(list(reg = reg, ## 1
+                             year_list = year_list,
+                             cov_names = cov_names,
+                             cov_measures = cov_measures,
+                             betas = betas, ## 5
+                             alpha = alpha,
+                             sp.range = sp.range,
+                             sp.var = sp.var,
+                             sp.alpha = sp.alpha,
+                             nug.var = nug.var, ## 10
+                             t.rho = t.rho,
+                             mesh_s_params = mesh_s_params,
+                             n.clust = n.clust,
+                             m.clust = m.clust,
+                             sample.strat = sample.strat, ## 15
+                             cores = cores,
+                             ndraws = ndraws,
+                             alphaj.pri = alphaj.pri,
+                             nug.prec.pri = nug.prec.pri,
+                             inla.int.strat = inla.int.strat, ## 20
+                             inla.approx = inla.approx, 
+                             Nsim = Nsim,
+                             data.lik = data.lik,
+                             norm.var = norm.var,
+                             norm.prec.pri = norm.prec.pri, ## 25
+                             bias.correct = bias.correct,
+                             sd.correct = sd.correct))
 
 ## setup the main dir to store all experiments
 main.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', main.dir.name)
@@ -196,9 +197,10 @@ writeLines(logging_note, fileConn)
 close(fileConn)
 
 ## save loopvars to this dir to reload into the parallel env
-write.csv(file = paste0(main.dir, '/loopvars.csv'), x = loopvars, row.names = FALSE)
+write.csv(file = paste0(main.dir, '/loopvars.csv'), x = loopvars,
+          row.names = FALSE)
 
-for(ii in 2:nrow(loopvars)){
+for(ii in 1:nrow(loopvars)){
 
   ## make a run_date and setup output directory
   ## run_date <- loopvars$rd[ii]
