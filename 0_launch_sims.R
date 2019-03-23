@@ -5,10 +5,11 @@
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
-logging_note <- 'test run. 1000 clusters'
+logging_note <- 'for jonno group. NORMAL vary norm sd, clsuter size, INLA approx'
 
 ## make a master run_date to store all these runs in a single location
-main.dir.name     <- NULL ## if NULL, run_date is made, OW uses name given
+main.dir.name  <- NULL ## if NULL, run_date is made, OW uses name given
+extra.job.name <- 'norm'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -92,13 +93,13 @@ alpha <- -1
 sp.range <-  sqrt(8)     ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
 
 ## loopvars 8
-sp.var <- 0.5 ^ 2        ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
+sp.var <- 1.0 ^ 2        ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
 
 ## loopvars 9
 sp.alpha <- 2.0          ## matern smoothness = sp.alpha - 1 (for R^2 domain)
 
 ## loopvars 10
-nug.var <- NA ##0.1 ^ 2       ## nugget variance
+nug.var <- NA# c(NA, .1 ^ 2, .1, .5 ^ 2, .5, 1) ##0.1 ^ 2       ## nugget variance
 
 ## loopvars 11
 t.rho <-  0.8            ## annual temporal auto-corr
@@ -107,7 +108,7 @@ t.rho <-  0.8            ## annual temporal auto-corr
 mesh_s_params <- c("c(0.1, 1 ,5)") ## cutoff, largest allowed triangle edge length inner, and outer
 
 ## loopvars 13
-n.clust <-  c(1000)         ## clusters PER TIME slice
+n.clust <-  c(100, 500, 1000, 5000)         ## clusters PER TIME slice
 
 ## loopvars 14
 m.clust <- 35                    ## mean number of obs per cluster (poisson)
@@ -122,7 +123,7 @@ sample.strat <- "list(obs.loc.strat='rand',
                       urban.strat.pct=40)"  ## random or by population for now. ## TODO cluser design
 
 ## loopvars 16
-cores <- 5
+cores <- 1
 
 ## loopvars 17
 ndraws <- 250
@@ -134,19 +135,19 @@ alphaj.pri <- "c(0, 3)" ## normal mean and sd
 nug.prec.pri <- "c(1, 1e-5)" ## gamma for nug precision with shape and inv-scale
 
 ## loopvars 20
-inla.int.strat <- 'eb' ## can be 'eb', 'ccd', or 'grid'
+inla.int.strat <- c('eb', 'ccd') ## can be 'eb', 'ccd', or 'grid'
 
 ## loopvars 21
 inla.approx <- 'simplified.laplace' ## can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
 
 ## loopvars 22
-Nsim <- 5 ## number of times to repeat simulation
+Nsim <- 25 ## number of times to repeat simulation
 
 ## loopvars 23
-data.lik <- c('normal') ## either 'binom' or 'normal'
+data.lik <- c('binom') ## either 'binom' or 'normal'
 
 ## loopvars 24
-norm.var <- 0.1 ## sd of observations if normal
+norm.var <- c(NA, .1 ^ 2, .1, .5 ^ 2, .5, 1)  ## sd of observations if normal
 
 ## loopvars 25
 norm.prec.pri <- "c(1, 1e-5)" ## gamma for normal obs  precision with shape and inv-scale
@@ -157,34 +158,35 @@ bias.correct <- c(TRUE) ## applies to both INLA and TMB!
 ## loopvars 27
 sd.correct <- c(TRUE) ## only applies to TMB
 
-## TODO always add all vars to exand.grid() 
-loopvars <- expand.grid(reg, ## 1
-                        year_list,
-                        cov_names,
-                        cov_measures,
-                        betas, ## 5
-                        alpha,
-                        sp.range,
-                        sp.var,
-                        sp.alpha,
-                        nug.var, ## 10
-                        t.rho,
-                        mesh_s_params,
-                        n.clust,
-                        m.clust,
-                        sample.strat, ## 15
-                        cores,
-                        ndraws,
-                        alphaj.pri,
-                        nug.prec.pri,
-                        inla.int.strat, ## 20
-                        inla.approx, 
-                        Nsim,
-                        data.lik,
-                        norm.var,
-                        norm.prec.pri, ## 25
-                        bias.correct,
-                        sd.correct)
+## TODO always add all vars to exand.grid()
+## NOTE: I use a named list here to ensure the columns in loopvars are named
+loopvars <- expand.grid(list(reg = reg, ## 1
+                             year_list = year_list,
+                             cov_names = cov_names,
+                             cov_measures = cov_measures,
+                             betas = betas, ## 5
+                             alpha = alpha,
+                             sp.range = sp.range,
+                             sp.var = sp.var,
+                             sp.alpha = sp.alpha,
+                             nug.var = nug.var, ## 10
+                             t.rho = t.rho,
+                             mesh_s_params = mesh_s_params,
+                             n.clust = n.clust,
+                             m.clust = m.clust,
+                             sample.strat = sample.strat, ## 15
+                             cores = cores,
+                             ndraws = ndraws,
+                             alphaj.pri = alphaj.pri,
+                             nug.prec.pri = nug.prec.pri,
+                             inla.int.strat = inla.int.strat, ## 20
+                             inla.approx = inla.approx, 
+                             Nsim = Nsim,
+                             data.lik = data.lik,
+                             norm.var = norm.var,
+                             norm.prec.pri = norm.prec.pri, ## 25
+                             bias.correct = bias.correct,
+                             sd.correct = sd.correct))
 
 ## setup the main dir to store all experiments
 main.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', main.dir.name)
@@ -195,7 +197,8 @@ writeLines(logging_note, fileConn)
 close(fileConn)
 
 ## save loopvars to this dir to reload into the parallel env
-write.csv(file = paste0(main.dir, '/loopvars.csv'), x = loopvars, row.names = FALSE)
+write.csv(file = paste0(main.dir, '/loopvars.csv'), x = loopvars,
+          row.names = FALSE)
 
 for(ii in 1:nrow(loopvars)){
 
@@ -210,10 +213,12 @@ for(ii in 1:nrow(loopvars)){
   ## save and reload loopvars in parallel env. that way, we only need to pass in iter/row #
   qsub.string <- qsub_sim(iter = ii, ## sets which loopvar to use in parallel
                           main.dir = main.dir.name,
-                          slots = 4, 
+                          slots = 2, 
                           codepath = '/homes/azimmer/tmb_inla_comp/1_run_space_sim.R', 
                           singularity = 'default',
                           singularity_opts = NULL,
+                          extra_name = extra.job.name,
+                          launch.on.fair = TRUE, 
                           logloc = NULL ## defaults to input/output dir in sim run_date dir
                           )
 

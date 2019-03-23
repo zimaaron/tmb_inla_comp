@@ -38,8 +38,8 @@ qsub_sim <- function(iter, ## if looping through muliple models, used to give di
   qsub <- paste0("qsub",
                  " -e ", logloc, "/errors/",
                  " -o ", logloc, "/output/",
-                 " -q all.q", 
-                 " -P ", proj, " ", node.flag)
+                 " -q geospatial.q", 
+                 " -P ", proj)
 
   ## if on fair
   if(launch.on.fair){
@@ -49,7 +49,7 @@ qsub_sim <- function(iter, ## if looping through muliple models, used to give di
                    ' -l h_rt=', time)
   }else{
     qsub <- paste0(qsub,
-                   " -pe multi_slot ", slots)
+                   " -pe multi_slot ", slots, ' ', node.flag)
   }
 
   ## add on stuff to launch singularity
