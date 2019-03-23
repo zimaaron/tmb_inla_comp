@@ -25,6 +25,9 @@ res[,pred_time := c(totalpredict_time_inla,totalpredict_time_tmb)]
 res[,pt_tmb_sdreport_time := c(NA,tmb_sdreport_time)]
 res[,pt_get_draws_time := c(inla_get_draws_time,tmb_get_draws_time)]
 
+## convergence
+res[, convergence := c(tmb.pd.converge, inla.converge)]
+
 ## fe coefficients
 if(!is.null(alpha) | !is.null(betas)){
   res[, paste0('fe_',res_fit$names.fixed,'_med') := rbind(res_fit$summary.fixed$mean, SD0$par.fixed[1:length(res_fit$names.fixed)])]

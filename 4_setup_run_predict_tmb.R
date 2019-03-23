@@ -116,6 +116,11 @@ SD0 = TMB::sdreport(obj, getJointPrecision=TRUE,
 tmb_total_fit_time <- proc.time()[3] - ptm 
 tmb_sdreport_time <-  tmb_total_fit_time - fit_time_tmb
 
+
+## make a flag to see if tmb converged with a PD cov structure
+## we check in a minute to see if it actually is true
+tmb.pd.converge <- TRUE
+
 ## ##########
 ## PREDICT ##
 ## ##########
@@ -135,10 +140,10 @@ rmvnorm_prec <- function(mu, chol_prec, n.sims) {
   z <- as.matrix(z)
   mu + z
 }
+
 L <- try(suppressWarnings(Cholesky(SD0$jointPrecision, super = T)), silent = TRUE)
-tmb.prec.pd <- TRUE
 if(class(L) == "try-error"){
-  tmb.prec.pd <- FALSE
+  tmb.pd.converge <- FALSE ## the jointPrec was not PD
   message('TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
   message('TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
   message('TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
