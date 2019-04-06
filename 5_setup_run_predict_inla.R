@@ -102,7 +102,7 @@ fit_time_inla <- proc.time()[3] - ptm
 ## check to see if INLA converged nicely
 ## using the check suggested here: https://groups.google.com/forum/#!topic/r-inla-discussion-group/LsCpuCsr-Qo
 ## and noting that failing this check may not be terrible
-inla.converge <- ifelse(res_fit$mode$mode.status == 0, TRUE, FALSE)
+inla.mode.converge <- ifelse(res_fit$mode$mode.status == 0, TRUE, FALSE)
 
 ## ##########
 ## PREDICT ##
@@ -170,8 +170,8 @@ summ_inla <- cbind(median = (apply(pred_inla, 1, median)),
 ras_med_inla <- insertRaster(simple_raster, matrix(summ_inla[, 1], ncol = nperiods))
 ras_sdv_inla <- insertRaster(simple_raster, matrix(summ_inla[, 2], ncol = nperiods))
 
-saveRDS(file = sprintf('%s/modeling/outputs/inla/iter%04d_inla_preds_median_raster.rds', out.dir, iii), object = ras_med_inla)
-saveRDS(file = sprintf('%s/modeling/outputs/inla/iter%04d_inla_preds_stdev_raster.rds', out.dir, iii), object = ras_sdv_inla)
+saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_median_raster.rds', out.dir, par.iter, iii), object = ras_med_inla)
+saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_stdev_raster.rds', out.dir, par.iter, iii), object = ras_sdv_inla)
 
 if(data.lik == 'binom'){
   ## convert to prevalence space and summarize, rasterize, and save again
@@ -183,8 +183,8 @@ if(data.lik == 'binom'){
   ras_med_inla_p <- insertRaster(simple_raster, matrix(summ_inla_p[, 1], ncol = nperiods))
   ras_sdv_inla_p <- insertRaster(simple_raster, matrix(summ_inla_p[, 2], ncol = nperiods))
 
-  saveRDS(file = sprintf('%s/modeling/outputs/inla/iter%04d_inla_preds_median_raster_PREV.rds', out.dir, iii),
+  saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_median_raster_PREV.rds', out.dir, par.iter, iii),
           object = ras_med_inla_p)
-  saveRDS(file = sprintf('%s/modeling/outputs/inla/iter%04d_inla_preds_stdev_raster_PREV.rds', out.dir, iii),
+  saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_stdev_raster_PREV.rds', out.dir, par.iter, iii),
           object = ras_sdv_inla_p)
 }

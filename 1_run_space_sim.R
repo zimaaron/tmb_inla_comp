@@ -29,20 +29,50 @@ source('./2_setup_experiment_settings.R')
 
 for(iii in 1:Nsim){ ## repeat Nsim times
 
-  ## #####################################################
-  ## simulate data and setup obj shared by tmb and inla ##
-  ## #####################################################
-  source('./3_simulate_data_make_shared_obj.R')
+  ## ######################################################################
+  ## setup convergence checks and loop until met. record number of times ##
+  ## ######################################################################
+  tmb.converge <- 0 ## set to 1 when tmb converges
+  tmb.converge.fails <- 0 ## counts how many times TMB didn't converge
+  inla.converge <- 0 ## set to 1 when inla converges
+  inla.conerge.fails <- 0 ## counts how many times INLA didn't converge
 
-  ## ######
-  ## TMB ##
-  ## ######  
-  source('./4_setup_run_predict_tmb.R')
+  ## loop until both methods have converged or one method has failed fifth time
+  while(tmb.converge != 1 | inla.converge != 1 | tmb.converge.fails < 5 | inla.converge.fails < 5) {
+    
+    ## #####################################################
+    ## simulate data and setup obj shared by tmb and inla ##
+    ## #####################################################
+    source('./3_simulate_data_make_shared_obj.R')
 
-  ## #######
-  ## INLA ##
-  ## #######
-  source('./5_setup_run_predict_inla.R')
+    ## ######
+    ## TMB ##
+    ## ######  
+    source('./4_setup_run_predict_tmb.R')
+
+    ## update convergence args for while loop
+    if(tmb.pd.converge){
+      tmb.converge <- 1
+    }else{
+      tmb.converge <- 0
+      tmb.converge.fails <- tmb.converge.fails + 1
+    }
+          
+
+    ## #######
+    ## INLA ##
+    ## #######
+    source('./5_setup_run_predict_inla.R')
+
+    ## update convergence args for while loop
+    if(inla.mode.converge){
+      inla.converge <- 1
+    }else{
+      inla.converge <- 0
+      inla.converge.fails <- inla.converge.fails + 1
+    }
+    
+  }
 
   ## #############
   ## VALIDATION ##
@@ -53,7 +83,7 @@ for(iii in 1:Nsim){ ## repeat Nsim times
 } ## end iii loop repeating iterations over 1:Nsim
 
 ## save results from all Nsim monte carlo simulations in this run
-write.csv(complete.surface.metrics, sprintf('%s/validation/surface_metrics_complete.csv',out.dir))
+write.csv(complete.summary.metrics, sprintf('%s/validation/summary_metrics_complete.csv',out.dir))
 
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

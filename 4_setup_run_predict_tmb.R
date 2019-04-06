@@ -209,8 +209,8 @@ summ_tmb <- cbind(median = (apply(pred_tmb, 1, median)),
 ras_med_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 1], ncol = nperiods))
 ras_sdv_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 2], ncol = nperiods))
 
-saveRDS(file = sprintf('%s/modeling/outputs/tmb/iter%04d_tmb_preds_median_raster.rds', out.dir, iii), object = ras_med_tmb)
-saveRDS(file = sprintf('%s/modeling/outputs/tmb/iter%04d_tmb_preds_stdev_raster.rds', out.dir, iii), object = ras_sdv_tmb)
+saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_median_raster.rds', out.dir, par.iter, iii), object = ras_med_tmb)
+saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_stdev_raster.rds', out.dir, par.iter, iii), object = ras_sdv_tmb)
 
 if(data.lik == 'binom'){
   ## convert to prevalence space and summarize, rasterize, and save again
@@ -222,8 +222,8 @@ if(data.lik == 'binom'){
   ras_med_tmb_p <- insertRaster(simple_raster, matrix(summ_tmb_p[, 1], ncol = nperiods))
   ras_sdv_tmb_p <- insertRaster(simple_raster, matrix(summ_tmb_p[, 2], ncol = nperiods))
 
-  saveRDS(file = sprintf('%s/modeling/outputs/tmb/iter%04d_tmb_preds_median_raster_PREV.rds', out.dir, iii),
+  saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_median_raster_PREV.rds', out.dir, par.iter, iii),
           object = ras_med_tmb_p)
-  saveRDS(file = sprintf('%s/modeling/outputs/tmb/iter%04d_tmb_preds_stdev_raster_PREV.rds', out.dir, iii),
+  saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_stdev_raster_PREV.rds', out.dir, par.iter, iii),
           object = ras_sdv_tmb_p)
 }
