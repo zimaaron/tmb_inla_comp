@@ -26,11 +26,13 @@ res[,pt_tmb_sdreport_time := c(NA,tmb_sdreport_time)]
 res[,pt_get_draws_time := c(inla_get_draws_time,tmb_get_draws_time)]
 
 ## convergence
-res[, convergence := c(tmb.pd.converge, inla.converge)]
+res[, convergence := c(tmb.converge, inla.converge)]
+## converge attempts
+res[, convergence.fails := c(tmb.converge.fails, inla.converge.fails)]
 
 ## fe coefficients
 if(!is.null(alpha) | !is.null(betas)){
-  res[, paste0('fe_',res_fit$names.fixed,'_med') := rbind(res_fit$summary.fixed$mean, SD0$par.fixed[1:length(res_fit$names.fixed)])]
+  res[, paste0('fe_',res_fit$names.fixed,'_mean') := rbind(res_fit$summary.fixed$mean, SD0$par.fixed[1:length(res_fit$names.fixed)])]
   res[, paste0('fe_',res_fit$names.fixed,'_sd')   := rbind(res_fit$summary.fixed$sd, sqrt(diag(SD0$cov.fixed))[1:length(res_fit$names.fixed)])]
 }
 
@@ -84,7 +86,7 @@ names(rr) <- c('quantity','TRUE', 'R-INLA','TMB')
 rr$diff <- rr[,3]-rr[,4]
 
 write.csv(x = rr, row.names = FALSE, 
-          file = sprintf('%s/validation/iter%04d_param_summary_table.csv', out.dir, iii))
+          file = sprintf('%s/validation/experiment%04d_iter%04d_param_summary_table.csv', out.dir, par.iter, iii))
 
 ## we can now plot this table with: grid.table(rr)
 
@@ -98,7 +100,7 @@ write.csv(x = rr, row.names = FALSE,
 ## ~~~
 ## plot the table of results
 ## ~~~
-png(sprintf('%s/validation/iter%04d_plot_01_sumary_table.png', out.dir, iii),
+png(sprintf('%s/validation/experiment%04d_iter%04d_plot_01_sumary_table.png', out.dir, par.iter, iii),
     height=7, width=9, units = 'in', res = 250)
 cols <- names(rr)[2:5]
 rr[,(cols) := round(.SD, 3), .SDcols=cols]
@@ -116,7 +118,7 @@ dev.off()
 
 ## NOTE: also assume that intercept is the first 'beta' and that betas are listed first!
 
-png(sprintf('%s/validation/iter%04d_plot_02_parameter_densities.png', out.dir, iii),
+png(sprintf('%s/validation/experiment%04d_iter%04d_plot_02_parameter_densities.png', out.dir, par.iter, iii),
     height=9, width=9, units = 'in', res = 250)
 
 num.dists <- length(params)
@@ -328,7 +330,7 @@ for(sum.meas in c('median','stdev')){
                       'TMB' = rtmb,
                       'INLA' = rinla)
     
-    png(sprintf('%s/validation/iter%04d_plot_03_median_rasters.png', out.dir, iii),
+    png(sprintf('%s/validation/experiment%04d_iter%04d_plot_03_median_rasters.png', out.dir, par.iter, iii),
         height=12, width=12, units = 'in', res = 250)
   }
 
@@ -345,7 +347,7 @@ for(sum.meas in c('median','stdev')){
     rast.list <- list('TMB' = rtmb,
                       'INLA' = rinla)
     
-    png(sprintf('%s/validation/iter%04d_plot_04_stdev_rasters.png', out.dir, iii),
+    png(sprintf('%s/validation/experiment%04d_iter%04d_plot_04_stdev_rasters.png', out.dir, par.iter, iii),
         height=12, width=12, units = 'in', res = 250)
   }
 
@@ -402,7 +404,7 @@ for(sum.meas in c('median','stdev')){
 ## now make caterpillar plots
 ## ~~~
 
-png(sprintf('%s/validation/iter%04d_plot_05_spatial_re_caterpillars.png', out.dir, iii),
+png(sprintf('%s/validation/experiment%04d_iter%04d_plot_05_spatial_re_caterpillars.png', out.dir, par.iter, iii),
       height=8, width=12, units = 'in', res = 250)
 
 layout(matrix(1, 1, 1, byrow = TRUE))
@@ -552,6 +554,7 @@ crpsNormal <- function(truth, my.est, my.var){
   return(res)
 }
 
+## summarize across pixels
 surface.metrics <- data.table(cbind(mean.l      = d[, .(truth = mean(truth, na.rm = T)), by = c('model')], 
                                     mean.l.est  = d[, .(est = mean(median.fit, na.rm = T)), by = c('model')]$est, 
                                     bias        = d[, .(bias = mean(error, na.rm = T)), by = c('model')]$bias,
@@ -577,15 +580,27 @@ if(data.lik == 'binom'){
   surface.metrics <- cbind(surface.metrics, surface.metrics.p)
 }
 
+## add on things from the res tab
+res.addon <- t(rr[, c('R-INLA', 'TMB')])
+colnames(res.addon) <- rr[, quantity]
+
+## and addon loovars for easy summary later
+lv.addon <- rbind(loopvars[par.iter, ], loopvars[par.iter, ])
+
+
+summary.metrics <- cbind(surface.metrics, res.addon, lv.addon)
+
 ## note iteration
-surface.metrics[, iter := iii]
+summary.metrics[, iter := iii]
+
+##
 
 ## save
-write.csv(surface.metrics, sprintf('%s/validation/iter%04d_surface_metrics.csv',out.dir, iii))
+write.csv(summary.metrics, sprintf('%s/validation/experiment%04d_iter%04d_summary_metrics.csv', out.dir, par.iter, iii))
 
 ## append into overall metrics for assessing monte carlo variance of metrics
 if(iii == 1){
-  complete.surface.metrics <- surface.metrics
+  complete.summary.metrics <- summary.metrics
 }else{
-  complete.surface.metrics <- rbind(complete.surface.metrics, surface.metrics)
+  complete.summary.metrics <- rbind(complete.summary.metrics, summary.metrics)
 }

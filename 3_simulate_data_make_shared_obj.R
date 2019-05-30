@@ -54,7 +54,7 @@ if(iii == 1){ ## first time, must load covs, after that, we can reuse them
                                 exp.iter = iii)
 }
 
-saveRDS(file = sprintf('%s/simulated_obj/iter%04d_sim_obj.rds', out.dir, iii),
+saveRDS(file = sprintf('%s/simulated_obj/experiment%04d_iter%04d_sim_obj.rds', out.dir, par.iter, iii),
         object = sim.obj)
 
 ## process parts of the returned sim obj list into pieces we need for model fitting
@@ -126,7 +126,7 @@ mesh_s <- inla.mesh.2d(
   cutoff = cutoff
 )
 
-pdf(sprintf('%s/modeling/inputs/iter%04d_mesh.pdf', out.dir, iii))
+pdf(sprintf('%s/modeling/inputs/experiment%04d_iter%04d_mesh.pdf', out.dir, par.iter, iii))
 plot(mesh_s)
 plot(simple_raster, add = TRUE) ## just to show loc of simple_raster under mesh for scale
 plot(mesh_s, add = TRUE)
@@ -148,8 +148,8 @@ A.proj <- inla.spde.make.A(mesh  = mesh_s,
                            group = dt.pers)
 
 ## save relevant objects
-saveRDS(file = sprintf('%s/modeling/inputs/iter%04d_mesh.rds', out.dir, iii), mesh_s)
-saveRDS(file = sprintf('%s/modeling/inputs/iter%04d_spde.rds', out.dir, iii), spde)
+saveRDS(file = sprintf('%s/modeling/inputs/experiment%04d_iter%04d_mesh.rds', out.dir, par.iter, iii), mesh_s)
+saveRDS(file = sprintf('%s/modeling/inputs/experiment%04d_iter%04d_spde.rds', out.dir, par.iter, iii), spde)
 
 ## now that the mesh is made, we can grabb the default priors that it generates
 mesh.info <- param2.matern.orig(mesh_s)
