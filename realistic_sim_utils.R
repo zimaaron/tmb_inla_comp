@@ -2,16 +2,16 @@
 ## written by a0z 5/17/18
 
 ## qsub_sim: function to launch sims (and sim comparisons) on the cluster
-qsub_sim <- function(iter, ## if looping through muliple models, used to give different names
+qsub_sim <- function(iter, ## if looping through multiple models, used to give different names
                      main.dir.nm, ## head dir to store all results
                      codepath,
-                     slots, 
                      singularity = 'default',
-                     singularity_opts = NULL,
+                     singularity_opts = list(SET_OMP_THREADS = cores, SET_MKL_THREADS = cores),
                      extra_name = '',
-                     launch.on.fair = FALSE,
                      mem = '20G',
-                     time = '5:00:00', 
+                     time = '01:00:00:00', 
+                     queue = 'geospatial.q',
+                     priority = 0, ## defaults 0, can be as low as -1023 to reduce priority
                      logloc = NULL ## defaults to input/output dir in main.dir/iter/
                      ){
 
@@ -21,36 +21,37 @@ qsub_sim <- function(iter, ## if looping through muliple models, used to give di
     stop()
   }
 
-  ## if(sp.range < 0 | sp.var < 0 | sp.alpha < 0 | nug.var < 0){
-  ##   message('sp range, var, alpha, or nugget var is not positive. fix and rerun!')
-  ##   stop()
-  ## }
-
-  ## setup some stuff that I don't think I'll want to change
-  proj <- 'proj_geo_nodes'
-  node.flag <- '-l geos_node=TRUE'
-  shell <- '/share/code/geospatial/lbd_core/mbg_central/share_scripts/shell_sing.sh'
+  ## set correct project based on queue
+  proj <- ifelse(queue=='geospatial.q', 'proj_geo_nodes', 'proj_geospatial')
+  
+  ## set correct node flag for geo nodes if needed, based on queue
+  node.flag <- ifelse(queue=='geospatial.q', ' -l geos_node=TRUE', ' -l archive=TRUE')
+  
+  ## grab the shell script we want
+  shell <- '/share/code/geospatial/azimmer/lbd_core/mbg_central/share_scripts/shell_sing.sh'
   sing_image <- get_singularity(image = singularity)
-  if(is.null(singularity_opts)) singularity_opts <- list(SET_OMP_THREADS=1, SET_MKL_THREADS=1)
-  if(is.null(logloc)) logloc <- sprintf('/homes/azimmer/tmb_inla_sim/%s/%s/logs', main.dir.nm, iter)
+  
+  ## set the loglocation for output/error files
+  if(is.null(logloc)){
+    logloc <- sprintf('/homes/azimmer/tmb_inla_sim/%s/%04d/logs', main.dir.nm, iter)
+  }
+  error_log_dir <- paste0(logloc, '/errors/')
+  output_log_dir <- paste0(logloc, '/output/')
   
   ## Piece together lengthy `qsub` command
   qsub <- paste0("qsub",
                  " -e ", logloc, "/errors/",
                  " -o ", logloc, "/output/",
-                 " -q geospatial.q", 
+                 " -q ", queue, 
                  " -P ", proj)
 
-  ## if on fair
-  if(launch.on.fair){
-    qsub <- paste0(qsub,
-                   ' -l m_mem_free=', mem,
-                   ' -l fthread=1',
-                   ' -l h_rt=', time)
-  }else{
-    qsub <- paste0(qsub,
-                   " -pe multi_slot ", slots, ' ', node.flag)
-  }
+  ## add on job resource requests
+  qsub <- paste0(qsub,
+                 ' -l m_mem_free=', mem,
+                 ' -l fthread=1',
+                 ' -l h_rt=', time, 
+                 node.flag ## either ' -l geos_node=TRUE', or ''
+                 )
 
   ## add on stuff to launch singularity
   qsub <- qsub_sing_envs(qsub, singularity_opts,
@@ -68,7 +69,6 @@ qsub_sim <- function(iter, ## if looping through muliple models, used to give di
                 sep = " ")
 
   return(qsub)
-  
 }
 
 ## a function to simulate from a GF using INLA
@@ -260,10 +260,10 @@ sim.realistic.data <- function(reg,
   ## convert simple raster of our region to spatialpolygonsDF
   pix.pts <- rasterToPoints(simple_raster, spatial = TRUE)
   
-  ## reproject sp obj
+  ## reproject sp obj to default used in covariates
   geo.prj <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0" 
   pix.pts <- spTransform(pix.pts, CRS(geo.prj)) 
-  proj4string(pix.pts)
+  ## proj4string(pix.pts) ## check proj is what we wanted
   
   ## to simulate, we need lat-lon locs for the entire raster
   ## get coords

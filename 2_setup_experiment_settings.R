@@ -6,7 +6,6 @@
 user      <- Sys.info()['user']
 core_repo <- sprintf('/share/code/geospatial/%s/lbd_core/', user)
 tmb_repo  <- sprintf('/homes/%s/tmb_inla_comp', user)
-pull_tmb_git <- FALSE
 
 ## grab libraries and functions from MBG code
 setwd(core_repo)
@@ -28,8 +27,10 @@ library(RandomFields)
 
 ## Now we can switch to the TMB repo
 setwd(tmb_repo)
-if(pull_tmb_git) system(sprintf('cd %s\ngit pull %s %s', core_repo, remote, branch))
 source('./realistic_sim_utils.R')
+
+## set other needed global args 
+modeling_shapefile_version <- 'current'
 
 ## setup is now done. setup some parameters for this simulation
 
@@ -41,13 +42,12 @@ source('./realistic_sim_utils.R')
 ## load in the loopvars from launch and setup all the params for this job ##
 ############################################################################
 main.dir <- sprintf('/homes/azimmer/tmb_inla_sim/%s', main.dir.name)
-out.dir  <- sprintf('%s/%i', main.dir, par.iter)
+out.dir  <- sprintf('%s/%04d', main.dir, par.iter)
 loopvars <- read.csv(file = paste0(main.dir, '/loopvars.csv'))
 
 ## create a directory for some common objects that can be shared by all experiments launched
 common.dir <- sprintf('/homes/azimmer/tmb_inla_sim/%s/common/', main.dir.name)
 dir.create(common.dir, recursive = TRUE, showWarnings = F)
-
 
 ## create some directories for output organization
 dir.create(sprintf('%s/simulated_obj', out.dir), recursive = TRUE, showWarnings = F)
@@ -180,3 +180,4 @@ if(!file.exists(sprintf('%s/poly_shape.rdata', common.dir))){
   message('loading in pre-made simple raster, polygon and population objects')
   load(sprintf('%s/poly_shape.rdata', common.dir))
 }
+

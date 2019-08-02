@@ -5,16 +5,23 @@
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
-logging_note <- 'for jonno group. NORMAL vary norm sd, clsuter size, INLA approx'
+logging_note <- 'testing on new cluster'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## if NULL, run_date is made, OW uses name given
-extra.job.name <- 'norm'
+extra.job.name <- 'normal'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+## specify queue, project, and job requirements
+q.q <- 'long.q'
+q.m <- '20G' ## 5 gigs
+q.t <- '00:10:00:00' ## DD:HH:MM:SS
+q.p <- 0 ## priority: -1023 (low) - 0 (high)
+cores <- 1 ## used for OMP/MKL in qsub_sim call TODO - parallel version?
 
 #############################################
 ## setup the environment for singularity R ##
@@ -24,7 +31,6 @@ extra.job.name <- 'norm'
 user      <- Sys.info()['user']
 core_repo <- sprintf('/share/code/geospatial/%s/lbd_core/', user)
 tmb_repo  <- sprintf('/homes/%s/tmb_inla_comp', user)
-pull_tmb_git <- FALSE
 
 ## grab libraries and functions from MBG code
 setwd(core_repo)
@@ -42,22 +48,24 @@ library(grid)
 library(RColorBrewer)
 library(viridis)
 
-## now we can setup our main directory to save these results and log our note
-run_date <- make_time_stamp(TRUE)
-out.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', run_date)
-dir.create(out.dir)
-fileConn <- file(sprintf("%s/run_notes.txt", out.dir))
-writeLines(logging_note, fileConn)
-close(fileConn)
-
 ## Now we can switch to the TMB repo
 setwd(tmb_repo)
-if(pull_tmb_git) system(sprintf('cd %s\ngit pull %s %s', core_repo, remote, branch))
 source('./realistic_sim_utils.R')
+source('./qsub_utils.R')
 
 ## name overall directory with run_date if it is not named
 if(is.null(main.dir.name)) main.dir.name <- make_time_stamp(TRUE)
 print(main.dir.name)
+
+## setup the main dir to store ALL experiments - i.e. each row in loopvar is an experiment
+## all will be stored in main.dir, indexed by cooresponding row of loopvars 
+main.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', main.dir.name)
+dir.create(main.dir)
+
+## write the log note
+fileConn <- file(sprintf("%s/run_notes.txt", main.dir))
+writeLines(logging_note, fileConn)
+close(fileConn)
 
 ###############################
 ## setup things to loop over ##
@@ -84,7 +92,7 @@ cov_names <- "c('access2', 'distrivers', 'evi'   , 'mapincidence')"
 cov_measures <- "c('mean'   , 'mean'      , 'median', 'mean')"
 
 ## loopvars 5
-betas <- NA ## "c(.5, 1), 1, -.5)"
+betas <- NA ## "c(.5, 1), 1, -.5)" ## IF THIS IS NA, NO COVS
 
 ## loopvars 6
 alpha <- -1
@@ -105,10 +113,10 @@ nug.var <- NA# c(NA, .1 ^ 2, .1, .5 ^ 2, .5, 1) ##0.1 ^ 2       ## nugget varian
 t.rho <-  0.8            ## annual temporal auto-corr
 
 ## loopvars 12
-mesh_s_params <- c("c(0.1, 1 ,5)") ## cutoff, largest allowed triangle edge length inner, and outer
+mesh_s_params <- c("c(0.1, 1, 5)") ## cutoff, largest allowed triangle edge length inner, and outer
 
 ## loopvars 13
-n.clust <-  c(100, 500, 1000, 5000)         ## clusters PER TIME slice
+n.clust <-  c(1000, 2000)         ## clusters PER TIME slice
 
 ## loopvars 14
 m.clust <- 35                    ## mean number of obs per cluster (poisson)
@@ -126,7 +134,7 @@ sample.strat <- "list(obs.loc.strat='rand',
 cores <- 1
 
 ## loopvars 17
-ndraws <- 250
+ndraws <- 500
 
 ## loopvars 18
 alphaj.pri <- "c(0, 3)" ## normal mean and sd
@@ -135,19 +143,19 @@ alphaj.pri <- "c(0, 3)" ## normal mean and sd
 nug.prec.pri <- "c(1, 1e-5)" ## gamma for nug precision with shape and inv-scale
 
 ## loopvars 20
-inla.int.strat <- c('eb', 'ccd') ## can be 'eb', 'ccd', or 'grid'
+inla.int.strat <- c('eb') ## can be 'eb', 'ccd', or 'grid'
 
 ## loopvars 21
 inla.approx <- 'simplified.laplace' ## can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
 
 ## loopvars 22
-Nsim <- 25 ## number of times to repeat simulation
+Nsim <- 3 ## number of times to repeat simulation
 
 ## loopvars 23
-data.lik <- c('binom') ## either 'binom' or 'normal'
+data.lik <- c('normal') ## either 'binom' or 'normal'
 
 ## loopvars 24
-norm.var <- c(NA, .1 ^ 2, .1, .5 ^ 2, .5, 1)  ## sd of observations if normal
+norm.var <- c(.1^2)  ## sd of observations if normal. norm.var >= 0 and non-NA
 
 ## loopvars 25
 norm.prec.pri <- "c(1, 1e-5)" ## gamma for normal obs  precision with shape and inv-scale
@@ -188,14 +196,6 @@ loopvars <- expand.grid(list(reg = reg, ## 1
                              bias.correct = bias.correct,
                              sd.correct = sd.correct))
 
-## setup the main dir to store all experiments
-main.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', main.dir.name)
-
-## write the log note
-fileConn <- file(sprintf("%s/run_notes.txt", main.dir))
-writeLines(logging_note, fileConn)
-close(fileConn)
-
 ## save loopvars to this dir to reload into the parallel env
 write.csv(file = paste0(main.dir, '/loopvars.csv'), x = loopvars,
           row.names = FALSE)
@@ -205,20 +205,20 @@ for(ii in 1:nrow(loopvars)){
   ## make a run_date and setup output directory
   ## run_date <- loopvars$rd[ii]
 
-  ## now we can setup our main directory to save these results and log our note and stdouts
+  ## now we can setup our main directory where all outputs will be saved
   dir.create(main.dir, showWarnings = F, recursive = TRUE)
-  dir.create(paste(main.dir, ii, 'logs/errors', sep = '/'), showWarnings = F, recursive = TRUE)
-  dir.create(paste(main.dir, ii, 'logs/output', sep = '/'), showWarnings = F, recursive = TRUE)
 
   ## save and reload loopvars in parallel env. that way, we only need to pass in iter/row #
   qsub.string <- qsub_sim(iter = ii, ## sets which loopvar to use in parallel
                           main.dir = main.dir.name,
-                          slots = 2, 
                           codepath = '/homes/azimmer/tmb_inla_comp/1_run_space_sim.R', 
                           singularity = 'default',
                           singularity_opts = NULL,
                           extra_name = extra.job.name,
-                          launch.on.fair = TRUE, 
+                          mem = q.m,
+                          time = q.t,
+                          queue = q.q,
+                          priority = q.p,
                           logloc = NULL ## defaults to input/output dir in sim run_date dir
                           )
 

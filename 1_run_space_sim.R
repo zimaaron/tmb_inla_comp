@@ -21,6 +21,11 @@ main.dir.name <- as.character(commandArgs()[5]) ## and the main directory for al
 ## load in the loopvars and setup params for this run ##
 ## setup the spatial modeling domain                  ##
 ## #####################################################
+## Set core_repo location and tmb_repo loc
+user      <- Sys.info()['user']
+tmb_repo  <- sprintf('/homes/%s/tmb_inla_comp', user)
+setwd(tmb_repo)
+
 source('./2_setup_experiment_settings.R')
 
 ## ####################################
@@ -28,6 +33,9 @@ source('./2_setup_experiment_settings.R')
 ## ####################################
 
 for(iii in 1:Nsim){ ## repeat Nsim times
+  
+  
+  for(kk in 1:5) message(sprintf('!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ON SIM ITER: %04d', iii))
 
   ## ######################################################################
   ## setup convergence checks and loop until met. record number of times ##
@@ -35,10 +43,10 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   tmb.converge <- 0 ## set to 1 when tmb converges
   tmb.converge.fails <- 0 ## counts how many times TMB didn't converge
   inla.converge <- 0 ## set to 1 when inla converges
-  inla.conerge.fails <- 0 ## counts how many times INLA didn't converge
+  inla.converge.fails <- 0 ## counts how many times INLA didn't converge
 
   ## loop until both methods have converged or one method has failed fifth time
-  while(tmb.converge != 1 | inla.converge != 1 | tmb.converge.fails < 5 | inla.converge.fails < 5) {
+  while( (tmb.converge != 1 | inla.converge != 1) & !(tmb.converge.fails >= 5 | inla.converge.fails >= 5) ) {
     
     ## #####################################################
     ## simulate data and setup obj shared by tmb and inla ##
@@ -78,7 +86,6 @@ for(iii in 1:Nsim){ ## repeat Nsim times
   ## VALIDATION ##
   ## #############
   source('./6_run_validation.R')
-
 
 } ## end iii loop repeating iterations over 1:Nsim
 
