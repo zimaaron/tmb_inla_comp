@@ -4,6 +4,8 @@
 ## #############
 ## #############
 
+message('---- ON SCRIPT 6: running validation')
+
 ## 1) summarize fitted params
 ## 2) big plots showing difference in fits
 ## 3) calcualte and summarize predictive metrics  
@@ -86,21 +88,21 @@ names(rr) <- c('quantity','TRUE', 'R-INLA','TMB')
 rr$diff <- rr[,3]-rr[,4]
 
 write.csv(x = rr, row.names = FALSE, 
-          file = sprintf('%s/validation/experiment%04d_iter%04d_param_summary_table.csv', out.dir, par.iter, iii))
+          file = sprintf('%s/validation/experiment%04d_iter%04d_param_summary_table.csv', out.dir, exp.lvid, exp.iter))
 
 ## we can now plot this table with: grid.table(rr)
 
 ## ####################
 ## 2) setup big plot ##
 ## ####################
-## pdf(sprintf('%s/validation/inla_tmb_summary_comparison_plot_%i_new.pdf',out.dir, iii), height=15,width=30)
+## pdf(sprintf('%s/validation/inla_tmb_summary_comparison_plot_%i_new.pdf',out.dir, exp.iter), height=15,width=30)
 ## TODO? one overall plot? or somehow stitch together later...
 
 
 ## ~~~
 ## plot the table of results
 ## ~~~
-png(sprintf('%s/validation/experiment%04d_iter%04d_plot_01_sumary_table.png', out.dir, par.iter, iii),
+png(sprintf('%s/validation/experiment%04d_iter%04d_plot_01_sumary_table.png', out.dir, exp.lvid, exp.iter),
     height=7, width=9, units = 'in', res = 250)
 cols <- names(rr)[2:5]
 rr[,(cols) := round(.SD, 3), .SDcols=cols]
@@ -118,7 +120,7 @@ dev.off()
 
 ## NOTE: also assume that intercept is the first 'beta' and that betas are listed first!
 
-png(sprintf('%s/validation/experiment%04d_iter%04d_plot_02_parameter_densities.png', out.dir, par.iter, iii),
+png(sprintf('%s/validation/experiment%04d_iter%04d_plot_02_parameter_densities.png', out.dir, exp.lvid, exp.iter),
     height=9, width=9, units = 'in', res = 250)
 
 num.dists <- length(params)
@@ -330,7 +332,7 @@ for(sum.meas in c('median','stdev')){
                       'TMB' = rtmb,
                       'INLA' = rinla)
     
-    png(sprintf('%s/validation/experiment%04d_iter%04d_plot_03_median_rasters.png', out.dir, par.iter, iii),
+    png(sprintf('%s/validation/experiment%04d_iter%04d_plot_03_median_rasters.png', out.dir, exp.lvid, exp.iter),
         height=12, width=12, units = 'in', res = 250)
   }
 
@@ -347,7 +349,7 @@ for(sum.meas in c('median','stdev')){
     rast.list <- list('TMB' = rtmb,
                       'INLA' = rinla)
     
-    png(sprintf('%s/validation/experiment%04d_iter%04d_plot_04_stdev_rasters.png', out.dir, par.iter, iii),
+    png(sprintf('%s/validation/experiment%04d_iter%04d_plot_04_stdev_rasters.png', out.dir, exp.lvid, exp.iter),
         height=12, width=12, units = 'in', res = 250)
   }
 
@@ -404,7 +406,7 @@ for(sum.meas in c('median','stdev')){
 ## now make caterpillar plots
 ## ~~~
 
-png(sprintf('%s/validation/experiment%04d_iter%04d_plot_05_spatial_re_caterpillars.png', out.dir, par.iter, iii),
+png(sprintf('%s/validation/experiment%04d_iter%04d_plot_05_spatial_re_caterpillars.png', out.dir, exp.lvid, exp.iter),
       height=8, width=12, units = 'in', res = 250)
 
 layout(matrix(1, 1, 1, byrow = TRUE))
@@ -487,7 +489,7 @@ d <- data.table(truth        = rep(values(true.rast)[non.na.idx], 2),
 ## get some coverage probs
 coverage_probs <- c(25, 50, 80, 90, 95)
 for(c in coverage_probs){
-  message(paste0('For ',c,'% coverage.'))
+  message(paste0('------ calcing ', c ,'% coverage'))
   coverage <- c / 100
   li       <- apply(all.preds, 1, quantile, p = (1 - coverage)/2, na.rm=T)
   ui       <- apply(all.preds, 1, quantile, p = coverage + (1 - coverage) / 2, na.rm=T)
@@ -513,7 +515,7 @@ if(data.lik == 'binom'){
   ## get some coverage probs
   coverage_probs <- c(25, 50, 80, 90, 95)
   for(c in coverage_probs){
-    message(paste0('For ',c,'% coverage.'))
+    message(paste0('------ calcing ', c ,'% coverage'))
     coverage <- c / 100
     li       <- apply(all.preds, 1, quantile, p = (1 - coverage)/2, na.rm=T)
     ui       <- apply(all.preds, 1, quantile, p = coverage + (1 - coverage) / 2, na.rm=T)
@@ -585,22 +587,22 @@ res.addon <- t(rr[, c('R-INLA', 'TMB')])
 colnames(res.addon) <- rr[, quantity]
 
 ## and addon loovars for easy summary later
-lv.addon <- rbind(loopvars[par.iter, ], loopvars[par.iter, ])
+lv.addon <- rbind(loopvars[exp.lvid, ], loopvars[exp.lvid, ])
 
 
 summary.metrics <- cbind(surface.metrics, res.addon, lv.addon)
 
 ## note iteration
-summary.metrics[, iter := iii]
+summary.metrics[, iter := exp.iter]
 
 ##
 
 ## save
-write.csv(summary.metrics, sprintf('%s/validation/experiment%04d_iter%04d_summary_metrics.csv', out.dir, par.iter, iii))
+write.csv(summary.metrics, sprintf('%s/validation/experiment%04d_iter%04d_summary_metrics.csv', out.dir, exp.lvid, exp.iter))
 
-## append into overall metrics for assessing monte carlo variance of metrics
-if(iii == 1){
-  complete.summary.metrics <- summary.metrics
-}else{
-  complete.summary.metrics <- rbind(complete.summary.metrics, summary.metrics)
-}
+# ## append into overall metrics for assessing monte carlo variance of metrics
+# if(exp.iter == 1){
+#   complete.summary.metrics <- summary.metrics
+# }else{
+#   complete.summary.metrics <- rbind(complete.summary.metrics, summary.metrics)
+# }

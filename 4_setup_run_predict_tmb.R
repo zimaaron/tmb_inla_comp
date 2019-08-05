@@ -4,6 +4,8 @@
 ## ######
 ## ######
 
+message('---- ON SCRIPT 4: running TMB')
+
 ## ########
 ## SETUP ##
 ## ########
@@ -100,6 +102,7 @@ if(data_full$options[7] == 1){
 }
 
 ## Run optimizer
+message('------ fitting TMB')
 ptm <- proc.time()[3]
 opt0 <- do.call("nlminb",list(start       =    obj$par,
                               objective   =    obj$fn,
@@ -124,8 +127,7 @@ tmb.pd.converge <- TRUE
 ## ##########
 ## PREDICT ##
 ## ##########
-
-message('making predictions')
+message('------ making TMB predictions')
 
 ## now we can take draws and project to space-time raster locs
 mu <- c(SD0$par.fixed,SD0$par.random)
@@ -144,9 +146,7 @@ rmvnorm_prec <- function(mu, chol_prec, n.sims) {
 L <- try(suppressWarnings(Cholesky(SD0$jointPrecision, super = T)), silent = TRUE)
 if(class(L) == "try-error"){
   tmb.pd.converge <- FALSE ## the jointPrec was not PD
-  message('TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
-  message('TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
-  message('TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
+  message('------ WARNING: TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
   SD0$jointPrecision <- Matrix(nearPD(SD0$jointPrecision)$mat, sparse = T)
   L <- Cholesky(SD0$jointPrecision, super = T)
 }
@@ -202,6 +202,11 @@ totalpredict_time_tmb <- proc.time()[3] - ptm2
 ## SAVE ##
 ## #######
 
+## save the cell preds
+saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds.rds', 
+                       out.dir, exp.lvid, exp.iter),
+        object = pred_tmb)
+
 ## summarize the latent field
 summ_tmb <- cbind(median = (apply(pred_tmb, 1, median)),
                   sd     = (apply(pred_tmb, 1, sd)))
@@ -209,12 +214,20 @@ summ_tmb <- cbind(median = (apply(pred_tmb, 1, median)),
 ras_med_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 1], ncol = nperiods))
 ras_sdv_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 2], ncol = nperiods))
 
-saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_median_raster.rds', out.dir, par.iter, iii), object = ras_med_tmb)
-saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_stdev_raster.rds', out.dir, par.iter, iii), object = ras_sdv_tmb)
+writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_median_raster.tif', 
+                       out.dir, exp.lvid, exp.iter), 
+        x = ras_med_tmb, format='GTiff', overwrite = TRUE)
+writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_stdev_raster.tif', 
+                       out.dir, exp.lvid, exp.iter), 
+        x = ras_sdv_tmb, format='GTiff', overwrite = TRUE)
 
 if(data.lik == 'binom'){
   ## convert to prevalence space and summarize, rasterize, and save again
   pred_tmb_p <- plogis(pred_tmb)
+  
+  saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_PREV.rds', 
+                         out.dir, exp.lvid, exp.iter),
+          object = pred_tmb_p)
   
   summ_tmb_p <- cbind(median = (apply(pred_tmb_p, 1, median)),
                       sd     = (apply(pred_tmb_p, 1, sd)))
@@ -222,8 +235,10 @@ if(data.lik == 'binom'){
   ras_med_tmb_p <- insertRaster(simple_raster, matrix(summ_tmb_p[, 1], ncol = nperiods))
   ras_sdv_tmb_p <- insertRaster(simple_raster, matrix(summ_tmb_p[, 2], ncol = nperiods))
 
-  saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_median_raster_PREV.rds', out.dir, par.iter, iii),
-          object = ras_med_tmb_p)
-  saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_stdev_raster_PREV.rds', out.dir, par.iter, iii),
-          object = ras_sdv_tmb_p)
+  writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_median_raster_PREV.rds', 
+                         out.dir, exp.lvid, exp.iter),
+          x = ras_med_tmb_p, format='GTiff', overwrite = TRUE)
+  writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_stdev_raster_PREV.rds', 
+                         out.dir, exp.lvid, exp.iter),
+          x = ras_sdv_tmb_p, format='GTiff', overwrite = TRUE)
 }

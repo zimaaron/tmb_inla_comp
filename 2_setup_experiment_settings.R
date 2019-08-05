@@ -2,6 +2,8 @@
 ## setup the environment for singularity R ##
 ## ##########################################
 
+message('---- ON SCRIPT 2: setup experiment settings')
+
 ## Set core_repo location and tmb_repo loc
 user      <- Sys.info()['user']
 core_repo <- sprintf('/share/code/geospatial/%s/lbd_core/', user)
@@ -13,7 +15,6 @@ commondir    <- paste(core_repo, 'mbg_central/share_scripts/common_inputs', sep 
 package_list <- c(t(read.csv(paste(commondir, 'package_list.csv', sep = '/'), header = FALSE)))
 
 ## Load MBG packages and functions
-message('Loading in required R packages and MBG functions')
 source(paste0(core_repo, 'mbg_central/setup.R'))
 mbg_setup(package_list = package_list, repos = core_repo)
 
@@ -42,7 +43,7 @@ modeling_shapefile_version <- 'current'
 ## load in the loopvars from launch and setup all the params for this job ##
 ############################################################################
 main.dir <- sprintf('/homes/azimmer/tmb_inla_sim/%s', main.dir.name)
-out.dir  <- sprintf('%s/%04d', main.dir, par.iter)
+out.dir  <- sprintf('%s/%04d', main.dir, exp.lvid)
 loopvars <- read.csv(file = paste0(main.dir, '/loopvars.csv'))
 
 ## create a directory for some common objects that can be shared by all experiments launched
@@ -57,43 +58,43 @@ dir.create(sprintf('%s/modeling/outputs/inla', out.dir), recursive = TRUE, showW
 dir.create(sprintf('%s/validation', out.dir), showWarnings = F)
 
 ## load in all parameters for this experiment
-reg             <- as.character(loopvars[par.iter, 1])
-year_list       <- eval(parse(text = loopvars[par.iter, 2]))
-cov_names       <- eval(parse(text = as.character(loopvars[par.iter, 3])))
-cov_measures    <- eval(parse(text = as.character(loopvars[par.iter, 4])))
-betas           <- eval(parse(text = as.character(loopvars[par.iter, 5])));if(is.na(betas)) betas <- NULL
+reg             <- as.character(loopvars[exp.lvid, 1])
+year_list       <- eval(parse(text = loopvars[exp.lvid, 2]))
+cov_names       <- eval(parse(text = as.character(loopvars[exp.lvid, 3])))
+cov_measures    <- eval(parse(text = as.character(loopvars[exp.lvid, 4])))
+betas           <- eval(parse(text = as.character(loopvars[exp.lvid, 5])));if(is.na(betas)) betas <- NULL
 
-alpha           <- as.numeric(loopvars[par.iter, 6]);if(is.na(alpha)) alpha <- NULL
-sp.range        <- as.numeric(loopvars[par.iter, 7])
-sp.var          <- as.numeric(loopvars[par.iter, 8])
-sp.alpha        <- as.numeric(loopvars[par.iter, 9])
-nug.var         <- as.numeric(loopvars[par.iter, 10]);if(is.na(nug.var)) nug.var <- NULL
+alpha           <- as.numeric(loopvars[exp.lvid, 6]);if(is.na(alpha)) alpha <- NULL
+sp.range        <- as.numeric(loopvars[exp.lvid, 7])
+sp.var          <- as.numeric(loopvars[exp.lvid, 8])
+sp.alpha        <- as.numeric(loopvars[exp.lvid, 9])
+nug.var         <- as.numeric(loopvars[exp.lvid, 10]);if(is.na(nug.var)) nug.var <- NULL
 
-t.rho           <- as.numeric(loopvars[par.iter, 11])
-mesh_s_params   <- as.character(loopvars[par.iter, 12])
-n.clust         <- as.numeric(loopvars[par.iter, 13])
-m.clust         <- as.numeric(loopvars[par.iter, 14])
-sample.strat    <- eval(parse(text = as.character(loopvars[par.iter, 15])))
+t.rho           <- as.numeric(loopvars[exp.lvid, 11])
+mesh_s_params   <- as.character(loopvars[exp.lvid, 12])
+n.clust         <- as.numeric(loopvars[exp.lvid, 13])
+m.clust         <- as.numeric(loopvars[exp.lvid, 14])
+sample.strat    <- eval(parse(text = as.character(loopvars[exp.lvid, 15])))
 obs.loc.strat   <- sample.strat[['obs.loc.strat']]
 urban.pop.pct   <- sample.strat[['urban.pop.pct']]
 urban.strat.pct <- sample.strat[['urban.strat.pct']]
 
-cores           <- as.numeric(loopvars[par.iter, 16]) 
-ndraws          <- as.numeric(loopvars[par.iter, 17])
-alphaj.pri      <- eval(parse(text = as.character(loopvars[par.iter, 18]))) ## normal mean and sd ## TODO pass this to INLA and TMB
-nug.prec.pri    <- eval(parse(text = as.character(loopvars[par.iter, 19])))  ## gamma for nug preciion with shape and inv-scale ## TODO pass this to INLA and TMB
-inla.int.strat  <- as.character(loopvars[par.iter, 20]) ## can be one of: 'eb', 'ccd', 'grid'
+cores           <- as.numeric(loopvars[exp.lvid, 16]) 
+ndraws          <- as.numeric(loopvars[exp.lvid, 17])
+alphaj.pri      <- eval(parse(text = as.character(loopvars[exp.lvid, 18]))) ## normal mean and sd ## TODO pass this to INLA and TMB
+nug.prec.pri    <- eval(parse(text = as.character(loopvars[exp.lvid, 19])))  ## gamma for nug preciion with shape and inv-scale ## TODO pass this to INLA and TMB
+inla.int.strat  <- as.character(loopvars[exp.lvid, 20]) ## can be one of: 'eb', 'ccd', 'grid'
 
-inla.approx     <- as.character(loopvars[par.iter, 21]) ## can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
+inla.approx     <- as.character(loopvars[exp.lvid, 21]) ## can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
 l.tau.pri       <- NULL  ## taken from INLA spde mesh obj
 l.kap.pri       <- NULL  ## taken from INLA spde mesh obj
-Nsim <-  as.numeric(loopvars[par.iter, 22]) ## number of times to repeat simulation
-data.lik <- as.character(loopvars[par.iter, 23])
-norm.var  <-  as.numeric(loopvars[par.iter, 24])
-norm.prec.pri  <-  eval(parse(text = as.character(loopvars[par.iter, 25])))
+Nsim <-  as.numeric(loopvars[exp.lvid, 22]) ## number of times to repeat simulation
+data.lik <- as.character(loopvars[exp.lvid, 23])
+norm.var  <-  as.numeric(loopvars[exp.lvid, 24])
+norm.prec.pri  <-  eval(parse(text = as.character(loopvars[exp.lvid, 25])))
 
-bias.correct <- as.logical(loopvars[par.iter, 26])
-sd.correct <- as.logical(loopvars[par.iter, 27])
+bias.correct <- as.logical(loopvars[exp.lvid, 26])
+sd.correct <- as.logical(loopvars[exp.lvid, 27])
 
 
 ## TODO? add in some validation options? or maybe just always do them all
@@ -166,7 +167,7 @@ if(!file.exists(sprintf('%s/poly_shape.rdata', common.dir))){
   rm(raster_list)
 
   ## save these since they will be common across runs (assuming the geography is fixed)
-  if(par.iter == 1){
+  if(exp.lvid == 1){
     ## only save from the first one to avoid simultaneously writing to the same file
     save(gaul_list,
          subset_shape, 
@@ -177,7 +178,7 @@ if(!file.exists(sprintf('%s/poly_shape.rdata', common.dir))){
   }
   
 }else{
-  message('loading in pre-made simple raster, polygon and population objects')
+  message('------ loading in pre-made simple raster, polygon and population objects')
   load(sprintf('%s/poly_shape.rdata', common.dir))
 }
 

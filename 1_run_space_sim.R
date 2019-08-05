@@ -1,7 +1,7 @@
 ## this script simulates some realistic datasets for comparison between INLA and TMB
 ## it leverages existing architecture that the LBD team at IHME has already created
 ## written by AOZ
-## last editted Oct 3, 2018
+## last editted Aug 4, 2019
 
 ## options(error = recover)
 
@@ -13,8 +13,28 @@
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-par.iter      <- as.numeric(  commandArgs()[4]) ## all we need is to grab the (parallel) iteration of this run
-main.dir.name <- as.character(commandArgs()[5]) ## and the main directory for all experiments in this run so we know where to load from
+exp.lvid      <- as.numeric(commandArgs()[4]) ## all we need is to grab which (i.e. row of loopvars),
+exp.iter      <- as.numeric(commandArgs()[5])  ## which monte carlo iteration,
+main.dir.name <- as.character(commandArgs()[6]) ## the run_date folder name
+
+
+message(sprintf('ON EXPERIMENT LV ID: %04d', exp.lvid))
+message(sprintf('-- ON SIM ITER: %04d', exp.iter))
+
+## set the seed for the entire experiment using minutes, 
+## the experiemnt loopvar id, and the iteration
+## this seed will rarely repeat across experiments and give unique starting values within each experiment
+## NOTE: the max seed integer is (2^31 - 1) = 2147483647
+## so, we use the last 3 digits for iter
+##     we use the 3 prior digits for exp.lvid
+##     that leaves 4 digits, with a max value of 2147, first 4 digits
+##     we take the minutes and seconds of run_date, modulo 2146 to get these first 4 digits
+seed <- as.numeric(sprintf('%i%03d%03d',
+                           (as.numeric(paste0(strsplit(main.dir.name, '_')[[1]][5:6], collapse='')) %% 2146),
+                           exp.lvid,   ## experiment loopvar id
+                           exp.iter))  ## experiment iteration for given lvid
+set.seed(seed)
+ 
 
 ## #####################################################
 ## setup the environment for singularity R            ##
@@ -28,84 +48,65 @@ setwd(tmb_repo)
 
 source('./2_setup_experiment_settings.R')
 
-## ####################################
-## perform the experiment Nsim times ##
-## ####################################
+## ######################################################################
+## setup convergence checks and loop until met. record number of times ##
+## ######################################################################
+tmb.converge <- 0 ## set to 1 when tmb converges
+tmb.converge.fails <- 0 ## counts how many times TMB didn't converge
+inla.converge <- 0 ## set to 1 when inla converges
+inla.converge.fails <- 0 ## counts how many times INLA didn't converge
 
-for(iii in 1:Nsim){ ## repeat Nsim times
+## loop until both methods have converged or one method has failed fifth time
+while( (tmb.converge != 1 | inla.converge != 1) & !(tmb.converge.fails >= 5 | inla.converge.fails >= 5) ) {
   
+  ## #####################################################
+  ## simulate data and setup obj shared by tmb and inla ##
+  ## #####################################################
+  source('./3_simulate_data_make_shared_obj.R')
   
-  for(kk in 1:5) message(sprintf('!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ON SIM ITER: %04d', iii))
-
-  ## ######################################################################
-  ## setup convergence checks and loop until met. record number of times ##
-  ## ######################################################################
-  tmb.converge <- 0 ## set to 1 when tmb converges
-  tmb.converge.fails <- 0 ## counts how many times TMB didn't converge
-  inla.converge <- 0 ## set to 1 when inla converges
-  inla.converge.fails <- 0 ## counts how many times INLA didn't converge
-
-  ## loop until both methods have converged or one method has failed fifth time
-  while( (tmb.converge != 1 | inla.converge != 1) & !(tmb.converge.fails >= 5 | inla.converge.fails >= 5) ) {
-    
-    ## #####################################################
-    ## simulate data and setup obj shared by tmb and inla ##
-    ## #####################################################
-    source('./3_simulate_data_make_shared_obj.R')
-
-    ## ######
-    ## TMB ##
-    ## ######  
-    source('./4_setup_run_predict_tmb.R')
-
-    ## update convergence args for while loop
-    if(tmb.pd.converge){
-      tmb.converge <- 1
-    }else{
-      tmb.converge <- 0
-      tmb.converge.fails <- tmb.converge.fails + 1
-    }
-          
-
-    ## #######
-    ## INLA ##
-    ## #######
-    source('./5_setup_run_predict_inla.R')
-
-    ## update convergence args for while loop
-    if(inla.mode.converge){
-      inla.converge <- 1
-    }else{
-      inla.converge <- 0
-      inla.converge.fails <- inla.converge.fails + 1
-    }
-    
+  ## ######
+  ## TMB ##
+  ## ######  
+  source('./4_setup_run_predict_tmb.R')
+  
+  ## update convergence args for while loop
+  if(tmb.pd.converge){
+    tmb.converge <- 1
+  }else{
+    tmb.converge <- 0
+    tmb.converge.fails <- tmb.converge.fails + 1
   }
+  
+  
+  ## #######
+  ## INLA ##
+  ## #######
+  source('./5_setup_run_predict_inla.R')
+  
+  ## update convergence args for while loop
+  if(inla.mode.converge){
+    inla.converge <- 1
+  }else{
+    inla.converge <- 0
+    inla.converge.fails <- inla.converge.fails + 1
+  }
+  
+}
 
-  ## #############
-  ## VALIDATION ##
-  ## #############
-  source('./6_run_validation.R')
+## #############
+## VALIDATION ##
+## #############
+source('./6_run_validation.R')
 
-} ## end iii loop repeating iterations over 1:Nsim
+message('DONE')
 
-## save results from all Nsim monte carlo simulations in this run
-write.csv(complete.summary.metrics, sprintf('%s/validation/summary_metrics_complete.csv',out.dir))
-
-
-## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-## (i) compare data to fitted surface
-## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
+# ## save results from all Nsim monte carlo simulations in this run
+# write.csv(complete.summary.metrics, sprintf('%s/validation/summary_metrics_complete.csv', out.dir))
 
 
 #############
 ## SCRATCH ##
 #############
-
-
-
 
 
 ## ######################################
@@ -223,4 +224,3 @@ write.csv(complete.summary.metrics, sprintf('%s/validation/summary_metrics_compl
 ## dev.off()
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-

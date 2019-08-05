@@ -5,7 +5,7 @@
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
-logging_note <- 'testing on new cluster'
+logging_note <- 'testing new parallelization on new cluster'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## if NULL, run_date is made, OW uses name given
@@ -116,7 +116,7 @@ t.rho <-  0.8            ## annual temporal auto-corr
 mesh_s_params <- c("c(0.1, 1, 5)") ## cutoff, largest allowed triangle edge length inner, and outer
 
 ## loopvars 13
-n.clust <-  c(1000, 2000)         ## clusters PER TIME slice
+n.clust <-  c(1000)         ## clusters PER TIME slice
 
 ## loopvars 14
 m.clust <- 35                    ## mean number of obs per cluster (poisson)
@@ -149,10 +149,10 @@ inla.int.strat <- c('eb') ## can be 'eb', 'ccd', or 'grid'
 inla.approx <- 'simplified.laplace' ## can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
 
 ## loopvars 22
-Nsim <- 3 ## number of times to repeat simulation
+n.sim <- 50 ## number of times to repeat simulation
 
 ## loopvars 23
-data.lik <- c('normal') ## either 'binom' or 'normal'
+data.lik <- c('normal', 'binom') ## either 'binom' or 'normal'
 
 ## loopvars 24
 norm.var <- c(.1^2)  ## sd of observations if normal. norm.var >= 0 and non-NA
@@ -189,7 +189,7 @@ loopvars <- expand.grid(list(reg = reg, ## 1
                              nug.prec.pri = nug.prec.pri,
                              inla.int.strat = inla.int.strat, ## 20
                              inla.approx = inla.approx, 
-                             Nsim = Nsim,
+                             n.sim = n.sim,
                              data.lik = data.lik,
                              norm.var = norm.var,
                              norm.prec.pri = norm.prec.pri, ## 25
@@ -200,29 +200,45 @@ loopvars <- expand.grid(list(reg = reg, ## 1
 write.csv(file = paste0(main.dir, '/loopvars.csv'), x = loopvars,
           row.names = FALSE)
 
-for(ii in 1:nrow(loopvars)){
-
-  ## make a run_date and setup output directory
-  ## run_date <- loopvars$rd[ii]
-
-  ## now we can setup our main directory where all outputs will be saved
-  dir.create(main.dir, showWarnings = F, recursive = TRUE)
-
-  ## save and reload loopvars in parallel env. that way, we only need to pass in iter/row #
-  qsub.string <- qsub_sim(iter = ii, ## sets which loopvar to use in parallel
-                          main.dir = main.dir.name,
-                          codepath = '/homes/azimmer/tmb_inla_comp/1_run_space_sim.R', 
-                          singularity = 'default',
-                          singularity_opts = NULL,
-                          extra_name = extra.job.name,
-                          mem = q.m,
-                          time = q.t,
-                          queue = q.q,
-                          priority = q.p,
-                          logloc = NULL ## defaults to input/output dir in sim run_date dir
-                          )
-
-  ## launch the job
-  
-  system(qsub.string)
+for(ll in 1:nrow(loopvars)){
+  for(ii in 1:n.sim){
+    
+    message(sprintf('ON EXPERIMENT LOOP.ID %04d', ll))
+    message(sprintf('----- on iter %04d', ii))
+    
+    if(ii == 1){
+      ## now we can setup our main directory where all outputs will be saved
+      dir.create(main.dir, showWarnings = F, recursive = TRUE)
+      hold <- 0 ## to avoid ifelse() error
+      hold.jid <- NULL
+    }
+    
+    ## save and reload loopvars in parallel env. that way, we only need to pass in iter/row #
+    qsub.string <- qsub_sim(exp.lvid = ll, ## sets which loopvar to use in parallel
+                            exp.iter = ii,
+                            main.dir = main.dir.name,
+                            codepath = '/homes/azimmer/tmb_inla_comp/1_run_space_sim.R', 
+                            singularity = 'default',
+                            singularity_opts = NULL,
+                            extra_name = extra.job.name,
+                            mem = q.m,
+                            time = q.t,
+                            queue = q.q,
+                            priority = q.p,
+                            hold.jid = switch(hold + 1, NULL, hold.jid),
+                            logloc = NULL) ## defaults to input/output dir in sim run_date dir
+    
+    ## launch the job and save the jobid from the first
+    if(ii == 1){
+      ## to use as holds for all others
+      hold.jid <- strsplit(system(qsub.string, intern=TRUE),
+                           split=" ")[[1]][[3]]
+      
+      ## all iters (except the 1st) hold on the 1st
+      hold <- 1 
+    }else{
+      system(qsub.string)
+    }
+    
+  }
 }

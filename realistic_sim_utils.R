@@ -2,7 +2,8 @@
 ## written by a0z 5/17/18
 
 ## qsub_sim: function to launch sims (and sim comparisons) on the cluster
-qsub_sim <- function(iter, ## if looping through multiple models, used to give different names
+qsub_sim <- function(exp.lvid, ## if looping through multiple experiments - i.e. row of loopvars
+                     exp.iter, ## if monte carlo iteration within an experiment
                      main.dir.nm, ## head dir to store all results
                      codepath,
                      singularity = 'default',
@@ -12,7 +13,8 @@ qsub_sim <- function(iter, ## if looping through multiple models, used to give d
                      time = '01:00:00:00', 
                      queue = 'geospatial.q',
                      priority = 0, ## defaults 0, can be as low as -1023 to reduce priority
-                     logloc = NULL ## defaults to input/output dir in main.dir/iter/
+                     hold.jid = NULL, ## jobid to hold on. default no hold
+                     logloc = NULL ## defaults to input/output dir in main.dir/exp.lvid/
                      ){
 
   ## some early checks
@@ -25,7 +27,7 @@ qsub_sim <- function(iter, ## if looping through multiple models, used to give d
   proj <- ifelse(queue=='geospatial.q', 'proj_geo_nodes', 'proj_geospatial')
   
   ## set correct node flag for geo nodes if needed, based on queue
-  node.flag <- ifelse(queue=='geospatial.q', ' -l geos_node=TRUE', ' -l archive=TRUE')
+  node.flag <- ifelse(queue=='geospatial.q', ' -l geos_node=TRUE ', ' -l archive=TRUE ')
   
   ## grab the shell script we want
   shell <- '/share/code/geospatial/azimmer/lbd_core/mbg_central/share_scripts/shell_sing.sh'
@@ -33,7 +35,7 @@ qsub_sim <- function(iter, ## if looping through multiple models, used to give d
   
   ## set the loglocation for output/error files
   if(is.null(logloc)){
-    logloc <- sprintf('/homes/azimmer/tmb_inla_sim/%s/%04d/logs', main.dir.nm, iter)
+    logloc <- sprintf('/homes/azimmer/tmb_inla_sim/%s/%04d/logs', main.dir.nm, exp.lvid)
   }
   error_log_dir <- paste0(logloc, '/errors/')
   output_log_dir <- paste0(logloc, '/output/')
@@ -43,28 +45,37 @@ qsub_sim <- function(iter, ## if looping through multiple models, used to give d
                  " -e ", logloc, "/errors/",
                  " -o ", logloc, "/output/",
                  " -q ", queue, 
-                 " -P ", proj)
+                 " -P ", proj,
+                 " -p ", priority)
 
   ## add on job resource requests
   qsub <- paste0(qsub,
-                 ' -l m_mem_free=', mem,
-                 ' -l fthread=1',
-                 ' -l h_rt=', time, 
-                 node.flag ## either ' -l geos_node=TRUE', or ''
-                 )
-
+                ' -l m_mem_free=', mem,
+                ' -l fthread=1',
+                ' -l h_rt=', time, 
+                node.flag ## either ' -l geos_node=TRUE', or ''
+  )
+  
   ## add on stuff to launch singularity
   qsub <- qsub_sing_envs(qsub, singularity_opts,
                          sing_image)
-
+  
+  ## add hold on jobid flag
+  if(!is.null(hold.jid)) {
+    qsub <- paste(qsub, 
+                  "-hold_jid", 
+                  hold.jid)
+  }
+  
   ## append job name, shell, and code to run 
   qsub <- paste0(qsub,
-                 sprintf(" -N sim_job_%s_%i", extra_name, iter), ## job name
+                 sprintf(" -N sim_job_%s_exp%04d_iter%04d", extra_name, exp.lvid, exp.iter), ## job name
                  " ", shell, " ", codepath) ## shell and code path
 
   ## add on all remaining arguments 
   qsub <- paste(qsub,
-                iter, ## which row in loopvars
+                exp.lvid, ## which row in loopvars
+                exp.iter, ## which iteration of experiment
                 main.dir.nm, ## which dir to load from
                 sep = " ")
 

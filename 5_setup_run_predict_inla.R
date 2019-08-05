@@ -4,6 +4,8 @@
 ## #######
 ## #######
 
+message('---- ON SCRIPT 5: running INLA')
+
 ## ########
 ## SETUP ##
 ## ########
@@ -50,6 +52,7 @@ inla.setOption("enable.inla.argument.weights", TRUE)
 ## ######
 ## FIT ##
 ## ######
+message('------ fitting INLA')
 
 ptm <- proc.time()[3]
 if(data.lik == 'normal'){
@@ -107,6 +110,7 @@ inla.mode.converge <- ifelse(res_fit$mode$mode.status == 0, TRUE, FALSE)
 ## ##########
 ## PREDICT ##
 ## ##########
+message('------ making INLA predictions')
 
 ptm <- proc.time()[3]
 inla_draws <- inla.posterior.sample(ndraws, res_fit, use.improved.mean = bias.correct)
@@ -163,6 +167,11 @@ totalpredict_time_inla <- proc.time()[3] - ptm
 ## SAVE ##
 ## #######
 
+## save the cell_pred
+saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds.rds', 
+                       out.dir, exp.lvid, exp.iter),
+        object = pred_inla)
+
 ## summarize the latent field
 summ_inla <- cbind(median = (apply(pred_inla, 1, median)),
                    sd     = (apply(pred_inla, 1, sd)))
@@ -170,12 +179,20 @@ summ_inla <- cbind(median = (apply(pred_inla, 1, median)),
 ras_med_inla <- insertRaster(simple_raster, matrix(summ_inla[, 1], ncol = nperiods))
 ras_sdv_inla <- insertRaster(simple_raster, matrix(summ_inla[, 2], ncol = nperiods))
 
-saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_median_raster.rds', out.dir, par.iter, iii), object = ras_med_inla)
-saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_stdev_raster.rds', out.dir, par.iter, iii), object = ras_sdv_inla)
+writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_median_raster.tif', 
+                           out.dir, exp.lvid, exp.iter), 
+            x = ras_med_inla, format='GTiff', overwrite=TRUE)
+writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_stdev_raster.tif', 
+                           out.dir, exp.lvid, exp.iter), 
+            x = ras_sdv_inla, format='GTiff', overwrite=TRUE)
 
 if(data.lik == 'binom'){
   ## convert to prevalence space and summarize, rasterize, and save again
   pred_inla_p <- plogis(pred_inla)
+  
+  saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_PREV.rds', 
+                         out.dir, exp.lvid, exp.iter),
+          object = pred_inla_p)
   
   summ_inla_p <- cbind(median = (apply(pred_inla_p, 1, median)),
                        sd     = (apply(pred_inla_p, 1, sd)))
@@ -183,8 +200,10 @@ if(data.lik == 'binom'){
   ras_med_inla_p <- insertRaster(simple_raster, matrix(summ_inla_p[, 1], ncol = nperiods))
   ras_sdv_inla_p <- insertRaster(simple_raster, matrix(summ_inla_p[, 2], ncol = nperiods))
 
-  saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_median_raster_PREV.rds', out.dir, par.iter, iii),
-          object = ras_med_inla_p)
-  saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_stdev_raster_PREV.rds', out.dir, par.iter, iii),
-          object = ras_sdv_inla_p)
+  writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_median_raster_PREV.rds', 
+                             out.dir, exp.lvid, exp.iter),
+              x = ras_med_inla_p, format='GTiff', overwrite=TRUE)
+  writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_stdev_raster_PREV.rds', 
+                             out.dir, exp.lvid, exp.iter),
+              x = ras_sdv_inla_p, format='GTiff', overwrite=TRUE)
 }

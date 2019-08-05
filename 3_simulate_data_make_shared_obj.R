@@ -2,7 +2,9 @@
 ## simulate data ##
 ## ################
 
-if(iii == 1){ ## first time, must load covs, after that, we can reuse them
+message('---- ON SCRIPT 3: simulating data and prepping objects for fitting')
+
+if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
   sim.obj <- sim.realistic.data(reg = reg,
                                 year_list = year_list,
                                 data.lik = data.lik,
@@ -25,10 +27,20 @@ if(iii == 1){ ## first time, must load covs, after that, we can reuse them
                                 out.dir = out.dir,
                                 sp.field.sim.strat = 'SPDE', 
                                 seed = NULL,
-                                exp.iter = iii)
+                                exp.iter = exp.iter)
+  
+  ## save the cov_list for future iterations to speed things up
+  covs.gp <- sim.obj$cov.gp.rasters   ## rasters of covs and true simulated gp field
+  cov_list <- covs.gp[!grepl('gp',names(covs.gp))]
+  ## save the cov_list to reload in future iterations of this experiment
+  saveRDS(object = cov_list,
+          file = sprintf('%s/cov_list.rds', common.dir))
 
 }else{
+  
   ## reuse covs
+  cov_list <- readRDS(sprintf('%s/cov_list.rds', common.dir))
+  
   sim.obj <- sim.realistic.data(reg = reg,
                                 year_list = year_list,
                                 data.lik = data.lik,
@@ -41,7 +53,7 @@ if(iii == 1){ ## first time, must load covs, after that, we can reuse them
                                 n.clust = n.clust,
                                 m.clust = m.clust,
                                 covs = covs,
-                                cov_layers = cov_list, ## which is created from each sim.obj after stripping GP from the list. ~line243
+                                cov_layers = cov_list, ## which is created from each sim.obj after stripping GP from the list. ~line64
                                 simple_raster = simple_raster,
                                 simple_polygon = simple_polygon,
                                 pop_raster = pop_raster, 
@@ -51,10 +63,11 @@ if(iii == 1){ ## first time, must load covs, after that, we can reuse them
                                 out.dir = out.dir,
                                 sp.field.sim.strat = 'SPDE', 
                                 seed = NULL,
-                                exp.iter = iii)
+                                exp.iter = exp.iter)
 }
 
-saveRDS(file = sprintf('%s/simulated_obj/experiment%04d_iter%04d_sim_obj.rds', out.dir, par.iter, iii),
+saveRDS(file = sprintf('%s/simulated_obj/experiment%04d_iter%04d_sim_obj.rds', 
+                       out.dir, exp.lvid, exp.iter),
         object = sim.obj)
 
 ## process parts of the returned sim obj list into pieces we need for model fitting
@@ -126,7 +139,7 @@ mesh_s <- inla.mesh.2d(
   cutoff = cutoff
 )
 
-pdf(sprintf('%s/modeling/inputs/experiment%04d_iter%04d_mesh.pdf', out.dir, par.iter, iii))
+pdf(sprintf('%s/modeling/inputs/experiment%04d_iter%04d_mesh.pdf', out.dir, exp.lvid, exp.iter))
 plot(mesh_s)
 plot(simple_raster, add = TRUE) ## just to show loc of simple_raster under mesh for scale
 plot(mesh_s, add = TRUE)
@@ -134,7 +147,7 @@ points(dt.coords, col = 'red', pch = '.')
 dev.off()
 
 nodes <- mesh_s$n ## get number of mesh nodes
-spde <- inla.spde2.matern( mesh_s,alpha=2 )
+spde <- inla.spde2.matern(mesh_s, alphac = 2)
 ## Build SPDE object using INLA (must pass mesh$idx$loc when supplying Boundary)
 ## ^ this gives us a linear reduction of \Sigma^{-1} as:
 ## \Sigma^{-1} = \kappa^4 M_0 + 2\kappa^2M_1 + M_2
@@ -148,8 +161,8 @@ A.proj <- inla.spde.make.A(mesh  = mesh_s,
                            group = dt.pers)
 
 ## save relevant objects
-saveRDS(file = sprintf('%s/modeling/inputs/experiment%04d_iter%04d_mesh.rds', out.dir, par.iter, iii), mesh_s)
-saveRDS(file = sprintf('%s/modeling/inputs/experiment%04d_iter%04d_spde.rds', out.dir, par.iter, iii), spde)
+saveRDS(file = sprintf('%s/modeling/inputs/experiment%04d_iter%04d_mesh.rds', out.dir, exp.lvid, exp.iter), mesh_s)
+saveRDS(file = sprintf('%s/modeling/inputs/experiment%04d_iter%04d_spde.rds', out.dir, exp.lvid, exp.iter), spde)
 
 ## now that the mesh is made, we can grabb the default priors that it generates
 mesh.info <- param2.matern.orig(mesh_s)
