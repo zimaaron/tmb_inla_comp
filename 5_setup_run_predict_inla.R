@@ -6,6 +6,12 @@
 
 message('---- ON SCRIPT 5: running INLA')
 
+## update the tracker
+write.csv(x=matrix(c(sim.loop.ct, 5), ncol=2), append=T,
+          file = paste0(jobtrack.dir, 
+                        sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)),
+          row.names=F)
+
 ## ########
 ## SETUP ##
 ## ########

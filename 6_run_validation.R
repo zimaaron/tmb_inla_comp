@@ -6,6 +6,12 @@
 
 message('---- ON SCRIPT 6: running validation')
 
+## update the tracker
+write.csv(x=matrix(c(sim.loop.ct, 6), ncol=2), append=T,
+          file = paste0(jobtrack.dir, 
+                        sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)),
+          row.names=F)
+
 ## 1) summarize fitted params
 ## 2) big plots showing difference in fits
 ## 3) calcualte and summarize predictive metrics  
@@ -599,6 +605,8 @@ summary.metrics[, iter := exp.iter]
 
 ## save
 write.csv(summary.metrics, sprintf('%s/validation/experiment%04d_iter%04d_summary_metrics.csv', out.dir, exp.lvid, exp.iter))
+
+
 
 # ## append into overall metrics for assessing monte carlo variance of metrics
 # if(exp.iter == 1){

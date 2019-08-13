@@ -46,6 +46,8 @@ user      <- Sys.info()['user']
 tmb_repo  <- sprintf('/homes/%s/tmb_inla_comp', user)
 setwd(tmb_repo)
 
+## set the counter how many loops we've gone through
+sim.loop.ct <- -1 ## initial setup
 source('./2_setup_experiment_settings.R')
 
 ## ######################################################################
@@ -57,7 +59,11 @@ inla.converge <- 0 ## set to 1 when inla converges
 inla.converge.fails <- 0 ## counts how many times INLA didn't converge
 
 ## loop until both methods have converged or one method has failed fifth time
+sim.loop.ct <- 0 ## ready to start looping
 while( (tmb.converge != 1 | inla.converge != 1) & !(tmb.converge.fails >= 5 | inla.converge.fails >= 5) ) {
+  
+  ## update the counter
+  sim.loop.ct <- sim.loop.ct + 1
   
   ## #####################################################
   ## simulate data and setup obj shared by tmb and inla ##
@@ -98,7 +104,14 @@ while( (tmb.converge != 1 | inla.converge != 1) & !(tmb.converge.fails >= 5 | in
 ## #############
 source('./6_run_validation.R')
 
-message('DONE')
+## update the tracker to compelted (0)
+write.csv(x=matrix(c(sim.loop.ct, 0), ncol=2), append=TRUE, 
+          file = paste0(jobtrack.dir, 
+                        sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)),
+          row.names=F)
+
+## write to bottom of outputs and errors files for ease of checking
+message('DONE');print('DONE')
 
 # ## save results from all Nsim monte carlo simulations in this run
 # write.csv(complete.summary.metrics, sprintf('%s/validation/summary_metrics_complete.csv', out.dir))

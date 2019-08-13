@@ -50,6 +50,14 @@ loopvars <- read.csv(file = paste0(main.dir, '/loopvars.csv'))
 common.dir <- sprintf('/homes/azimmer/tmb_inla_sim/%s/common/', main.dir.name)
 dir.create(common.dir, recursive = TRUE, showWarnings = F)
 
+## create a write a file to keep track of job status
+jobtrack.dir <- paste0(common.dir, 'job_tracking/')
+dir.create(jobtrack.dir, recursive = TRUE, showWarnings = F)
+write.csv(x=matrix(c(sim.loop.ct, 2), ncol=2), 
+          file = paste0(jobtrack.dir, 
+                        sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)),
+          row.names=F)
+
 ## create some directories for output organization
 dir.create(sprintf('%s/simulated_obj', out.dir), recursive = TRUE, showWarnings = F)
 dir.create(sprintf('%s/modeling/inputs', out.dir), recursive = TRUE, showWarnings = F)

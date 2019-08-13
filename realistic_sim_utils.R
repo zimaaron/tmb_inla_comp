@@ -4,6 +4,7 @@
 ## qsub_sim: function to launch sims (and sim comparisons) on the cluster
 qsub_sim <- function(exp.lvid, ## if looping through multiple experiments - i.e. row of loopvars
                      exp.iter, ## if monte carlo iteration within an experiment
+                     exp.hash, ## unique 6char string to identify all jobs belonging to the same loopvar submission
                      main.dir.nm, ## head dir to store all results
                      codepath,
                      singularity = 'default',
@@ -69,7 +70,8 @@ qsub_sim <- function(exp.lvid, ## if looping through multiple experiments - i.e.
   
   ## append job name, shell, and code to run 
   qsub <- paste0(qsub,
-                 sprintf(" -N sim_job_%s_exp%04d_iter%04d", extra_name, exp.lvid, exp.iter), ## job name
+                 sprintf(" -N sim_job_%s_hash_%s_exp%04d_iter%04d", 
+                         extra_name, exp.hash, exp.lvid, exp.iter), ## job name
                  " ", shell, " ", codepath) ## shell and code path
 
   ## add on all remaining arguments 
@@ -80,6 +82,84 @@ qsub_sim <- function(exp.lvid, ## if looping through multiple experiments - i.e.
                 sep = " ")
 
   return(qsub)
+}
+
+## used to monitor a set of jobs given amatrix of job.ids
+track.exp.iter <- function(jid.dt, main.dir) {
+  
+  ## query the system to see all jobs
+  ## first two rows are fluff
+  q.ret <- system("qstat", intern = TRUE)
+  
+  ## get all jobids and their status in a nice data.table
+  q.jobs <- do.call('rbind',
+                    lapply(q.ret[-(1:2)], 
+                    FUN = function(x) { q.ret.spl <- strsplit(x, split = ' ')[[1]];
+                                       data.table(jid    = q.ret.spl[3],
+                                                  j.status = q.ret.spl[12])
+                                     }))
+  
+  ## merge status onto jid.dt
+  jid.dt <- merge(jid.dt, q.jobs, by ='jid', all.x=T, all.y=F)
+  
+  ## check the csvs
+  jt.dir <- paste(main.dir, 'common', 'job_tracking', sep = '/')
+  jt.csvs <- list.files(path = jt.dir)
+  if(length(jt.csvs) == 0) { ## no files yet, 
+    jt.info <- data.table(exp     = character(),
+                          iter    = character(),
+                          sim_loop_ct = numeric(), ## sim.loop.ct from 1_run_space_sim.R
+                          script_num  = numeric())
+  } else { 
+    jt.info <- do.call('rbind',
+                       lapply(jt.csvs,
+                              FUN = function(x) {
+                                csv.spl <- strsplit(x, split='.')[[1]];
+                                csv.spl <- strsplit(x, split='_')[[1]];
+                                csv.dat <- read.csv(paste(jt.dir, x, sep='/'));
+                                data.table(exp     = csv.spl[2],
+                                           iter    = substr(csv.spl[4], start=1, stop=4), ## the status is appended, use last row
+                                           sim_loop_ct = csv.dat[nrow(csv.dat), 1], ## sim.loop.ct from 1_run_space_sim.R
+                                           script_num  = csv.dat[nrow(csv.dat), 2]) ## script number
+                              } ## func
+                       ) ## lapply
+    ) ## do.call
+  }
+  
+  ## merge on csv jt info
+  jid.dt <-  merge(jid.dt, jt.info, by = c('exp', 'iter'), all.x=T)
+  
+  ## determine status (not started, running, failed, completed) for each job
+  
+  ## number of jobs in queue
+  jid.dt[(grepl('qw', j.status) | grepl('r', j.status)), in_q := 1]
+  ## not started means job in qw
+  jid.dt[grepl('qw', j.status), not_started := 1]
+  ## running
+  jid.dt[grepl('r', j.status), running := 1]
+  ## errored
+  jid.dt[(is.na(j.status) & script_num != 0), errored := 1]
+  ## not errored
+  jid.dt[is.na(errored), on_track := 1]
+  ## completed
+  jid.dt[(is.na(j.status) & script_num==0), completed := 1]
+  
+  ## swap NA for 0 for averaging
+  jid.dt[is.na(jid.dt)] <- 0
+  
+  ## count number of iterations in q by experiment
+  exp.sum <- jid.dt[, lapply(.SD, sum), by=exp, .SDcols=c('in_q')]
+  
+  ## take the mean of running status
+  exp.sum <- merge(exp.sum, 
+                   jid.dt[, lapply(.SD, FUN=function(x){round(100*mean(x, na.rm=T), 2)}), 
+                             by=exp, 
+                    .SDcols=c('on_track', 'not_started', 'running', 
+                              'errored', 'completed')],
+                   all.x=T, all.y=F, by='exp')
+  
+  return(list(full.tracker = jid.dt,
+              summ.tracker = exp.sum))
 }
 
 ## a function to simulate from a GF using INLA
@@ -378,7 +458,7 @@ sim.realistic.data <- function(reg,
   
   ## simulate IID normal draws to add as nugget
   
-  if(!is.null(nug.var) & data.lik != 'normal'){
+  if(!is.null(nug.var)){ #} & data.lik != 'normal'){
     ## normal plus nugget means add nugget in normal draws, not to every pixel!
     ## TODO is this right to set it up and limit it this way??
     

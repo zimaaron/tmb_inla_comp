@@ -1,15 +1,15 @@
 ## this script can be used to launch 1_run_simulation.R in parallel on the IHME cluster
 ## written by aoz
-## dec 1 2018
+## 2019AUG12
 
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
-logging_note <- 'testing new parallelization on new cluster'
+logging_note <- 'study 1. trial 1. vary number of clusters and nugget noise. now we set normal sd to zero. we also adjusted the logic in the sim data function to allow nuggets with normal likelihoods'
 
 ## make a master run_date to store all these runs in a single location
-main.dir.name  <- NULL ## if NULL, run_date is made, OW uses name given
-extra.job.name <- 'normal'
+main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
+extra.job.name <- 'study01trial02'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -18,7 +18,7 @@ extra.job.name <- 'normal'
 
 ## specify queue, project, and job requirements
 q.q <- 'long.q'
-q.m <- '20G' ## 5 gigs
+q.m <- '20G' ## e.g. 10G
 q.t <- '00:10:00:00' ## DD:HH:MM:SS
 q.p <- 0 ## priority: -1023 (low) - 0 (high)
 cores <- 1 ## used for OMP/MKL in qsub_sim call TODO - parallel version?
@@ -95,19 +95,19 @@ cov_measures <- "c('mean'   , 'mean'      , 'median', 'mean')"
 betas <- NA ## "c(.5, 1), 1, -.5)" ## IF THIS IS NA, NO COVS
 
 ## loopvars 6
-alpha <- -1
+alpha <- -1.0
 
 ## loopvars 7
 sp.range <-  sqrt(8)     ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
 
 ## loopvars 8
-sp.var <- 1.0 ^ 2        ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
+sp.var <- 0.5 ^ 2        ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
 
 ## loopvars 9
 sp.alpha <- 2.0          ## matern smoothness = sp.alpha - 1 (for R^2 domain)
 
 ## loopvars 10
-nug.var <- NA# c(NA, .1 ^ 2, .1, .5 ^ 2, .5, 1) ##0.1 ^ 2       ## nugget variance
+nug.var <-  c(NA, ((1:5) / 10) ^ 2) ##0.1 ^ 2       ## nugget variance
 
 ## loopvars 11
 t.rho <-  0.8            ## annual temporal auto-corr
@@ -116,7 +116,7 @@ t.rho <-  0.8            ## annual temporal auto-corr
 mesh_s_params <- c("c(0.1, 1, 5)") ## cutoff, largest allowed triangle edge length inner, and outer
 
 ## loopvars 13
-n.clust <-  c(1000)         ## clusters PER TIME slice
+n.clust <-  c(100, 250, 500, 750, 1000, 1500, 2000, 2500, 3500, 5000) ## clusters PER TIME slice
 
 ## loopvars 14
 m.clust <- 35                    ## mean number of obs per cluster (poisson)
@@ -155,7 +155,7 @@ n.sim <- 3 ## number of times to repeat simulation
 data.lik <- c('normal', 'binom') ## either 'binom' or 'normal'
 
 ## loopvars 24
-norm.var <- c(.1^2)  ## sd of observations if normal. norm.var >= 0 and non-NA
+norm.var <- c(0)  ## sd of observations if normal. norm.var >= 0 and non-NA
 
 ## loopvars 25
 norm.prec.pri <- "c(1, 1e-5)" ## gamma for normal obs  precision with shape and inv-scale
