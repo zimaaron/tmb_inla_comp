@@ -5,7 +5,9 @@
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
-logging_note <- 'study 1. trial 1. vary number of clusters and nugget noise. now we set normal sd to zero. we also adjusted the logic in the sim data function to allow nuggets with normal likelihoods'
+logging_note <- 
+'study 1.vary number of clusters and nugget noise. 
+trial 3 adding in cluster level effect AND normal SD (individual measurement error)'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
@@ -200,8 +202,8 @@ loopvars <- expand.grid(list(reg = reg, ## 1
 loopvars$qsub.hash <- stringi::stri_rand_strings(n=nrow(loopvars), length=5)
 
 ## save loopvars to this dir to reload into the parallel env
-write.csv(file = paste0(main.dir, '/loopvars.csv'), x = loopvars,
-          row.names = FALSE)
+write.table(file = paste0(main.dir, '/loopvars.csv'), x = loopvars,
+            row.names = FALSE, sep=',')
 
 ## make a data.table to save the job.ids
 jid.dt <- data.table('exp'  = character(), 
@@ -262,8 +264,9 @@ for(ll in 1:nrow(loopvars)){
 in_q <- 1
 while(in_q > 0) {
   jt <- track.exp.iter (jid.dt, main.dir)
-  print(jt[['summ.tracker']])
-  in_q <- sum(jt[['summ.tracker']]$in_q)
+  js <- jt[['summ.tracker']]
+  print(js)
+  in_q <- sum(js$in_q)
   Sys.sleep(60)
 }
 

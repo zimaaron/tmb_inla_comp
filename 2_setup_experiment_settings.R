@@ -53,10 +53,10 @@ dir.create(common.dir, recursive = TRUE, showWarnings = F)
 ## create a write a file to keep track of job status
 jobtrack.dir <- paste0(common.dir, 'job_tracking/')
 dir.create(jobtrack.dir, recursive = TRUE, showWarnings = F)
-write.csv(x=matrix(c(sim.loop.ct, 2), ncol=2), 
-          file = paste0(jobtrack.dir, 
-                        sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)),
-          row.names=F)
+write.table(x=matrix(c(sim.loop.ct, 2), ncol=2), 
+            file = paste0(jobtrack.dir, 
+                          sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)), sep=',', 
+            row.names=F)
 
 ## create some directories for output organization
 dir.create(sprintf('%s/simulated_obj', out.dir), recursive = TRUE, showWarnings = F)
@@ -124,8 +124,8 @@ true.params <- data.table(param = c('int',
                                     )
                           )
 
-write.csv(file = sprintf('%s/simulated_obj/true_param_table.csv', out.dir),
-          x = true.params, row.names = FALSE)
+write.table(file = sprintf('%s/simulated_obj/true_param_table.csv', out.dir),
+            x = true.params, sep=',' ,row.names = FALSE)
 
 ## from these imputs, make a table of covariate names and measures
 covs <- data.table(name = cov_names, meas = cov_measures)

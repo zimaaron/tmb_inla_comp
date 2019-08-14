@@ -5,10 +5,10 @@
 message('---- ON SCRIPT 3: simulating data and prepping objects for fitting')
 
 ## update the tracker
-write.csv(x=matrix(c(sim.loop.ct, 3), ncol=2), append=T,
-          file = paste0(jobtrack.dir, 
-                        sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)),
-          row.names=F)
+write.table(x=matrix(c(sim.loop.ct, 3), ncol=2), append=T,
+            file = paste0(jobtrack.dir, 
+                          sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)), sep=',', 
+            row.names=F, col.names = F)
 
 if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
   sim.obj <- sim.realistic.data(reg = reg,

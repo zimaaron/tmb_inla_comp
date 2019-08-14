@@ -7,10 +7,10 @@
 message('---- ON SCRIPT 6: running validation')
 
 ## update the tracker
-write.csv(x=matrix(c(sim.loop.ct, 6), ncol=2), append=T,
-          file = paste0(jobtrack.dir, 
-                        sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)),
-          row.names=F)
+write.table(x=matrix(c(sim.loop.ct, 6), ncol=2), append=T,
+            file = paste0(jobtrack.dir, 
+                          sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)), sep=',',
+            row.names=F, col.names = F)
 
 ## 1) summarize fitted params
 ## 2) big plots showing difference in fits
@@ -93,7 +93,7 @@ rr <- cbind(rr, t(res))
 names(rr) <- c('quantity','TRUE', 'R-INLA','TMB')
 rr$diff <- rr[,3]-rr[,4]
 
-write.csv(x = rr, row.names = FALSE, 
+write.table(x = rr, row.names = FALSE, sep=',', 
           file = sprintf('%s/validation/experiment%04d_iter%04d_param_summary_table.csv', out.dir, exp.lvid, exp.iter))
 
 ## we can now plot this table with: grid.table(rr)
@@ -247,8 +247,12 @@ for(ii in 1:num.dists){
                                     replace = TRUE, 
                                     res_fit$marginals.hyperpar[['Precision for the Gaussian observations']][, 2])
 
-    xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val)) 
-    
+    if(true.val==Inf) {
+      xlim       <- range(c(tmb.post.draws, inla.post.draws)) 
+    }else{
+      xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val)) 
+    }
+   
     x.prior <- seq(xlim[1], xlim[2], len = 1000)
     y.prior <- dgamma(x.prior, shape = prior.shape, scale = 1 / prior.iscale)
     

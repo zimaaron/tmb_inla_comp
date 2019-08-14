@@ -105,10 +105,10 @@ while( (tmb.converge != 1 | inla.converge != 1) & !(tmb.converge.fails >= 5 | in
 source('./6_run_validation.R')
 
 ## update the tracker to compelted (0)
-write.csv(x=matrix(c(sim.loop.ct, 0), ncol=2), append=TRUE, 
-          file = paste0(jobtrack.dir, 
-                        sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)),
-          row.names=F)
+write.table(x=matrix(c(sim.loop.ct, 0), ncol=2), append=TRUE, 
+            file = paste0(jobtrack.dir, 
+                          sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)), sep=',',
+            row.names = F, col.names = F)
 
 ## write to bottom of outputs and errors files for ease of checking
 message('DONE');print('DONE')
