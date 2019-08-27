@@ -26,7 +26,7 @@ space   <- inla.spde.make.index("space",
                                 n.group = nperiods)
 
 inla.covs <- covs$name
-design_matrix <- data.frame(int = rep(1, nrow(dt)), dt[, inla.covs, with=F], nug.id = 1:nrow(dt))
+design_matrix <- data.frame(int = rep(1, nrow(dt)), dt[, inla.covs, with=F], clust.id = 1:nrow(dt))
 stack.obs <- inla.stack(tag='est',
                         data=list(Y=dt$Y), ## response
                         A=list(A,1), ## proj matrix, not sure what the 1 is for
@@ -38,9 +38,9 @@ stack.obs <- inla.stack(tag='est',
 formula <- formula(paste('Y ~ -1',
                          ifelse(is.null(alpha), '', ' + int'), 
                          ifelse(is.null(betas), '', paste0(' + ', (paste(inla.covs, collapse = ' + ')))),
-                         ifelse(is.null(nug.var), '',
-                                paste0(' + f(nug.id, model = \'iid\', hyper = list(theta = list(prior = \'loggamma\', param = c(',
-                                       nug.prec.pri[1],', ', nug.prec.pri[2], '))))')), 
+                         ifelse(is.null(clust.var), '',
+                                paste0(' + f(clust.id, model = \'iid\', hyper = list(theta = list(prior = \'loggamma\', param = c(',
+                                       clust.prec.pri[1],', ', clust.prec.pri[2], '))))')), 
                          ' + f(space, model = spde, group = space.group, control.group = list(model = \'ar1\'))',
                          sep = ''))
 
@@ -81,7 +81,6 @@ if(data.lik == 'normal'){
                   num.threads = cores, #
                   Ntrials = dt$N,
                   scale = dt$N, 
-                  ## weights = rep(1, nrow(dt)),
                   verbose = TRUE,
                   keep = FALSE)
 }else if(data.lik == 'binom'){
@@ -102,7 +101,6 @@ if(data.lik == 'normal'){
                   num.threads = cores, #
                   Ntrials = dt$N,
                   scale = dt$N, 
-                  ## weights = rep(1, nrow(dt)),
                   verbose = TRUE,
                   keep = FALSE)
 }
@@ -151,27 +149,23 @@ if(!is.null(alpha) | !is.null(betas)){
   pred_inla <- pred_inla + cov_effs
 }
 
-if(!is.null(nug.var)){
-  ## get draws of nugget precision
-  pred_n <- sapply(inla_draws, function(x) {
-    nug.idx <- which(grepl('nug.id', names(inla_draws[[1]]$hyper)))
-    x$hyperpar[[nug.idx]]}) ## this gets the precision for the nugget
-
-  ## simulate nugget noise
-  cell_n <- sapply(pred_n, function(x){rnorm(n = nrow(pred_inla),
-                                             sd = 1 / sqrt(x),
-                                             mean = 0)})
-  ## add it on
-  pred_inla <- cell_nug + pred_inla
+if(!is.null(clust.var)){
+  ## get draws of clust precision
+  clust_prec_inla_draws <- sapply(inla_draws, function(x) {
+    clust.idx <- which(grepl('clust.id', names(inla_draws[[1]]$hyper)))
+    x$hyperpar[[clust.idx]]}) ## this gets the precision for the cluster RE
 }
 
-## make them into time bins
-len = nrow(pred_inla)/nperiods
 totalpredict_time_inla <- proc.time()[3] - ptm
 
 ## #######
 ## SAVE ##
 ## #######
+
+## save the posterior param draws
+saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_inla_param_draws.rds', 
+                       out.dir, exp.lvid, exp.iter),
+        object = inla_draws)
 
 ## save the cell_pred
 saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds.rds', 

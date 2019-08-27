@@ -42,12 +42,12 @@ modeling_shapefile_version <- 'current'
 ############################################################################
 ## load in the loopvars from launch and setup all the params for this job ##
 ############################################################################
-main.dir <- sprintf('/homes/azimmer/tmb_inla_sim/%s', main.dir.name)
+main.dir <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/%s', main.dir.name)
 out.dir  <- sprintf('%s/%04d', main.dir, exp.lvid)
 loopvars <- read.csv(file = paste0(main.dir, '/loopvars.csv'))
 
 ## create a directory for some common objects that can be shared by all experiments launched
-common.dir <- sprintf('/homes/azimmer/tmb_inla_sim/%s/common/', main.dir.name)
+common.dir <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/%s/common/', main.dir.name)
 dir.create(common.dir, recursive = TRUE, showWarnings = F)
 
 ## create a write a file to keep track of job status
@@ -76,7 +76,7 @@ alpha           <- as.numeric(loopvars[exp.lvid, 6]);if(is.na(alpha)) alpha <- N
 sp.range        <- as.numeric(loopvars[exp.lvid, 7])
 sp.var          <- as.numeric(loopvars[exp.lvid, 8])
 sp.alpha        <- as.numeric(loopvars[exp.lvid, 9])
-nug.var         <- as.numeric(loopvars[exp.lvid, 10]);if(is.na(nug.var)) nug.var <- NULL
+clust.var         <- as.numeric(loopvars[exp.lvid, 10]);if(is.na(clust.var)) clust.var <- NULL
 
 t.rho           <- as.numeric(loopvars[exp.lvid, 11])
 mesh_s_params   <- as.character(loopvars[exp.lvid, 12])
@@ -90,7 +90,7 @@ urban.strat.pct <- sample.strat[['urban.strat.pct']]
 cores           <- as.numeric(loopvars[exp.lvid, 16]) 
 ndraws          <- as.numeric(loopvars[exp.lvid, 17])
 alphaj.pri      <- eval(parse(text = as.character(loopvars[exp.lvid, 18]))) ## normal mean and sd ## TODO pass this to INLA and TMB
-nug.prec.pri    <- eval(parse(text = as.character(loopvars[exp.lvid, 19])))  ## gamma for nug preciion with shape and inv-scale ## TODO pass this to INLA and TMB
+clust.prec.pri    <- eval(parse(text = as.character(loopvars[exp.lvid, 19])))  ## gamma for clust preciion with shape and inv-scale ## TODO pass this to INLA and TMB
 inla.int.strat  <- as.character(loopvars[exp.lvid, 20]) ## can be one of: 'eb', 'ccd', 'grid'
 
 inla.approx     <- as.character(loopvars[exp.lvid, 21]) ## can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
@@ -112,14 +112,14 @@ true.params <- data.table(param = c('int',
                                     cov_names,
                                     'sp gp range',
                                     'sp gp var',
-                                    'nug var',
+                                    'clust var',
                                     'norm obs var'
                                     ),
                           truth = c(ifelse(is.null(alpha), NA, alpha),
                                     switch(2 - is.null(betas), rep(NA, length(cov_names)), betas),
                                     sp.range,
                                     sp.var,
-                                    ifelse(is.null(nug.var), NA, nug.var),
+                                    ifelse(is.null(clust.var), NA, clust.var),
                                     ifelse(data.lik == 'normal', norm.var, NA)
                                     )
                           )
@@ -139,7 +139,7 @@ use_sim_data  <- TRUE
 
 ## should we save this data to mbg input_data? useful if we want to run sim data through lbd_core
 save.as.input.data <- FALSE
-data.tag <- '_allyrs_nug'
+data.tag <- '_allyrs_clust'
 
 ## end of user inputs
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

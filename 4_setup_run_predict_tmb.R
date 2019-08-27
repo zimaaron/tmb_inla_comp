@@ -48,15 +48,15 @@ data_full <- list(num_i = nrow(dt),  # Total number of observations
                   Aproj = A.proj,             # Projection matrix
                   options = c(1, ## if 1, run adreport 
                               1, ## if 1, use priors
-                              ifelse(is.null(alpha), 0, 1), ## if 1, run with intercept
-                              ifelse(is.null(betas), 0, 1), ## if 1, run with covs
-                              ifelse(is.null(nug.var), 0, 1), ## if 1, run with nugget
-                              tmb.lik.dict(data.lik), ## if 0, normal data. if 1, binom data lik
+                              ifelse(is.null(alpha), 0, 1),     ## if 1, run with intercept
+                              ifelse(is.null(betas), 0, 1),     ## if 1, run with covs
+                              ifelse(is.null(clust.var), 0, 1), ## if 1, run with cluster
+                              tmb.lik.dict(data.lik),           ## if 0, normal data. if 1, binom data lik
                               1 ## use normalization trick?
                               ),
                   flag = 1, # normalization flag. when 0, prior is returned. when 1 data is included in jnll
                   norm_prec_pri = norm.prec.pri, ## gamma on log(prec)
-                  nug_prec_pri = nug.prec.pri, ## gamma on log(prec)
+                  clust_prec_pri = clust.prec.pri, ## gamma on log(prec)
                   alphaj_pri = alphaj.pri, ## normal
                   logtau_pri = spde.theta1.pri, ## normal logtau
                   logkappa_pri = spde.theta1.pri ## normal logkappa
@@ -68,28 +68,36 @@ tmb_params <- list(alpha = 0.0, # intercept
                    log_obs_sigma = 0.0, # log(data sd) if using normal dist
                    log_tau   = 1.0, # Log inverse of tau (Epsilon)
                    log_kappa = 1.0, # Matern range parameter
-                   log_nugget_sigma = -1.0, # log of nugget sd
-                   nug_i = rep(0, nrow(dt)), # vector of nugget random effects
+                   log_clust_sigma = -1.0, # log of cluster sd
+                   clust_i = rep(0, nrow(dt)), # vector of cluster random effects
                    Epsilon_s = matrix(1, nrow=nodes, ncol=1) # GP value at obs locs
                    )
 
 ## make a list of things that are random effects
 rand_effs <- c('Epsilon_s')
 
-## NULL out things that aren't in this run and identify extra rand effs if using them
+## NULL out params that aren't in this run and identify extra rand effs if using them
 ADmap <- list()
+
+## intercept
 if(is.null(alpha)){
   ADmap[['alpha']] <- factor(NA)
 }
+
+## fixed effects
 if(is.null(betas)){
   ADmap[['betas']] <- rep(factor(NA), ncol(X_betas))
 }
-if(is.null(nug.var)){
-  ADmap[['log_nugget_sigma']] <- factor(NA)
-  ADmap[['nug_i']] <- rep(factor(NA), nrow(dt))
+
+## cluster RE
+if(is.null(clust.var)){
+  ADmap[['log_clust_sigma']] <- factor(NA)
+  ADmap[['clust_i']] <- rep(factor(NA), nrow(dt))
 }else{
-  rand_effs <- c(rand_effs, 'nug_i')
+  rand_effs <- c(rand_effs, 'clust_i')
 }
+
+## normal data obs variance
 if(data.lik == 'binom'){
   ADmap[['log_obs_sigma']] <- factor(NA)
 }
@@ -113,8 +121,8 @@ ptm <- proc.time()[3]
 opt0 <- do.call("nlminb",list(start       =    obj$par,
                               objective   =    obj$fn,
                               gradient    =    obj$gr,
-                                        #                                lower = rep(-10, ncol(X_xp) + 3), ## TODO
-                                        #                                upper = rep( 10, ncol(X_xp) + 3), ## TODO
+##                              lower = rep(-10, ncol(X_xp) + 3), ## TODO
+##                              upper = rep( 10, ncol(X_xp) + 3), ## TODO
                               control     =    list(trace=1)))
 fit_time_tmb <- proc.time()[3] - ptm
 
@@ -167,7 +175,7 @@ betas_tmb_draws    <- tmb_draws[parnames == 'betas',]
 if(!is.matrix(betas_tmb_draws)) betas_tmb_draws <- matrix(betas_tmb_draws, nrow = 1)
 log_kappa_tmb_draws <- tmb_draws[parnames == 'log_kappa',]
 log_tau_tmb_draws  <- tmb_draws[parnames == 'log_tau',]
-log_nugget_sigma_draws <- tmb_draws[parnames == 'log_nugget_sigma', ]
+log_clust_sigma_draws <- tmb_draws[parnames == 'log_clust_sigma', ]
 log_gauss_sigma_draws <- tmb_draws[parnames == 'log_obs_sigma', ]
 
 ## values of S at each cell (long by nperiods)
@@ -190,23 +198,17 @@ if(!is.null(betas)){
   pred_tmb <- cell_b + pred_tmb
 }
 
-if(!is.null(nug.var)){
-  ## simulate nugget noise
-  cell_nug <- do.call(cbind, lapply(1:ndraws,
-                                    FUN = function(x){rnorm(n = nrow(pred_tmb),
-                                                            mean = 0,
-                                                            sd = exp(log_nugget_sigma_draws)[x])})
-                      )
-  ## add it on
-  pred_tmb <- cell_nug + pred_tmb
-}
-
 ## save prediction timing
 totalpredict_time_tmb <- proc.time()[3] - ptm2
 
 ## #######
 ## SAVE ##
 ## #######
+
+## save the posterior param draws
+saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_param_draws.rds', 
+                       out.dir, exp.lvid, exp.iter),
+        object = tmb_draws)
 
 ## save the cell preds
 saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds.rds', 

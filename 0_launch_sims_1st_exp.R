@@ -6,12 +6,12 @@
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
-'study 1.vary number of clusters and nugget noise. 
-trial 3 adding in cluster level effect AND normal SD (individual measurement error)'
+'STUDY 01: vary number of clusters, cluster effect, and normal data variance. 
+TRIAL 03.3: adding in cluster level effect AND normal SD (individual measurement error). debugging test'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
-extra.job.name <- 'study01trial02'
+extra.job.name <- 'study01trial03'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -19,11 +19,11 @@ extra.job.name <- 'study01trial02'
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ## specify queue, project, and job requirements
-q.q <- 'long.q'
-q.m <- '20G' ## e.g. 10G
-q.t <- '00:10:00:00' ## DD:HH:MM:SS
-q.p <- 0 ## priority: -1023 (low) - 0 (high)
-cores <- 1 ## used for OMP/MKL in qsub_sim call TODO - parallel version?
+q.q   <- 'long.q'
+q.m   <- '25G' ## e.g. 10G
+q.t   <- '00:2:00:00' ## DD:HH:MM:SS
+q.p   <- 0 ## priority: -1023 (low) - 0 (high)
+cores <- 1 ## used for OMP/MKL in qsub_sim call TODO - parallel version? NOTE!! this is overwritten in arg 16
 
 #############################################
 ## setup the environment for singularity R ##
@@ -61,7 +61,7 @@ print(main.dir.name)
 
 ## setup the main dir to store ALL experiments - i.e. each row in loopvar is an experiment
 ## all will be stored in main.dir, indexed by cooresponding row of loopvars 
-main.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', main.dir.name)
+main.dir  <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/%s', main.dir.name)
 dir.create(main.dir)
 
 ## write the log note
@@ -76,52 +76,52 @@ close(fileConn)
 ## NOTES
 ## this list should align with the args in 1_run_simulation.R
 ## NULLs can't be passed this way, so NAs are stand-ins for NULL and this gets fixed in 1_run_space_sim.R
-## NAs passed in can be used to turn things off (e.g. nug.var == NULL) removes the nugget
-## 
+## NAs passed in can be used to turn things off (e.g. clust.var == NULL) removes the cluster RE
 
 
-
-## loopvars 1
+## loopvars 1: region to model over
 reg <- 'nga'
 
-## loopvars 
+## loopvars: year to use (mostly for covariates)
 year_list <- 2000 
 
-## loopvars 3
+## loopvars 3: vector of covariates to use in model
 cov_names <- "c('access2', 'distrivers', 'evi'   , 'mapincidence')" 
 
-## loopvars 4
+## loopvars 4: vector of covariate measures to use in conjunction with cov_names to load covs
 cov_measures <- "c('mean'   , 'mean'      , 'median', 'mean')"
 
-## loopvars 5
-betas <- NA ## "c(.5, 1), 1, -.5)" ## IF THIS IS NA, NO COVS
+## loopvars 5: cov effects. either NA (NO Covs), or a vector of cov effects to use wtih cov_names 
+betas <- NA ## "c(.5, 1), 1, -.5)"
 
-## loopvars 6
+## loopvars 6 ## global intercept
 alpha <- -1.0
 
-## loopvars 7
-sp.range <-  sqrt(8)     ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
+## loopvars 7: spatial range as defined by INLA folks
+## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
+sp.range <-  sqrt(8)     
 
-## loopvars 8
-sp.var <- 0.5 ^ 2        ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
+## loopvars 8: spatial nomial field variance as defiend by INLA folks
+## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
+sp.var <- 0.5 ^ 2        
 
-## loopvars 9
-sp.alpha <- 2.0          ## matern smoothness = sp.alpha - 1 (for R^2 domain)
+## loopvars 9: matern smoothness = sp.alpha - 1 -> sp.alpha = matern smooth + 1 (for R^2 domain)
+sp.alpha <- 2.0          
 
-## loopvars 10
-nug.var <-  c(NA, ((1:5) / 10) ^ 2) ##0.1 ^ 2       ## nugget variance
+## loopvars 10: cluster RE variance. NA means no effect
+clust.var <-  c(NA, ((1:5) / 10) ^ 2) 
 
-## loopvars 11
-t.rho <-  0.8            ## annual temporal auto-corr
+## loopvars 11: temporal auto-correlation (NOT USED IN SPACE-ONLY MODEL)
+t.rho <-  0.8           
 
-## loopvars 12
-mesh_s_params <- c("c(0.1, 1, 5)") ## cutoff, largest allowed triangle edge length inner, and outer
+## loopvars 12: S2 mesh args: cutoff, largest allowed triangle edge length inner, and outer
+mesh_s_params <- c("c(0.1, 1, 5)") 
 
-## loopvars 13
-n.clust <-  c(100, 250, 500, 750, 1000, 1500, 2000, 2500, 3500, 5000) ## clusters PER TIME slice
+## loopvars 13: number of clusters to simulate per year
+n.clust <- c(100, 250, 500, 750, 1000, 2500, 5000)
 
-## loopvars 14
-m.clust <- 35                    ## mean number of obs per cluster (poisson)
+## loopvars 14: mean number of individuals sim'ed per cluster using poisson(m.clust)
+m.clust <- 35                   
 
 ## loopvars 15
 ## each entry must be a character string with the syntax for a 3 element R list containing:
@@ -130,43 +130,43 @@ m.clust <- 35                    ## mean number of obs per cluster (poisson)
 ## 3) urban.strat.pct: a number between 0 and 100. the % of observations that should come fom urban pixels
 sample.strat <- "list(obs.loc.strat='rand',
                       urban.pop.pct=5,
-                      urban.strat.pct=40)"  ## random or by population for now. ## TODO cluser design
+                      urban.strat.pct=40)"  ## random or by population for now. ## TODO cluster design
 
-## loopvars 16
+## loopvars 16: cores to use in laun
 cores <- 1
 
-## loopvars 17
+## loopvars 17: number of fitted model draws to take
 ndraws <- 500
 
-## loopvars 18
-alphaj.pri <- "c(0, 3)" ## normal mean and sd
+## loopvars 18: mean and sd for normal prior on intercept
+alphaj.pri <- "c(0, 3)" ## TODO: pass to INLA/TMB
 
-## loopvars 19
-nug.prec.pri <- "c(1, 1e-5)" ## gamma for nug precision with shape and inv-scale
+## loopvars 19: ## shape and inv-scale for gamma prior on clust RE precision
+clust.prec.pri <- "c(1, 1e-5)" 
 
-## loopvars 20
-inla.int.strat <- c('eb') ## can be 'eb', 'ccd', or 'grid'
+## loopvars 20: INLA hyperparam integration strategy. can be 'eb', 'ccd', or 'grid'
+inla.int.strat <- c('eb')
 
-## loopvars 21
-inla.approx <- 'simplified.laplace' ## can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
+## loopvars 21: INLA marginal posterior approx strategy: can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
+inla.approx <- 'simplified.laplace' 
 
-## loopvars 22
-n.sim <- 3 ## number of times to repeat simulation
+## loopvars 22: number of times to repeat an experiment (monte carlo simulations)
+n.sim <- 3 
 
-## loopvars 23
-data.lik <- c('normal', 'binom') ## either 'binom' or 'normal'
+## loopvars 23: data distribution: either 'binom' or 'normal'
+data.lik <- c('normal', 'binom') 
 
-## loopvars 24
-norm.var <- c(0)  ## sd of observations if normal. norm.var >= 0 and non-NA
+## loopvars 24: ONLY FOR data.lik=='normal'. variance of INDIVIDUAL normal data obs.
+norm.var <- c(0, ((1:1) / 10) ^ 2)  
 
-## loopvars 25
-norm.prec.pri <- "c(1, 1e-5)" ## gamma for normal obs  precision with shape and inv-scale
+## loopvars 25: shape and inv-scale for gamma prior on normal individual level precision
+norm.prec.pri <- "c(1, 1e-5)"
 
-## loopvars 26
-bias.correct <- c(TRUE) ## applies to both INLA and TMB!
+## loopvars 26: bias correct the mean estimates. NOTE: applies to both INLA and TMB!!
+bias.correct <- c(TRUE) 
 
-## loopvars 27
-sd.correct <- c(TRUE) ## only applies to TMB
+## loopvars 27: perform sd correction. NOTE!! for TMB only
+sd.correct <- c(TRUE)
 
 ## TODO always add all vars to exand.grid()
 ## NOTE: I use a named list here to ensure the columns in loopvars are named
@@ -179,7 +179,7 @@ loopvars <- expand.grid(list(reg = reg, ## 1
                              sp.range = sp.range,
                              sp.var = sp.var,
                              sp.alpha = sp.alpha,
-                             nug.var = nug.var, ## 10
+                             clust.var = clust.var, ## 10
                              t.rho = t.rho,
                              mesh_s_params = mesh_s_params,
                              n.clust = n.clust,
@@ -188,7 +188,7 @@ loopvars <- expand.grid(list(reg = reg, ## 1
                              cores = cores,
                              ndraws = ndraws,
                              alphaj.pri = alphaj.pri,
-                             nug.prec.pri = nug.prec.pri,
+                             clust.prec.pri = clust.prec.pri,
                              inla.int.strat = inla.int.strat, ## 20
                              inla.approx = inla.approx, 
                              n.sim = n.sim,
@@ -197,6 +197,10 @@ loopvars <- expand.grid(list(reg = reg, ## 1
                              norm.prec.pri = norm.prec.pri, ## 25
                              bias.correct = bias.correct,
                              sd.correct = sd.correct))
+
+message(sprintf('YOU ARE ABOUT TO LAUNCH %i EXPERIMENTS', nrow(loopvars)))
+message(sprintf('-- EACH WITH %i ITERATIONS', n.sim))
+message(sprintf("---- THAT'S %i JOBS!", n.sim*nrow(loopvars)))
 
 ## add a unique hash (for ease in tracking all iterations w/in an experiment) to each loopvar row
 loopvars$qsub.hash <- stringi::stri_rand_strings(n=nrow(loopvars), length=5)
@@ -263,10 +267,20 @@ for(ll in 1:nrow(loopvars)){
 ## track job progress
 in_q <- 1
 while(in_q > 0) {
+  message(paste0('\n\n', Sys.time()))
   jt <- track.exp.iter (jid.dt, main.dir)
   js <- jt[['summ.tracker']]
   print(js)
   in_q <- sum(js$in_q)
   Sys.sleep(60)
 }
+
+message(sprintf('%.2f%% of your experiments completed successfully', 
+                mean(js[, completed]==100)*100))
+message(sprintf('%.2f%% of your iterations across all experiments completed successfully', 
+                mean(jt[['full.tracker']][, errored]==0)*100))
+# message('These experiments had some iterations fail:')
+# print(js[completed < 100,])
+message('These are the failed experiment iterations:')
+print(jt[['full.tracker']][errored==1, .(exp, iter, jid)])
 

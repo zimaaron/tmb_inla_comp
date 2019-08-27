@@ -19,6 +19,7 @@ write.table(x=matrix(c(sim.loop.ct, 6), ncol=2), append=T,
 ## ###################################
 ## 1) summarize fitted param values ##
 ## ###################################
+message('------ making table of true and estimated params')
 
 ## make a dt for comparing results and store some relevant computing and mesh params
 res <- data.table(st_mesh_nodes = rep(nrow(epsilon_tmb_draws),2))
@@ -44,15 +45,15 @@ if(!is.null(alpha) | !is.null(betas)){
   res[, paste0('fe_',res_fit$names.fixed,'_sd')   := rbind(res_fit$summary.fixed$sd, sqrt(diag(SD0$cov.fixed))[1:length(res_fit$names.fixed)])]
 }
 
-## nugget
-if(!is.null(nug.var)){
-  res[,nug_prec := unname(c(res_fit$summary.hyperpar[grep('nug.id',rownames(res_fit$summary.hyperpar)),4],
-                                   SD0$value[grep('nugget_prec', names(SD0$value))]))]
-  res[,nug_prec_sd := c(res_fit$summary.hyperpar[grep('nug.id',rownames(res_fit$summary.hyperpar)),2],
-                             sqrt(SD0$cov[grep('nugget_prec', names(SD0$value)), grep('nugget_prec', names(SD0$value))])) ]
+## cluster prec
+if(!is.null(clust.var)){
+  res[,clust_prec := unname(c(res_fit$summary.hyperpar[grep('clust.id',rownames(res_fit$summary.hyperpar)),4],
+                                   SD0$value[grep('clust_prec', names(SD0$value))]))]
+  res[,clust_prec_sd := c(res_fit$summary.hyperpar[grep('clust.id',rownames(res_fit$summary.hyperpar)),2],
+                             sqrt(SD0$cov[grep('clust_prec', names(SD0$value)), grep('clust_prec', names(SD0$value))])) ]
 }
 
-## normal var
+## normal data obs prec
 if(data.lik == 'normal'){
   res[,gauss_prec := unname(c(res_fit$summary.hyperpar[grep('Gaussian',rownames(res_fit$summary.hyperpar)),4],
                                    SD0$value[grep('gauss_prec', names(SD0$value))]))]
@@ -71,7 +72,7 @@ res[,matern_logkappa_mean := c(res_fit$summary.hyperpar[grep('Theta2',rownames(r
 res[,matern_logkappa_sd := c(res_fit$summary.hyperpar[grep('Theta2',rownames(res_fit$summary.hyperpar)),2],
                                sqrt(SD0$cov.fixed['log_kappa','log_kappa'])) ]
 
-## add extra row to fille with the truth
+## add extra row to filled with the truth
 res <- rbind(lapply(1:ncol(res), function(x){NA}), res)
 
 ## slot in the truth and also make a list of all params in the model
@@ -79,7 +80,7 @@ params <- NULL
 if(!is.null(alpha)){ res[1, fe_int_mean := alpha]; params <- c(params, 'alpha')}
 if(!is.null(betas) & is.null(alpha)) { res[1, grep('fe.*med', colnames(res)) := betas]; params <- c(params, rep('beta', length(betas)))}
 if(!is.null(betas) & !is.null(alpha)){ res[1, grep('fe.*med', colnames(res))[-1] := betas]; params <- c(params, rep('beta', length(betas)))}
-if(!is.null(nug.var)) {res[1, nugget_prec := 1 / nug.var];params <- c(params, 'nug.prec')}
+if(!is.null(clust.var)) {res[1, clust_prec := 1 / clust.var];params <- c(params, 'clust.prec')}
 if(data.lik == 'normal') {res[1, gauss_prec := 1 / norm.var]; params <- c(params, 'gauss.prec')}
 res[1, matern_logtau_mean := log(sp.tau)]; params <- c(params, 'logkappa')
 res[1, matern_logkappa_mean := log(sp.kappa)]; params <- c(params, 'logtau')
@@ -98,31 +99,33 @@ write.table(x = rr, row.names = FALSE, sep=',',
 
 ## we can now plot this table with: grid.table(rr)
 
-## ####################
-## 2) setup big plot ##
-## ####################
+## ###########################
+## 2) make a bunch of plots ##
+## ###########################
 ## pdf(sprintf('%s/validation/inla_tmb_summary_comparison_plot_%i_new.pdf',out.dir, exp.iter), height=15,width=30)
 ## TODO? one overall plot? or somehow stitch together later...
 
-
-## ~~~
+## ~~~~~~~~~~~~~~~~~~~~~~~~~
 ## plot the table of results
-## ~~~
-png(sprintf('%s/validation/experiment%04d_iter%04d_plot_01_sumary_table.png', out.dir, exp.lvid, exp.iter),
+## ~~~~~~~~~~~~~~~~~~~~~~~~~
+message('------ plotting the summary table')
+
+png(sprintf('%s/validation/experiment%04d_iter%04d_plot_01_summary_table.png', out.dir, exp.lvid, exp.iter),
     height=7, width=9, units = 'in', res = 250)
 cols <- names(rr)[2:5]
 rr[,(cols) := round(.SD, 3), .SDcols=cols]
 grid.table(rr)
 dev.off()
 
-## ~~~
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## plot priors and posteriors
-## ~~~
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~
+message('------ plotting priors and posteriors')
 
 ## assume:
 ## 1) alphas are normal
 ## 2) logtau and logkappa are normal
-## 3) log nugget precision is gamma
+## 3) log clust precision is gamma
 
 ## NOTE: also assume that intercept is the first 'beta' and that betas are listed first!
 
@@ -136,6 +139,7 @@ par(mfrow = rep(ceiling(sqrt(num.dists)), 2))
 for(ii in 1:num.dists){
 
   param <- params[ii]
+  message(sprintf('-------- plotting prior and post for: %s', param))
   
   ## get prior curves and posterior draws
   if(param == 'alpha'){
@@ -157,7 +161,6 @@ for(ii in 1:num.dists){
     x.prior    <- seq(xlim[1], xlim[2], len = 1000)
     y.prior    <- dnorm(x.prior, mean = prior.mean, sd = prior.sd)
 
-    
     tmb.post.median <- median(tmb.post.draws)
     inla.post.median <- median(inla.post.draws)
   }
@@ -260,18 +263,18 @@ for(ii in 1:num.dists){
     inla.post.median <- median(inla.post.draws)
     param.name <- "log gauss prec"
   }
-  if(param == 'nug.prec'){
+  if(param == 'clust.prec'){
 
-    true.val <- 1 / nug.var
+    true.val <- 1 / clust.var
 
-    prior.shape  <- nug.prec.pri[1]
-    prior.iscale <- nug.prec.pri[2]
+    prior.shape  <- clust.prec.pri[1]
+    prior.iscale <- clust.prec.pri[2]
 
-    tmb.post.draws <- 1 / exp(log_nugget_sigma_draws * 2)
-    inla.post.draws <- base::sample(x = res_fit$marginals.hyperpar[[names(res_fit$marginals.hyperpar)[grep('nug.id', names(res_fit$marginals.hyperpar))]]][, 1],
+    tmb.post.draws <- 1 / exp(log_clust_sigma_draws * 2)
+    inla.post.draws <- base::sample(x = res_fit$marginals.hyperpar[[names(res_fit$marginals.hyperpar)[grep('clust.id', names(res_fit$marginals.hyperpar))]]][, 1],
                                     size = ndraws,
                                     replace = TRUE, 
-                                    res_fit$marginals.hyperpar[[names(res_fit$marginals.hyperpar)[grep('nug.id', names(res_fit$marginals.hyperpar))]]][, 2])
+                                    res_fit$marginals.hyperpar[[names(res_fit$marginals.hyperpar)[grep('clust.id', names(res_fit$marginals.hyperpar))]]][, 2])
     
     xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val)) 
     
@@ -280,7 +283,7 @@ for(ii in 1:num.dists){
    
     tmb.post.median <- median(tmb.post.draws)
     inla.post.median <- median(inla.post.draws)
-    param.name <- "log nugget prec"
+    param.name <- "log clust prec"
   }
 
   ## get posterior samples (we'll use density curves)
@@ -317,8 +320,14 @@ for(ii in 1:num.dists){
 dev.off()
 
 
+
 ## plot results in logit space or in prevalence space?
-## plot.in.logit.space <- FALSE ## TODO ?
+## TODO (?) plot.in.logit.space <- FALSE 
+
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## plot comparisons of INLA and TMB fields
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+message('------ plotting the comparison of INLA and TMB fields')
 
 ## randomly select pixels for plotting tmb v inla scatter
 samp <- sample(cellIdx(ras_med_inla[[1]]),1e4) 
@@ -345,8 +354,8 @@ for(sum.meas in c('median','stdev')){
     png(sprintf('%s/validation/experiment%04d_iter%04d_plot_03_median_rasters.png', out.dir, exp.lvid, exp.iter),
         height=12, width=12, units = 'in', res = 250)
   }
-
-   if(sum.meas=='stdev'){
+  
+  if(sum.meas=='stdev'){
     if(data.lik == 'binom'){
       rinla <- ras_sdv_inla_p[[1]]
       rtmb  <- ras_sdv_tmb_p[[1]]
@@ -362,7 +371,7 @@ for(sum.meas in c('median','stdev')){
     png(sprintf('%s/validation/experiment%04d_iter%04d_plot_04_stdev_rasters.png', out.dir, exp.lvid, exp.iter),
         height=12, width=12, units = 'in', res = 250)
   }
-
+  
   layout(matrix(1:length(rast.list) ^ 2, byrow = T, ncol = length(rast.list)))
   
   tmp <- subset(dt, period_id==1) ## for s-t
@@ -412,9 +421,10 @@ for(sum.meas in c('median','stdev')){
   
 } ## sum.meas
 
-## ~~~
-## now make caterpillar plots
-## ~~~
+## ~~~~~~~~~~~~~~~~~~~~~~
+## plot caterpillar plots
+## ~~~~~~~~~~~~~~~~~~~~~~
+message('------ plotting caterpillar plots')
 
 png(sprintf('%s/validation/experiment%04d_iter%04d_plot_05_spatial_re_caterpillars.png', out.dir, exp.lvid, exp.iter),
       height=8, width=12, units = 'in', res = 250)
@@ -476,14 +486,7 @@ dev.off()
 ## ###############################################
 ## 3) generate and summarize predictive metrics ##  
 ## ###############################################
-
-## there are two types of predictive metrics we might look at:
-##  (i) metrics comparing true surfaces: in latent space and in inv-link space if needed
-## (ii) metrics comparing data to estimated surfaces
-
-## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-## (i) compare true surface to fitted surface
-## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+message('------ making metrics to compare true and estimated surfaces')
 
 ## NOTE: these are in latent space for all models!
 all.preds <- data.table(rbind(pred_tmb, pred_inla))
@@ -499,7 +502,7 @@ d <- data.table(truth        = rep(values(true.rast)[non.na.idx], 2),
 ## get some coverage probs
 coverage_probs <- c(25, 50, 80, 90, 95)
 for(c in coverage_probs){
-  message(paste0('------ calcing ', c ,'% coverage'))
+  message(paste0('-------- calcing ', c ,'% coverage of linear predictor'))
   coverage <- c / 100
   li       <- apply(all.preds, 1, quantile, p = (1 - coverage)/2, na.rm=T)
   ui       <- apply(all.preds, 1, quantile, p = coverage + (1 - coverage) / 2, na.rm=T)
@@ -525,7 +528,7 @@ if(data.lik == 'binom'){
   ## get some coverage probs
   coverage_probs <- c(25, 50, 80, 90, 95)
   for(c in coverage_probs){
-    message(paste0('------ calcing ', c ,'% coverage'))
+    message(paste0('-------- calcing ', c ,'% coverage of binomial prob'))
     coverage <- c / 100
     li       <- apply(all.preds, 1, quantile, p = (1 - coverage)/2, na.rm=T)
     ui       <- apply(all.preds, 1, quantile, p = coverage + (1 - coverage) / 2, na.rm=T)
@@ -537,35 +540,7 @@ if(data.lik == 'binom'){
   d[, var.p := apply(all.preds, 1, var)]
 }
 
-## summarize metrics across surfaces and models
-
-## simple correlation function
-my.cor <- function(x, y){
-  x <- na.omit(x)
-  y <- na.omit(y)
-  s.x <- sum(x)
-  s.x2 <- sum(x ^ 2)
-  s.y <- sum(y)
-  s.y2 <- sum(y ^ 2)
-  s.xy <- sum(x * y)
-  n <- length(x)
-  return((n * s.xy - s.x * s.y) / (sqrt(n * s.x2 - s.x ^ 2) * sqrt(n * s.y2 - s.y ^ 2)))
-}
-
-## continuous-rank probability score
-## NOTE! since this is a normal distribution, I calcualte it on the logit scale which should be close to gaussian in our predictions
-crpsNormal <- function(truth, my.est, my.var){
-  
-  sig = sqrt(my.var)
-  x0 <- (truth - my.est) / sig
-  res <- sig * (1 / sqrt(pi) -  2 * dnorm(x0) - x0 * (2 * pnorm(x0) - 1))
-  
-  ## sign as in Held (2008)
-  res <- -res
-  
-  return(res)
-}
-
+message('-------- making final table of summary metrics and scores')
 ## summarize across pixels
 surface.metrics <- data.table(cbind(mean.l      = d[, .(truth = mean(truth, na.rm = T)), by = c('model')], 
                                     mean.l.est  = d[, .(est = mean(median.fit, na.rm = T)), by = c('model')]$est, 
@@ -598,14 +573,10 @@ colnames(res.addon) <- rr[, quantity]
 
 ## and addon loovars for easy summary later
 lv.addon <- rbind(loopvars[exp.lvid, ], loopvars[exp.lvid, ])
-
-
 summary.metrics <- cbind(surface.metrics, res.addon, lv.addon)
 
 ## note iteration
 summary.metrics[, iter := exp.iter]
-
-##
 
 ## save
 write.csv(summary.metrics, sprintf('%s/validation/experiment%04d_iter%04d_summary_metrics.csv', out.dir, exp.lvid, exp.iter))

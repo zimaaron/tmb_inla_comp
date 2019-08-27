@@ -1,7 +1,7 @@
 ## this script simulates some realistic datasets for comparison between INLA and TMB
 ## it leverages existing architecture that the LBD team at IHME has already created
 ## written by AOZ
-## last editted Aug 4, 2019
+## last editted Aug 2019
 
 ## options(error = recover)
 
@@ -16,7 +16,6 @@
 exp.lvid      <- as.numeric(commandArgs()[4]) ## all we need is to grab which (i.e. row of loopvars),
 exp.iter      <- as.numeric(commandArgs()[5])  ## which monte carlo iteration,
 main.dir.name <- as.character(commandArgs()[6]) ## the run_date folder name
-
 
 message(sprintf('ON EXPERIMENT LV ID: %04d', exp.lvid))
 message(sprintf('-- ON SIM ITER: %04d', exp.iter))
@@ -82,7 +81,6 @@ while( (tmb.converge != 1 | inla.converge != 1) & !(tmb.converge.fails >= 5 | in
     tmb.converge <- 0
     tmb.converge.fails <- tmb.converge.fails + 1
   }
-  
   
   ## #######
   ## INLA ##

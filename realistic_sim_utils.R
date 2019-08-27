@@ -36,7 +36,7 @@ qsub_sim <- function(exp.lvid, ## if looping through multiple experiments - i.e.
   
   ## set the loglocation for output/error files
   if(is.null(logloc)){
-    logloc <- sprintf('/homes/azimmer/tmb_inla_sim/%s/%04d/logs', main.dir.nm, exp.lvid)
+    logloc <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/%s/%04d/logs', main.dir.nm, exp.lvid)
   }
   error_log_dir <- paste0(logloc, '/errors/')
   output_log_dir <- paste0(logloc, '/output/')
@@ -229,9 +229,10 @@ sim.realistic.data <- function(reg,
                                sp.kappa,
                                sp.alpha,
                                t.rho,
-                               nug.var = NULL, 
+                               pixel.iid.var = NULL, ## pixel iid variance (spatial discontinuity)
                                n.clust,
                                m.clust,
+                               clust.re.var = NULL, ## iid RE variance for each cluster observed 
                                covs = NULL,
                                cov_layers = NULL, ## if supplied, use this instead of reloading covs
                                simple_raster,
@@ -243,6 +244,7 @@ sim.realistic.data <- function(reg,
                                urban.strat.pct = 40, ## percent of sample locations that should come from urban pixels
                                sp.field.sim.strat = 'RF', ## one of RF or SPDE ## TODO add t-dist, extremal
                                seed = NULL,
+                               verbose = FALSE,
                                exp.iter = 1){ ## exp.iter, used for file saving
 
   ## make some checks and set things
@@ -281,7 +283,7 @@ sim.realistic.data <- function(reg,
   
 ##  if(!is.null(betas)){
     if(is.null(cov_layers)){
-      message('\n\nLOADING COVS\n')
+      if(verbose) message('\n\nLOADING COVS\n')
       cov_layers <- load_and_crop_covariates_annual(covs            = covs[, name],
                                                     measures        = covs[, meas],
                                                     simple_polygon  = simple_polygon,
@@ -300,24 +302,24 @@ sim.realistic.data <- function(reg,
       
       ## we also want our cov_layers to align with simple_raster
       for(l in 1:length(cov_layers)) {
-        message(sprintf("On cov %i out of %i", l, length(cov_layers)))
+        if(verbose) message(sprintf("On cov %i out of %i", l, length(cov_layers)))
         cov_layers[[l]]  <- crop(cov_layers[[l]], extent(simple_raster))
         cov_layers[[l]]  <- setExtent(cov_layers[[l]], simple_raster)
         cov_layers[[l]]  <- mask(cov_layers[[l]], simple_raster)
       }
     }else{
-      message('\n\nUSING PRE-SUPPLIED AND PREPPED COVS\n')
+      if(verbose) message('\n\nUSING PRE-SUPPLIED AND PREPPED COVS\n')
     }  
     
     ## plot center-scaled covariates
     pdf(sprintf('%s/simulated_obj/cov_plot.pdf', out.dir), width = 16, height = 16)
     for(cc in 1:length(cov_layers)){
-      message(sprintf('Plotting covariate: %s\n', names(cov_layers)[[cc]]))
+      if(verbose) message(sprintf('Plotting covariate: %s\n', names(cov_layers)[[cc]]))
       if(dim(cov_layers[[cc]])[3] == 1){
-        message('--plotting single synoptic map\n')
+        if(verbose) message('--plotting single synoptic map\n')
         par(mfrow = c(1, 1))
       }else{
-        message('--plotting time series\n')
+        if(verbose) message('--plotting time series\n')
         par(mfrow = rep( ceiling(sqrt( dim(cov_layers[[cc]])[3] )), 2))
       }
       for(yy in 1:dim(cov_layers[[cc]])[3]){
@@ -331,7 +333,7 @@ sim.realistic.data <- function(reg,
     }
     dev.off()
 ##  }else{
-##    message('\n\nNO COVS\n')
+##    if(verbose) message('\n\nNO COVS\n')
 ##  }
   
   ## now we can simulate our true surface
@@ -344,7 +346,7 @@ sim.realistic.data <- function(reg,
   ## simulate space-time gp ##
   ## ##########################
   
-  message('SIMULATE GP\n')
+  if(verbose) message('SIMULATE SPATIAL FIELD\n')
   
   ## FIRST, get the pixel coords- these are useful later too
   
@@ -396,12 +398,12 @@ sim.realistic.data <- function(reg,
   
   ## simulate t dist with low DOF
   if(sp.field.sim.strat == 't'){
-    message("sp.field.sim.strat=='t' is not yet implemented")
+    stop("sp.field.sim.strat=='t' is not yet implemented")
   }
   
   ## simulate extremal dist
   if(sp.field.sim.strat == 'ext'){
-    message("sp.field.sim.strat=='ext' is not yet implemented")
+    stop("sp.field.sim.strat=='ext' is not yet implemented")
   }
   
   ## ---------
@@ -458,11 +460,11 @@ sim.realistic.data <- function(reg,
   
   ## simulate IID normal draws to add as nugget
   
-  if(!is.null(nug.var)){ #} & data.lik != 'normal'){
+  if(!is.null(pixel.iid.var)){ #} & data.lik != 'normal'){
     ## normal plus nugget means add nugget in normal draws, not to every pixel!
     ## TODO is this right to set it up and limit it this way??
     
-    message('SIMULATE PIXEL NUGGET\n')
+    if(verbose) message('--simulate discontinuous pixel RE\n')
     
     ## take rnorm() draws and convert them to rasters
     for(cc in 1:length(year_list)){
@@ -471,14 +473,14 @@ sim.realistic.data <- function(reg,
                               y = simple_raster,
                               field = rnorm(n = nrow(pix.pts@data),
                                             mean = 0,
-                                            sd = sqrt(nug.var)))
+                                            sd = sqrt(pixel.iid.var)))
       }else{ ## add a layer
         nug.rast <- addLayer(nug.rast,
                              rasterize(x = pix.pts@data[, 2:3],
                                        y = simple_raster,
                                        field = rnorm(n = nrow(pix.pts@data),
                                                      mean = 0,
-                                                     sd = sqrt(nug.var))))        
+                                                     sd = sqrt(pixel.iid.var))))        
       } ## else
     } ## year loop
     
@@ -494,7 +496,7 @@ sim.realistic.data <- function(reg,
     dev.off()
     
   }else{
-    message('NO NUGGET\n')
+    if(verbose) message('--no spatial discontinuity RE\n')
   }
   
   
@@ -525,7 +527,7 @@ sim.realistic.data <- function(reg,
   cov_layers[['gp']] <- sf.rast
   
   ## and, add nugget if desired
-  if(!is.null(nug.var)) true.rast <- true.rast + nug.rast
+  if(!is.null(pixel.iid.var)) true.rast <- true.rast + nug.rast
   
   pdf(sprintf('%s/simulated_obj/iter%04d_true_surface_plot.pdf', out.dir, exp.iter), width = 16, height = 16)
   par(mfrow = rep( ceiling(sqrt( dim(true.rast)[3] )), 2))
@@ -550,7 +552,7 @@ sim.realistic.data <- function(reg,
   ## simulate data from true surface ##
   #####################################
 
-  message('SIMULATE DATA\n')
+  if(verbose) message('SIMULATE DATA\n')
   
   ## randomly (for now) select data boservation locations across time
   
@@ -589,18 +591,29 @@ sim.realistic.data <- function(reg,
   sim.dat[, year := rep(year_list, each = n.clust)]
   
   ## extract the value of the true surface at data locations
-  true_p_logit <- numeric(nrow(sim.dat))
+  ## this is the true value of the linear predictor! not necessarily in logit=space...
+  true_lin_pred <- numeric(nrow(sim.dat))
   for(yy in unique(year_list)){
-    true_p_logit[which(sim.dat[, year] == yy)] <- raster::extract(x = true.rast[[ which(year_list %in% yy) ]],
+    true_lin_pred[which(sim.dat[, year] == yy)] <- raster::extract(x = true.rast[[ which(year_list %in% yy) ]],
                                                                   y = sim.dat[year == yy, .(long, lat)])
+  }
+  
+  ## add in the iid cluste RE
+  if(!is.null(clust.re.var)){
+    if(verbose) message('-- adding in survey cluster RE')
+    cluster_re <- rnorm(n=nrow(sim.dat), mean=0, sd=sqrt(clust.re.var))
+  } else{
+    cluster_re <- rep(0, nrow(sim.dat))
   }
   
   ## sim sample size of observations
   sim.dat[, N := rpois(n = nrow(sim.dat), lambda = m.clust)]
   
   if(data.lik == 'binom'){
-    sim.dat[, p_true := inv.logit(true_p_logit)]
-    
+    ## p_true is spatial + cluster!
+    ## not the same as what the values from the truth raster
+    sim.dat[, p_true := inv.logit(true_lin_pred + cluster_re)] 
+           
     ## and now we simulate binomial observations from the true surface
     sim.dat[, Y := rbinom(n = nrow(sim.dat), size = sim.dat[, N], prob = sim.dat[, p_true])]
     
@@ -609,16 +622,18 @@ sim.realistic.data <- function(reg,
     
     ## lastly, we tag on weight. TODO flesh out weighting options
     sim.dat[, weight := 1]
-  }else if(data.lik == 'normal'){
-    sim.dat[, p_true := true_p_logit] ## no link to transform
     
-    ## and now we simulate binomial observations from the true surface
-    sim.dat[, Y := apply(.SD, 1, function(x) mean(rnorm(n = x[1], mean = x[2], sd = sd.norm))), .SDcols = c('N', 'p_true')]
+  }else if(data.lik == 'normal'){
+    sim.dat[, p_true := true_lin_pred + cluster_re] ## identity transform
+    
+    ## and now we simulate normal observations from the true surface
+    ## each individual observation has sd(obs) = sd.norm. 
+    ## the sd of the mean of the cluster is sd.norm/sqrt(n)
+    sim.dat[, Y := apply(.SD, 1, function(x) mean(rnorm(n = x[1], mean = x[2], sd = sd.norm))), 
+            .SDcols = c('N', 'p_true')]
     
     ## and get empirical p_obs
     sim.dat[, p_obs := Y]
-    
-    ## lastly, we tag on weight. TODO flesh out weighting options
   }
   
   ## now we just finish by making some convenience objects and saving everything
@@ -631,7 +646,7 @@ sim.realistic.data <- function(reg,
   ## for convenience, we also extract covariate values to the same df (and the true gp val) ##
   ## ##########################################################################################
   
-  message('PREPARE AND SAVE OBJECTS\n')
+  if(verbose) message('PREPARE AND SAVE OBJECTS\n')
   
   cov.mat <- matrix(ncol = length(cov_layers),
                     nrow = nrow(sim.dat))
@@ -695,5 +710,34 @@ rasterFromXYZT <- function(table,
   if(n_periods>1)
     for(r in 2:n_periods)
       res=addLayer(res, rasterFromXYZ(as.matrix(table[t==r,c('x','y',z),with=F])))
+  return(res)
+}
+
+######
+## simple correlation function
+my.cor <- function(x, y){
+  x <- na.omit(x)
+  y <- na.omit(y)
+  s.x <- sum(x)
+  s.x2 <- sum(x ^ 2)
+  s.y <- sum(y)
+  s.y2 <- sum(y ^ 2)
+  s.xy <- sum(x * y)
+  n <- length(x)
+  return((n * s.xy - s.x * s.y) / (sqrt(n * s.x2 - s.x ^ 2) * sqrt(n * s.y2 - s.y ^ 2)))
+}
+
+#######
+## continuous-rank probability score
+## NOTE! since this is a normal distribution, I calcualte it on the logit scale which should be close to gaussian in our predictions
+crpsNormal <- function(truth, my.est, my.var){
+  
+  sig = sqrt(my.var)
+  x0 <- (truth - my.est) / sig
+  res <- sig * (1 / sqrt(pi) -  2 * dnorm(x0) - x0 * (2 * pnorm(x0) - 1))
+  
+  ## sign as in Held (2008)
+  res <- -res
+  
   return(res)
 }

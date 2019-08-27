@@ -1,6 +1,6 @@
 // /////////////////////////////////////////////////////////////////////////////
 // RB AOZ
-// 2018
+// 2019
 // Template file for fitting space only models
 // /////////////////////////////////////////////////////////////////////////////
 
@@ -41,8 +41,7 @@ bool isNA(Type x){
   return R_IsNA(asDouble(x));
 }
 
-
-
+// our main function
 template<class Type>
 Type objective_function<Type>::operator() ()
 {
@@ -61,7 +60,7 @@ Type objective_function<Type>::operator() ()
   DATA_INTEGER( num_s );   // Number of mesh points in space mesh
 
   // Data (all except for X_ij is a vector of length num_i)
-  DATA_VECTOR( y_i );   // Num occurrences (deaths) per binomial experiment at point i (cluster)
+  DATA_VECTOR( y_i );   // Num occurrences (deaths) per binomial experiment at point i (clust)
   DATA_VECTOR( n_i );   // Trials per cluster
   DATA_MATRIX( X_alpha );  // Covariate 'design matrix' for just intercept (i.e. 1col matrix of all 1s)
   DATA_MATRIX( X_betas );   // Covariate design matrix excluding intercept columm
@@ -73,19 +72,19 @@ Type objective_function<Type>::operator() ()
   DATA_SPARSE_MATRIX( Aproj );   // Used to project spatial mesh to data locations
 
   // Options
-  DATA_VECTOR( options );
+  DATA_VECTOR( options ); // TODO make this a named list!
   // options[0] == 1 : turn on adreport
   // options[1] == 1 : use priors
   // options[2] == 1 : fit with intercept
   // options[3] == 1 : fit with cov effects
-  // options[4] == 1 : fit with nugget
+  // options[4] == 1 : fit with cluster RE
   // options[5] == 0 : use normal data lik
   // options[5] == 1 : use binom  data lik
   // options[6] == 1 : use normalization trick
 
   // Prior specifications
   DATA_VECTOR( norm_prec_pri );
-  DATA_VECTOR( nug_prec_pri );
+  DATA_VECTOR( clust_prec_pri );
   DATA_VECTOR( alphaj_pri );
   DATA_VECTOR( logtau_pri );
   DATA_VECTOR( logkappa_pri );
@@ -97,8 +96,8 @@ Type objective_function<Type>::operator() ()
   PARAMETER( log_obs_sigma);     // if using normal likelihood, sd of single normal obs
   PARAMETER( log_tau );          // Log of INLA tau param (precision of space covariance matrix)
   PARAMETER( log_kappa );        // Log of INLA kappa (related to spatial correlation and range)
-  PARAMETER( log_nugget_sigma ); // Log of SD for irreducible nugget variance
-  PARAMETER_VECTOR( nug_i );     // random effect nugget for each observation
+  PARAMETER( log_clust_sigma ); // Log of SD for cluster RE
+  PARAMETER_VECTOR( clust_i );    // random effect estimate for each cluster observation
   
   // Random effects
   PARAMETER_ARRAY( Epsilon_s );  // Random effect for each spatial mesh location. Currently a 1d array of num_s
@@ -124,20 +123,17 @@ Type objective_function<Type>::operator() ()
   // Transform some of our parameters
   Type range = sqrt(8.0) / exp(log_kappa);
   Type sigma = 1.0 / sqrt(4.0 * 3.14159265359 * exp(2.0 * log_tau) * exp(2.0 * log_kappa));
-  Type nugget_sigma  = exp(log_nugget_sigma);
-  Type nugget_prec = 1.0 / exp(log_nugget_sigma * 2.0);
+  Type clust_sigma  = exp(log_clust_sigma);
+  Type clust_prec = 1.0 / exp(log_clust_sigma * 2.0);
   Type gauss_prec = 1.0 / exp(log_obs_sigma * 2.0);
     
-
   // Define objects for derived values
   vector<Type> fe_i(num_i);              // main effect alpha + X_betas %*% t(betas)
   vector<Type> latent_field_i(num_i);    // Logit estimated prob for each point i
   vector<Type> epsilon_s(num_s);         // Epsilon_s (array) unlisted into a vector for easier matrix multiplication
   vector<Type> projepsilon_i(num_i);     // value of gmrf at data points
-  // vector<Type> nug_i(num_i);             // value of nugget at data points
-
   
-  // evaluate fixed effects for intercept and covs of applicable
+  // evaluate fixed effects for intercept and covs if applicable
   fe_i = X_alpha * Type(0.0); // initialize
   if(options[2] == 1){
     fe_i = X_alpha * alpha; // add on intercept if using
@@ -185,9 +181,9 @@ Type objective_function<Type>::operator() ()
       }
     }
 
-    // prior for log(nugget sd)
+    // prior for log(cluster RE sd)
     if(options[4] == 1){
-      jnll -= dgamma(nugget_prec, nug_prec_pri[0], nug_prec_pri[1], true); // N(-4, 2)
+      jnll -= dgamma(clust_prec, clust_prec_pri[0], clust_prec_pri[1], true); // N(-4, 2)
     }
 
     // prior for log(obs sd) of using normal data lik
@@ -211,10 +207,10 @@ Type objective_function<Type>::operator() ()
     jnll += GMRF(Q_ss)(epsilon_s);
   }
 
-  // nugget contribution to the likelihood
+  // cluster contribution to the likelihood
   if(options[4] == 1 ){
     for (int i = 0; i < num_i; i++){
-      jnll -= dnorm(nug_i(i), Type(0.0), nugget_sigma, true);
+      jnll -= dnorm(clust_i(i), Type(0.0), clust_sigma, true);
     }
   }
 
@@ -230,9 +226,9 @@ Type objective_function<Type>::operator() ()
 
     // latent field estimate at each obs
     latent_field_i(i) = fe_i(i) + projepsilon_i(i);
-    // add on nugget if using
+    // add on cluster if using
     if(options[4] == 1){ 
-      latent_field_i(i) = latent_field_i(i) + nug_i(i);
+      latent_field_i(i) = latent_field_i(i) + clust_i(i);
     }
 
     // and add data contribution to jnll
@@ -240,14 +236,13 @@ Type objective_function<Type>::operator() ()
 
       // if normal
       if(options[5] ==  0){
-	// Uses the dbinom_robust function, which takes the logit probability
-	jnll -= dnorm( y_i(i), latent_field_i(i), exp(log_obs_sigma)/sqrt(n_i(i)), true );
+      	jnll -= dnorm( y_i(i), latent_field_i(i), exp(log_obs_sigma)/sqrt(n_i(i)), true );
       }
 
       // if binom
       if(options[5] ==  1){
-	// Uses the dbinom_robust function, which takes the logit probability
-	jnll -= dbinom_robust( y_i(i), n_i(i), latent_field_i(i), true );
+	      // Uses the dbinom_robust function, which takes the logit probability
+      	jnll -= dbinom_robust( y_i(i), n_i(i), latent_field_i(i), true );
       }
       
     } // !isNA
@@ -261,7 +256,7 @@ Type objective_function<Type>::operator() ()
   if(options[0] == 1){
     // ADREPORT(betas);
     // ADREPORT(Epsilon_s);
-    ADREPORT(nugget_prec);
+    ADREPORT(clust_prec);
     ADREPORT(gauss_prec);
   }
 

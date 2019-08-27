@@ -41,7 +41,7 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
 
 for(main.dir.name in main.dir.names){
 
-  main.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', main.dir.name)
+  main.dir  <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/%s', main.dir.name)
 
   compar.dir <- sprintf('%s/comparisons/', main.dir)
   dir.create(compar.dir, recursive = T, showWarnings = F)
@@ -63,7 +63,7 @@ for(main.dir.name in main.dir.names){
                           'sp.range',
                           'sp.var',
                           'sp.alpha',
-                          'nug.var', ## 10
+                          'clust.var', ## 10
                           't.rho',
                           'mesh_s_params',
                           'n.clust',
@@ -72,7 +72,7 @@ for(main.dir.name in main.dir.names){
                           'cores',
                           'ndraws',
                           'alphaj.pri',
-                          'nug.prec.pri',
+                          'clust.prec.pri',
                           'inla.int.strat', ## 20
                           'inla.approx', 
                           'Nsim',
@@ -162,7 +162,7 @@ for(main.dir.name in main.dir.names){
   long.cov[target_cov == 'cov90', n_target_cov := 0.90]
   long.cov[target_cov == 'cov95', n_target_cov := 0.95]
 
-  long.cov$noise_spatial_ratio <- long.cov$nug.var / long.cov$sp.var
+  long.cov$noise_spatial_ratio <- long.cov$clust.var / long.cov$sp.var
   long.cov$noise_spatial_ratio[is.na(long.cov$noise_spatial_ratio)] <- 0
 
   long.cov[model == 'tmb', fit.time := as.numeric(fit_time) + as.numeric(pt_tmb_sdreport_time)]
@@ -202,7 +202,7 @@ for(main.dir.name in main.dir.names){
   geom_point() +
   geom_abline(intercept = 0, slope = 1) +
   facet_wrap(. ~ noise_spatial_ratio) +
-  ggtitle(sprintf('Comparison of coverage in: %s, faceted by nug.var/sp.var',
+  ggtitle(sprintf('Comparison of coverage in: %s, faceted by clust.var/sp.var',
                   loopvars$data.lik[1]))
 
   ggsave(sprintf('%s/%s_coverage_summary_noise_to_spatial_var.png', compar.dir, loopvars$data.lik[1]),
@@ -255,7 +255,7 @@ for(main.dir.name in main.dir.names){
   geom_point() +
   geom_abline(intercept = 0, slope = 1) +
   facet_wrap(. ~ noise_spatial_ratio) +
-  ggtitle(sprintf('Comparison of coverage in: %s, faceted by nug.var/sp.var',
+  ggtitle(sprintf('Comparison of coverage in: %s, faceted by clust.var/sp.var',
                   loopvars$data.lik[1]))
 
   ggsave(sprintf('%s/%s_coverage_summary_noise_to_spatial_var.png', compar.dir, loopvars$data.lik[1]),
