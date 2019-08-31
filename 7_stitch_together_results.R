@@ -1,6 +1,5 @@
 ## this script pulls together some overall results from an experiment run
-main.dir.names <- c("2019_03_21_05_25_32", ## binomial
-                    "2019_03_21_06_11_57") ## normal
+main.dir.names <- c('')
 
 ##utility function from the interwebs
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,

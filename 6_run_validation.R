@@ -157,7 +157,9 @@ for(ii in 1:num.dists){
     tmb.post.draws  <- alpha_tmb_draws[ii, ]
     inla.post.draws <- pred_l[ii, ]
 
-    xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val)) 
+    ## get a safe range for plotting, and get the prior
+    xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val))
+    if(xlim[1] == -Inf) xlim[1] <- -1000; if(xlim[2] == +Inf) xlim[2] <- +1000 
     x.prior    <- seq(xlim[1], xlim[2], len = 1000)
     y.prior    <- dnorm(x.prior, mean = prior.mean, sd = prior.sd)
 
@@ -177,7 +179,7 @@ for(ii in 1:num.dists){
     prior.mean <- alphaj.pri[1]
     prior.sd   <- sqrt(alphaj.pri[2])
     
-    tmb.post.draws  <- alpha_tmb_draws[ii, ]
+    tmb.post.draws  <- betas_tmb_draws[ii, ]
     inla.post.draws <- pred_l[ii, ]
     
     xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val)) 

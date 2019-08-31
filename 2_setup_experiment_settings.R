@@ -70,7 +70,7 @@ reg             <- as.character(loopvars[exp.lvid, 1])
 year_list       <- eval(parse(text = loopvars[exp.lvid, 2]))
 cov_names       <- eval(parse(text = as.character(loopvars[exp.lvid, 3])))
 cov_measures    <- eval(parse(text = as.character(loopvars[exp.lvid, 4])))
-betas           <- eval(parse(text = as.character(loopvars[exp.lvid, 5])));if(is.na(betas)) betas <- NULL
+betas           <- eval(parse(text = as.character(loopvars[exp.lvid, 5])));if(mean(is.na(betas))==1) betas <- NULL
 
 alpha           <- as.numeric(loopvars[exp.lvid, 6]);if(is.na(alpha)) alpha <- NULL
 sp.range        <- as.numeric(loopvars[exp.lvid, 7])

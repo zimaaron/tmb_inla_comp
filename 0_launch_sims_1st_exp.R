@@ -1,17 +1,18 @@
 ## this script can be used to launch 1_run_simulation.R in parallel on the IHME cluster
 ## written by aoz
 ## 2019AUG12
+## source('/homes/azimmer/tmb_inla_comp/0_launch_sims_1st_exp.R')
 
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
 'STUDY 01: vary number of clusters, cluster effect, and normal data variance. 
-TRIAL 03.3: adding in cluster level effect AND normal SD (individual measurement error). debugging test'
+TRIAL 04: first production run'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
-extra.job.name <- 'study01trial03'
+extra.job.name <- 'study01trial04'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -86,13 +87,13 @@ reg <- 'nga'
 year_list <- 2000 
 
 ## loopvars 3: vector of covariates to use in model
-cov_names <- "c('access2', 'distrivers', 'evi'   , 'mapincidence')" 
+cov_names <- "c('access2')" 
 
 ## loopvars 4: vector of covariate measures to use in conjunction with cov_names to load covs
-cov_measures <- "c('mean'   , 'mean'      , 'median', 'mean')"
+cov_measures <- "c('mean')"
 
 ## loopvars 5: cov effects. either NA (NO Covs), or a vector of cov effects to use wtih cov_names 
-betas <- NA ## "c(.5, 1), 1, -.5)"
+betas <- NA
 
 ## loopvars 6 ## global intercept
 alpha <- -1.0
@@ -109,7 +110,7 @@ sp.var <- 0.5 ^ 2
 sp.alpha <- 2.0          
 
 ## loopvars 10: cluster RE variance. NA means no effect
-clust.var <-  c(NA, ((1:5) / 10) ^ 2) 
+clust.var <-  c(NA, (c(1, 2, 4) / 10) ^ 2) 
 
 ## loopvars 11: temporal auto-correlation (NOT USED IN SPACE-ONLY MODEL)
 t.rho <-  0.8           
@@ -118,7 +119,7 @@ t.rho <-  0.8
 mesh_s_params <- c("c(0.1, 1, 5)") 
 
 ## loopvars 13: number of clusters to simulate per year
-n.clust <- c(100, 250, 500, 750, 1000, 2500, 5000)
+n.clust <- c(250, 500, 750, 1000, 2500, 5000)
 
 ## loopvars 14: mean number of individuals sim'ed per cluster using poisson(m.clust)
 m.clust <- 35                   
@@ -151,13 +152,13 @@ inla.int.strat <- c('eb')
 inla.approx <- 'simplified.laplace' 
 
 ## loopvars 22: number of times to repeat an experiment (monte carlo simulations)
-n.sim <- 3 
+n.sim <- 100 
 
 ## loopvars 23: data distribution: either 'binom' or 'normal'
 data.lik <- c('normal', 'binom') 
 
 ## loopvars 24: ONLY FOR data.lik=='normal'. variance of INDIVIDUAL normal data obs.
-norm.var <- c(0, ((1:1) / 10) ^ 2)  
+norm.var <- c(0, (c(1, 2, 4) / 10) ^ 2)  
 
 ## loopvars 25: shape and inv-scale for gamma prior on normal individual level precision
 norm.prec.pri <- "c(1, 1e-5)"
@@ -212,7 +213,8 @@ write.table(file = paste0(main.dir, '/loopvars.csv'), x = loopvars,
 ## make a data.table to save the job.ids
 jid.dt <- data.table('exp'  = character(), 
                      'iter' = character(), 
-                     'jid'  = character())
+                     'jid'  = character(),
+                     'qsub' = character())
 
 for(ll in 1:nrow(loopvars)){
   for(ii in 1:n.sim){
@@ -251,7 +253,8 @@ for(ll in 1:nrow(loopvars)){
     subbed.jid <- strsplit(sub.msg, split = ' ')[[1]][[3]]
     jid.dt <- rbind(jid.dt, list(sprintf('%04d', ll),
                                  sprintf('%04d', ii),
-                                 subbed.jid))
+                                 subbed.jid,
+                                 qsub.string))
 
     if(ii == 1){
       ## to use as holds for all others
@@ -268,19 +271,106 @@ for(ll in 1:nrow(loopvars)){
 in_q <- 1
 while(in_q > 0) {
   message(paste0('\n\n', Sys.time()))
-  jt <- track.exp.iter (jid.dt, main.dir)
-  js <- jt[['summ.tracker']]
-  print(js)
-  in_q <- sum(js$in_q)
+  jt1 <- track.exp.iter(jid.dt, main.dir)
+  js1 <- jt1[['summ.tracker']]
+  print(js1, nrow(js1))
+  print(js1[, c(on_track_per=mean(on_track),
+          in_q=sum(in_q),
+          running=sum(running),
+          errored=sum(errored),
+          completed=sum(completed),
+          completed_per=mean(completed))],
+          digits=5)
+  in_q <- sum(js1$in_q)
   Sys.sleep(60)
 }
 
 message(sprintf('%.2f%% of your experiments completed successfully', 
-                mean(js[, completed]==100)*100))
+                mean(js1[, completed]==100)*100))
 message(sprintf('%.2f%% of your iterations across all experiments completed successfully', 
-                mean(jt[['full.tracker']][, errored]==0)*100))
+                mean(jt1[['full.tracker']][, errored]==0)*100))
 # message('These experiments had some iterations fail:')
 # print(js[completed < 100,])
 message('These are the failed experiment iterations:')
-print(jt[['full.tracker']][errored==1, .(exp, iter, jid)])
+print(jt1[['full.tracker']][errored==1, .(exp, iter, jid)])
 
+## save the environment - mostly the job ideas and qsub commands
+save(list=ls(), file = sprintf('%s/completed_env.rdata', main.dir))
+
+
+## relaunch the jobs that failed to see if that helps
+if(mean(jt2[['full.tracker']][, errored]==0) != 1){
+  
+  ## relaunch failed jobs - IF we think this will help
+  ## load(sprintf('%s/completed_env.rdata', main.dir))
+  failed.j <- jt2[['full.tracker']][errored==1, .(exp, iter)]
+  for(ff in 1:nrow(failed.j)){
+    ll <- as.numeric(failed.j[ff, exp])
+    ii <- as.numeric(failed.j[ff, iter])
+    message(sprintf('ON EXPERIMENT LOOP.ID %04d', ll))
+    message(sprintf('----- on iter %04d', ii))
+    
+    if(ii == 1){
+      hold <- 0
+      hold.jid <- NULL
+    }else{
+      hold <- 1
+      hold.jid <- jid.dt[exp==failed.j[ff, exp] & iter=='0001', jid]
+    }
+    
+    qsub.string <- qsub_sim(exp.lvid = ll, ## sets which loopvar to use in parallel
+                            exp.iter = ii,
+                            exp.hash = loopvars$qsub.hash[ll],
+                            main.dir = main.dir.name,
+                            codepath = '/homes/azimmer/tmb_inla_comp/1_run_space_sim.R', 
+                            singularity = 'default',
+                            singularity_opts = NULL,
+                            extra_name = extra.job.name,
+                            mem = q.m,
+                            time = q.t,
+                            queue = q.q,
+                            priority = q.p,
+                            hold.jid = switch(hold + 1, NULL, hold.jid), ## NULL if hold==0, hold.jid if hold==1
+                            logloc = NULL) ## defaults to input/output dir in sim run_date dir
+    
+    ## launch the job and catch the message
+    sub.msg    <- system(qsub.string, intern=TRUE)
+    print(sub.msg)
+    
+    ## replace the job id and the new qsub string
+    subbed.jid <- strsplit(sub.msg, split = ' ')[[1]][[3]]
+    jid.dt[exp==failed.j[ff, exp] & iter==failed.j[ff, iter], 
+           `:=`(jid=subbed.jid, qsub=qsub.string)]
+  }
+  
+  ## track job progress
+  in_q <- 1
+  while(in_q > 0) {
+    message(paste0('\n\n', Sys.time()))
+    jt2 <- track.exp.iter(jid.dt, main.dir)
+    js2 <- jt2[['summ.tracker']]
+    print(js2, nrow(js1))
+    print(js2[, c(on_track_per=mean(on_track),
+                  in_q=sum(in_q),
+                  running=sum(running),
+                  errored=sum(errored),
+                  completed=sum(completed),
+                  completed_per=mean(completed))],
+          digits=5)
+    in_q <- sum(js2$in_q)
+    Sys.sleep(60)
+  }
+  
+  
+  message(sprintf('%.2f%% of your experiments completed successfully', 
+                  mean(js2[, completed]==100)*100))
+  message(sprintf('%.2f%% of your iterations across all experiments completed successfully', 
+                  mean(jt2[['full.tracker']][, errored]==0)*100))
+  # message('These experiments had some iterations fail:')
+  # print(js[completed < 100,])
+  message('These are the failed experiment iterations:')
+  print(jt2[['full.tracker']][errored==1, .(exp, iter, jid)])
+  
+  ## save the environment - mostly the job ideas and qsub commands
+  save(list=ls(), file = sprintf('%s/completed_env_2.rdata', main.dir))
+}

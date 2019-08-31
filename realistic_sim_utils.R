@@ -27,8 +27,8 @@ qsub_sim <- function(exp.lvid, ## if looping through multiple experiments - i.e.
   ## set correct project based on queue
   proj <- ifelse(queue=='geospatial.q', 'proj_geo_nodes', 'proj_geospatial')
   
-  ## set correct node flag for geo nodes if needed, based on queue
-  node.flag <- ifelse(queue=='geospatial.q', ' -l geos_node=TRUE ', ' -l archive=TRUE ')
+  ## make sure we have access to J if running on non geo nodes
+  if(queue != 'geospatial.q') node.flag <- ' -l archive=TRUE '
   
   ## grab the shell script we want
   shell <- '/share/code/geospatial/azimmer/lbd_core/mbg_central/share_scripts/shell_sing.sh'

@@ -182,12 +182,20 @@ log_gauss_sigma_draws <- tmb_draws[parnames == 'log_obs_sigma', ]
 ## rows: pixels, cols: posterior draws
 pred_tmb <- as.matrix(A.pred %*% epsilon_tmb_draws)
 
-if(!is.null(alpha)){
+## is we have an intercept and no betas, add intercept here
+if(!is.null(alpha) & is.null(betas)){
   ## add on intercept, one alpha draw per row
   pred_tmb <- sweep(pred_tmb, 2, alpha_tmb_draws, '+')
 }
 
+## add betas (and intercept if applicable)
 if(!is.null(betas)){
+  
+  ## add column for intercept if included
+  if(!is.null(alpha)){
+    betas_tmb_draws <- rbind(rep(1, ndraws), betas_tmb_draws)
+  }
+  
   ## add on covariate values by draw
   tmb_vals <- list()
   for(p in 1:nperiods) tmb_vals[[p]] <- cov_vals[[p]] %*% betas_tmb_draws

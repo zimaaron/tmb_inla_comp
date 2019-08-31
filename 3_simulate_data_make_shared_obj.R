@@ -220,5 +220,6 @@ for(p in 1:nperiods){
 cov_vals <- list()
 for(p in 1:nperiods){
   cov_vals[[p]] <- raster::extract(new_cl[[p]], pcoords[1:(sum(!is.na(values(simple_raster)))/nperiods),])
+  colnames(cov_vals[[p]]) <- cov_names
   cov_vals[[p]] <- (cbind(int = 1, cov_vals[[p]]))
 }
