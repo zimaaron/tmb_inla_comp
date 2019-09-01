@@ -28,7 +28,7 @@ qsub_sim <- function(exp.lvid, ## if looping through multiple experiments - i.e.
   proj <- ifelse(queue=='geospatial.q', 'proj_geo_nodes', 'proj_geospatial')
   
   ## make sure we have access to J if running on non geo nodes
-  if(queue != 'geospatial.q') node.flag <- ' -l archive=TRUE '
+  node.flag <- ifelse(queue != 'geospatial.q', ' -l archive=TRUE ', '')
   
   ## grab the shell script we want
   shell <- '/share/code/geospatial/azimmer/lbd_core/mbg_central/share_scripts/shell_sing.sh'
@@ -124,7 +124,7 @@ track.exp.iter <- function(jid.dt, main.dir) {
                               } ## func
                        ) ## lapply
     ) ## do.call
-  }
+  } ## else: length(jt.csvs) > 0
   
   ## merge on csv jt info
   jid.dt <-  merge(jid.dt, jt.info, by = c('exp', 'iter'), all.x=T)
@@ -138,7 +138,7 @@ track.exp.iter <- function(jid.dt, main.dir) {
   ## running
   jid.dt[grepl('r', j.status), running := 1]
   ## errored
-  jid.dt[(is.na(j.status) & script_num != 0), errored := 1]
+  jid.dt[(is.na(j.status) & (script_num != 0 | is.na(script_num))), errored := 1]
   ## not errored
   jid.dt[is.na(errored), on_track := 1]
   ## completed

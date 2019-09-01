@@ -1,5 +1,27 @@
+## this script may be run in a clean env:
+# ## Set core_repo location and tmb_repo loc
+# user      <- Sys.info()['user']
+# core_repo <- sprintf('/share/code/geospatial/%s/lbd_core/', user)
+# tmb_repo  <- sprintf('/homes/%s/tmb_inla_comp', user)
+# 
+# ## grab libraries and functions from MBG code
+# setwd(core_repo)
+# commondir    <- paste(core_repo, 'mbg_central/share_scripts/common_inputs', sep = '/')
+# package_list <- c(t(read.csv(paste(commondir, 'package_list.csv', sep = '/'), header = FALSE)))
+# 
+# ## Load MBG packages and functions
+# message('Loading in required R packages and MBG functions')
+# source(paste0(core_repo, 'mbg_central/setup.R'))
+# mbg_setup(package_list = package_list, repos = core_repo)
+# 
+# library(TMB)
+# library(gridExtra)
+# library(grid)
+# library(RColorBrewer)
+# library(viridis)
+
 ## this script pulls together some overall results from an experiment run
-main.dir.names <- c('')
+main.dir.names <- c('2019_08_28_01_41_54') ## study 1
 
 ##utility function from the interwebs
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
@@ -40,46 +62,38 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
 
 for(main.dir.name in main.dir.names){
 
-  main.dir  <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/%s', main.dir.name)
-
+  message(sprintf('ON MAIN DIR %i of %i: %s', which(main.dir.names %in% main.dir.name), length(main.dir.names), main.dir.name))
+  
+  main.dir <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/%s', main.dir.name)
+  
   compar.dir <- sprintf('%s/comparisons/', main.dir)
   dir.create(compar.dir, recursive = T, showWarnings = F)
 
-  ## read in all experiments
+  ## read in all experiment parameters
   loopvars <- fread(file = paste0(main.dir, '/loopvars.csv'), stringsAsFactors = F)
+  
+  ## read in the summary metrics log from each iteration of each experiment
+  for(lvid in 1:nrow(loopvars)){
+    message(sprintf('--loading in summary metrics from %i of %i', lvid, nrow(loopvars)))
+    
+    out.dir  <- sprintf('%s/%04d', main.dir, lvid)
+    
+    for(iter in 1:loopvars$n.sim[1]){ ## n.sim is the same for all experiments
+      if(lvid==1 & iter==1){
+        summary.metrics <- fread(sprintf('%s/validation/experiment%04d_iter%04d_summary_metrics.csv', 
+                                            out.dir, lvid, iter))[,lvid:=lvid]
+      }else{
+        summary.metrics <- rbind(summary.metrics,
+                                 fread(sprintf('%s/validation/experiment%04d_iter%04d_summary_metrics.csv', 
+                                               out.dir, lvid, iter))[,lvid:=lvid], fill=T)
+      }
+    } ## loading all iterations within
+  }   ## all experiments
+  
 
   ## duplicate and add tmb and inla indicator
   ## loopres <- rbind(loopvars, loopvars)
   ## loopres[, model := c(rep('tmb', nrow(loopvars)), rep('inla', nrow(loopvars)))]
-
-  ##TODO save the loopvars with this info!
-  colnames(loopvars) <- c('reg', ## 1
-                          'year_list',
-                          'cov_names',
-                          'cov_measures',
-                          'betas', ## 5
-                          'alpha',
-                          'sp.range',
-                          'sp.var',
-                          'sp.alpha',
-                          'clust.var', ## 10
-                          't.rho',
-                          'mesh_s_params',
-                          'n.clust',
-                          'm.clust',
-                          'sample.strat', ## 15
-                          'cores',
-                          'ndraws',
-                          'alphaj.pri',
-                          'clust.prec.pri',
-                          'inla.int.strat', ## 20
-                          'inla.approx', 
-                          'Nsim',
-                          'data.lik',
-                          'norm.var',
-                          'norm.prec.pri', ## 25
-                          'bias.correct',
-                          'sd.correct')
 
   ## first, for each completed experiment, we can read the experimends in
   for(i in 1:nrow(loopvars)){

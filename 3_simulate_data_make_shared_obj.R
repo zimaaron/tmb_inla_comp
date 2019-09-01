@@ -87,20 +87,6 @@ if(data.lik == 'binom'){
   values(true.rast.p) <- plogis(values(true.rast))
 }
 
-## save (if desired) this simulated dataset to .../mbg/input_data for mbg pipeline
-## if(save.as.input.data){
-##   df <- data.table(longitude = dt$long,
-##                    latitude = dt$lat,
-##                    year = dt$year,
-##                    country = reg,
-##                    N = dt$N,
-##                    simulation = dt$Y, 
-##                    weight = 1)
-##   write.csv(file = sprintf('/share/geospatial/mbg/input_data/simulation%s.csv', data.tag),
-##             x = df)
-## }
-
-
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -115,9 +101,9 @@ if(data.lik == 'binom'){
 ## SETUP SOME SHARED OBJECTS ##
 ## ############################
 
-## ~~~
+## ~~~~~~~~~~~~~~~~~~~~~~
 ## required for model fit
-## ~~~
+## ~~~~~~~~~~~~~~~~~~~~~~
 
 ## setup space time data locs
 dt[, id := 1:.N]
@@ -175,9 +161,9 @@ mesh.info <- param2.matern.orig(mesh_s)
 spde.theta1.pri <- c(mesh.info$theta.prior.mean[1], mesh.info$theta.prior.prec[1, 1])
 spde.theta2.pri <- c(mesh.info$theta.prior.mean[2], mesh.info$theta.prior.prec[2, 2])
 
-## ~~~
+## ~~~~~~~~~~~~~~~~~~~~
 ## required for predict
-## ~~~
+## ~~~~~~~~~~~~~~~~~~~~
 
 ## get space-locs grid to predict onto
 pcoords <- xyFromCell(simple_raster, which(!is.na(values(simple_raster))))
@@ -199,8 +185,7 @@ A.pred <- inla.spde.make.A(
   loc = pcoords,
   group = groups_periods)
 
-## extract cell values  from covariates, deal with timevarying covariates here
-
+## extract cell values from covariates, deal with timevarying covariates here
 
 ## pull out covariates in format we expect them
 ## a list of length periods with a brick of named covariates inside

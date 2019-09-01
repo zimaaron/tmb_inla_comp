@@ -444,43 +444,36 @@ plot_d <- data.table(tmb_median = summ_gp_tmb[, 2],inla_median = summ_gp_inla[, 
 
 plot_d$period <- factor(rep(1:nperiods, each=nrow(plot_d)/nperiods))
 plot_d$loc    <- rep(1:(nrow(plot_d)/nperiods), rep=nperiods)
+plot_d[, absdiff := abs(tmb_median-inla_median)]
 
-if(nrow(plot_d)>2500)
-  plot_d <- plot_d[sample(nrow(plot_d),2500,replace=F),]
+## get the node locations and add them on
+nodelocs <- mesh_s$loc
+plot_d <- cbind(plot_d, nodelocs)
+
+if(nrow(plot_d) > 2500)
+  plot_d <- plot_d[sample(nrow(plot_d), 2500, replace=F), ]
 
 
-## ## plot spatial RE differences over time
+## ## plot spatial RE differences
 ## ggplot(plot_d, aes(x=tmb_median,y=inla_median,col=period)) + theme_bw() +
 ## geom_point() + geom_line(aes(group=loc)) + geom_abline(intercept=0,slope=1,col='red') +
 ## ggtitle('Posterior Medians of Random Effects at Mesh Nodes, TMB v R-INLA. Connected dots same location different periods. ')
 
-## plot locations where they are different, are they near or far from data?
-plot_d[, absdiff := abs(tmb_median-inla_median)]
-nodelocs <- do.call("rbind", replicate(4, mesh_s$loc, simplify = FALSE))
-biggdiff <- unique(nodelocs[which(plot_d$absdiff>quantile(plot_d$absdiff,prob=0.80)),])
+## plot locations where they are relatively different, are they near or far from data?
+biggdiff <- plot_d[which(plot_d$absdiff > quantile(plot_d$absdiff, prob=0.80)), ]
 
-nodelocs <- cbind(nodelocs,plot_d)
-if(nrow(nodelocs)>2500)
-  nodelocs <- nodelocs[sample(nrow(nodelocs),2500,replace=FALSE),]
-
-par(mfrow=rep(ceiling(sqrt(nperiods)),2))
-for(i in 1:nperiods){
-  plot(simple_polygon, main='Mesh nodes sized by abs difference TMB and R-INLA')
-  points(x=dt$longitude[dt$period_id==i],y=dt$latitude[dt$period_id==i], pch=19, cex=0.1)
-  points(x=nodelocs$V1[nodelocs$period==i],y=nodelocs$V2[nodelocs$period==i], pch=1, cex=nodelocs$absdiff[nodelocs$period==i]*5, col='red')
-  ## add data locations
-  points( x=tmp$long,y=tmp$lat, cex=(tmp$N / max(tmp$N)), pch = 16)
-
-}
+plot(simple_polygon, main='Mesh nodes sized by abs difference TMB and R-INLA')
+points(x=dt$long, y=dt$lat, pch=19, cex=(dt$N / max(dt$N))*.1)
+points(x=plot_d$V1, y=plot_d$V2, pch=1, cex=plot_d$absdiff*5, col='red')
 
 ## catterpillar plot
 plot_d <- plot_d[order(period,tmb_median)]
-plot_d[,i := seq(1,.N), by = period]
+plot_d[ ,i := seq(1,.N), by = period]
 gg_cat <- ggplot(plot_d, aes(i, tmb_median, col=i)) + theme_bw() + # [seq(1, nrow(plot_d), 5)]
           geom_linerange(aes(ymin = tmb_low, ymax = tmb_up), col='red', size=.8, alpha=.3) +
           geom_linerange(aes(x=i,ymin = inla_low, ymax = inla_up), col='blue', size=.8, alpha=.3) +
           facet_wrap(~period) +
-          ggtitle('Comparison of random effects (10% to 90% quantiles) ... BLUE == R-INLA ... RED == TMB')
+          ggtitle('Comparison of random effects (10% to 90% quantiles) | BLUE == R-INLA | RED == TMB')
 print(gg_cat)
 
 dev.off()

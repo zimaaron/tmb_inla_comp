@@ -161,6 +161,7 @@ L <- try(suppressWarnings(Cholesky(SD0$jointPrecision, super = T)), silent = TRU
 if(class(L) == "try-error"){
   tmb.pd.converge <- FALSE ## the jointPrec was not PD
   message('------ WARNING: TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
+  message('------ WARNING: THIS RUN WILL BE LOGGED AS TMB FAILING TO CONVERGE ')
   SD0$jointPrecision <- Matrix(nearPD(SD0$jointPrecision)$mat, sparse = T)
   L <- Cholesky(SD0$jointPrecision, super = T)
 }

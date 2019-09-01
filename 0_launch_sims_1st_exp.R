@@ -20,7 +20,7 @@ extra.job.name <- 'study01trial04'
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ## specify queue, project, and job requirements
-q.q   <- 'long.q'
+q.q   <- 'geospatial.q'
 q.m   <- '25G' ## e.g. 10G
 q.t   <- '00:2:00:00' ## DD:HH:MM:SS
 q.p   <- 0 ## priority: -1023 (low) - 0 (high)
