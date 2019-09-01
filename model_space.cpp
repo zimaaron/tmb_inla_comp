@@ -124,8 +124,10 @@ Type objective_function<Type>::operator() ()
   Type range = sqrt(8.0) / exp(log_kappa);
   Type sigma = 1.0 / sqrt(4.0 * 3.14159265359 * exp(2.0 * log_tau) * exp(2.0 * log_kappa));
   Type clust_sigma  = exp(log_clust_sigma);
-  Type clust_prec = 1.0 / exp(log_clust_sigma * 2.0);
-  Type gauss_prec = 1.0 / exp(log_obs_sigma * 2.0);
+  Type log_clust_prec = -2.0 * log_clust_sigma;
+  Type log_gauss_prec = -2.0 * log_obs_sigma;
+  Type clust_prec = exp(-2.0 * log_clust_sigma);
+  Type gauss_prec = exp(-2.0 * log_obs_sigma);
     
   // Define objects for derived values
   vector<Type> fe_i(num_i);              // main effect alpha + X_betas %*% t(betas)
@@ -166,29 +168,33 @@ Type objective_function<Type>::operator() ()
   if(options[1] == 1) {
 
     // add in priors for spde gp
-    jnll -= dnorm(log_tau,   logtau_pri[0], logtau_pri[1], true); // N(0,1) prior for logtau
-    jnll -= dnorm(log_kappa, logkappa_pri[0], logkappa_pri[1], true); // N(0,1) prior for logkappa
+    jnll -= dnorm(log_tau,   logtau_pri[0], logtau_pri[1], true);     // N(mean, sd) prior for logtau
+    jnll -= dnorm(log_kappa, logkappa_pri[0], logkappa_pri[1], true); // N(mean, sd) prior for logkappa
 
     // prior for intercept
     if(options[2] == 1){
-      jnll -= dnorm(alpha, alphaj_pri[0], alphaj_pri[1], true); // N(0, 3)
+      jnll -= dnorm(alpha, alphaj_pri[0], alphaj_pri[1], true); // N(mean, sd)
     }
 
     // prior for covariate coefs
     if(options[3] == 1){
       for( int j = 0; j < betas.size(); j++){
-	jnll -= dnorm(betas(j), alphaj_pri[0], alphaj_pri[1], true); // N(0, 3)
+	      jnll -= dnorm(betas(j), alphaj_pri[0], alphaj_pri[1], true); // N(mean, sd)
       }
     }
 
-    // prior for log(cluster RE sd)
+    // prior for log(cluster RE prec)
     if(options[4] == 1){
-      jnll -= dgamma(clust_prec, clust_prec_pri[0], clust_prec_pri[1], true); // N(-4, 2)
+      // in tmb, log(X)~logGamma(shape, scale) where X~Gamma(shape, scale)
+      // almost like INLA, except INLA uses params (shape, inv-scale) which is *_prec_pri is defined
+      jnll -= dlgamma(log_clust_prec, clust_prec_pri[0], 1.0 / clust_prec_pri[1], true); // tmb takes (shape, scale)
     }
 
-    // prior for log(obs sd) of using normal data lik
+    // prior for log(obs prec) if using normal data lik
     if(options[5] == 0){
-      jnll -= dgamma(gauss_prec, norm_prec_pri[0], norm_prec_pri[1], true); // N(-4, 2)
+      // in tmb, log(X)~logGamma(shape, scale) where X~Gamma(shape, scale)
+      // almost like INLA, except INLA uses params (shape, inv-scale) which is *_prec_pri is defined
+      jnll -= dlgamma(log_gauss_prec, norm_prec_pri[0], 1.0 / norm_prec_pri[1], true); // tmb takes (shape, scale)
     }
     
   } 
