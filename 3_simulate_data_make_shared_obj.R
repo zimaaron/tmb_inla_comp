@@ -31,7 +31,7 @@ if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
                                 urban.pop.pct = urban.pop.pct,
                                 urban.strat.pct = urban.strat.pct, 
                                 out.dir = out.dir,
-                                sp.field.sim.strat = 'SPDE', 
+                                sp.field.sim.strat = 'RF', 
                                 seed = NULL,
                                 exp.iter = exp.iter)
   
@@ -67,7 +67,7 @@ if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
                                 urban.pop.pct = urban.pop.pct,
                                 urban.strat.pct = urban.strat.pct, 
                                 out.dir = out.dir,
-                                sp.field.sim.strat = 'SPDE', 
+                                sp.field.sim.strat = 'RF', 
                                 seed = NULL,
                                 exp.iter = exp.iter)
 }
