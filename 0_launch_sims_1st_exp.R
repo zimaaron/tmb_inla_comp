@@ -20,7 +20,7 @@ extra.job.name <- 'study01trial04'
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ## specify queue, project, and job requirements
-q.q   <- 'geospatial.q'
+q.q   <- '.q'
 q.m   <- '25G' ## e.g. 10G
 q.t   <- '00:2:00:00' ## DD:HH:MM:SS
 q.p   <- 0 ## priority: -1023 (low) - 0 (high)
@@ -139,11 +139,11 @@ cores <- 1
 ## loopvars 17: number of fitted model draws to take
 ndraws <- 500
 
-## loopvars 18: mean and sd for normal prior on intercept
-alphaj.pri <- "c(0, 3)" ## TODO: pass to INLA/TMB
+## loopvars 18: mean and sd for normal prior on fixed effects (alpha and betas)
+alphaj.pri <- "c(0, 3)" ## N(mean, sd)
 
 ## loopvars 19: ## shape and inv-scale for gamma prior on clust RE precision
-clust.prec.pri <- "c(1, 1e-5)" 
+clust.prec.pri <- "c(1, 1e-5)" ## gamma(shape, inv-scale)
 
 ## loopvars 20: INLA hyperparam integration strategy. can be 'eb', 'ccd', or 'grid'
 inla.int.strat <- c('eb')

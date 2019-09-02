@@ -68,12 +68,10 @@ if(data.lik == 'normal'){
                                            ## link = 1, ## removed after looking at NMM
                                            compute = FALSE),
                   control.fixed = list(expand.factor.strategy = 'inla',
-                                       prec = list(default = 1 / alphaj.pri[2] ^ 2)),
+                                       mean = list(default = alphaj.pri[1]),          ## fixed effects prior mean
+                                       prec = list(default = 1 / alphaj.pri[2] ^ 2)), ## fixed effects prior prec
                   control.inla = list(strategy = inla.approx,
-                                      int.strategy = inla.int.strat ##,
-                                      ## h = 1e-3, ## removed after looking at NMM
-                                      ## tolerance = 1e-6 ## removed after looking at NMM
-                                      ),
+                                      int.strategy = inla.int.strat),
                   control.compute=list(config = TRUE),
                   control.family = list(hyper = list(prec = list(prior = "loggamma", 
                                                                  param = norm.prec.pri))),
