@@ -99,10 +99,13 @@ betas <- NA
 alpha <- -1.0
 
 ## loopvars 7: spatial range as defined by INLA folks
+## units are in degrees lat-long!
+## Nigeria is approx 12 degrees wide and 10 degrees tall
 ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
-sp.range <-  sqrt(8)     
+## so, with kappa=1, 90% of the correlation drops by 2.8 degrees, or about 1/4 of the heigth/width 
+sp.range <- sqrt(8)     
 
-## loopvars 8: spatial nomial field variance as defiend by INLA folks
+## loopvars 8: spatial nominal field variance as defiend by INLA folks
 ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
 sp.var <- 0.5 ^ 2        
 
@@ -116,7 +119,7 @@ clust.var <-  c(NA, (c(1, 2, 4) / 10) ^ 2)
 t.rho <-  0.8           
 
 ## loopvars 12: S2 mesh args: cutoff, largest allowed triangle edge length inner, and outer
-mesh_s_params <- c("c(0.1, 1, 5)") 
+mesh_s_params <- c("c(0.4, 5)") 
 
 ## loopvars 13: number of clusters to simulate per year
 n.clust <- c(250, 500, 750, 1000, 2500, 5000)

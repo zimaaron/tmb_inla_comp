@@ -290,23 +290,27 @@ sim.realistic.data <- function(reg,
                                                     start_year      = min(year_list),
                                                     end_year        = max(year_list),
                                                     interval_mo     = 12) ## always grab annual, then subset if need be
-      ## subset to years in yearlist
-      for(cc in 1:length(cov_layers)){
+      
+      ## loop through covs, subset to years, align with simple raster, center-scale
+      for(cc in 1:length(cov_layers)) {
+        
+        ## subset to years in yearlist
         if(dim(cov_layers[[cc]])[3] > 1){
           cov_layers[[cc]] <- cov_layers[[cc]][[which( min(year_list):max(year_list) %in% year_list )]]
         }
+        
+        ## align covs with simple_raster
+        if(verbose) message(sprintf("On cov %i out of %i", cc, length(cov_layers)))
+        cov_layers[[cc]]  <- crop(cov_layers[[cc]], extent(simple_raster))
+        cov_layers[[cc]]  <- setExtent(cov_layers[[cc]], simple_raster)
+        cov_layers[[cc]]  <- mask(cov_layers[[cc]], simple_raster)
         
         ## center-scale covs. (TODO by year or across years?)
         cov_layers[[cc]] <- (cov_layers[[cc]] - mean(values(cov_layers[[cc]]), na.rm = T)) / sd(values(cov_layers[[cc]]), na.rm = T)
       }
       
-      ## we also want our cov_layers to align with simple_raster
-      for(l in 1:length(cov_layers)) {
-        if(verbose) message(sprintf("On cov %i out of %i", l, length(cov_layers)))
-        cov_layers[[l]]  <- crop(cov_layers[[l]], extent(simple_raster))
-        cov_layers[[l]]  <- setExtent(cov_layers[[l]], simple_raster)
-        cov_layers[[l]]  <- mask(cov_layers[[l]], simple_raster)
-      }
+    
+      
     }else{
       if(verbose) message('\n\nUSING PRE-SUPPLIED AND PREPPED COVS\n')
     }  
@@ -351,6 +355,7 @@ sim.realistic.data <- function(reg,
   ## FIRST, get the pixel coords- these are useful later too
   
   ## convert simple raster of our region to spatialpolygonsDF
+  ## these are only the NON-NA pixels!
   pix.pts <- rasterToPoints(simple_raster, spatial = TRUE)
   
   ## reproject sp obj to default used in covariates
@@ -370,10 +375,15 @@ sim.realistic.data <- function(reg,
     ## now we can use these coords to simulate GP from rspde()
     reg.mesh <- inla.mesh.2d(boundary = inla.sp2segment(simple_polygon),
                              loc = pix.pts@data[, 2:3],
-                             max.edge = c(0.25, 5),
+                             max.edge = c(0.1, 5),
                              offset = c(1, 5),
-                             cutoff = 0.25)
-    
+                             cutoff = 0.1)
+    # FOR PAPER FIGURE:  
+    # png('~/tmb_inla_paper/spatial_matern_varying_ranges.png', width=8, height=8, units='in', res=300)
+    # set.seed(413)
+    # par(mfrow=c(2, 2), mai=c(.5, .5, .5, .85))
+    # for(sp.range in c(.5, 1, sqrt(8), 5)){
+    #   sp.kappa = sqrt(8)/sp.range
     
     ## get spatial fields that are GPs across space and are indep in time
     sf.iid <- rspde(coords = cbind(pix.pts.numeric[, 2], pix.pts.numeric[, 3]),
@@ -383,6 +393,23 @@ sim.realistic.data <- function(reg,
                     mesh = reg.mesh,
                     n = length(year_list),
                     seed = seed)
+    
+    # FOR PAPER FIGURE:  
+    #   ## rasterize and plot (for testing params)
+    #   sf.rast <- rasterize(x = pix.pts@data[, 2:3],
+    #                        y = simple_raster_full,
+    #                        field = sf.iid)
+    #   if(sp.range==.5) plot(sf.rast, col=viridis(256),
+    #                         main=expression(paste('Matern Field: ', sigma^2 == 0.25, ', ', alpha == 2, ', ', 'range = 0.5')))
+    #   if(sp.range==1) plot(sf.rast, col=viridis(256),
+    #                        main=expression(paste('Matern Field: ', sigma^2 == 0.25, ', ', alpha == 2, ', ', 'range = 1')))
+    #   if(sp.range==sqrt(8)) plot(sf.rast, col=viridis(256),
+    #                              main=expression(paste('Matern Field: ', sigma^2 == 0.25, ', ', alpha == 2, ', ', 'range = ', sqrt(8))))
+    #   if(sp.range==5) plot(sf.rast, col=viridis(256),
+    #                        main=expression(paste('Matern Field: ', sigma^2 == 0.25, ', ', alpha == 2, ', ', 'range = 5')))
+    # }
+    # dev.off()
+    
   }else{
     reg.mesh <- NULL
   }
@@ -392,6 +419,7 @@ sim.realistic.data <- function(reg,
     model <- RMmatern(nu = sp.alpha - 1, ## from INLA book
                       scale = sqrt(2 * (sp.alpha - 1)) / sp.kappa, 
                       var = sp.var)      
+    
     ## sf.iid <- geostatsp::RFsimulate(model, x = simple_raster, n = length(year_list))
     sf.iid <- RFsimulate(model, x = pix.pts.numeric[, 2], y = pix.pts.numeric[, 3], n = length(year_list), spConform = FALSE)
   }

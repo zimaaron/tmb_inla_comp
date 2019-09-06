@@ -31,7 +31,7 @@ if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
                                 urban.pop.pct = urban.pop.pct,
                                 urban.strat.pct = urban.strat.pct, 
                                 out.dir = out.dir,
-                                sp.field.sim.strat = 'RF', 
+                                sp.field.sim.strat = 'SPDE', 
                                 seed = NULL,
                                 exp.iter = exp.iter)
   
@@ -67,14 +67,15 @@ if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
                                 urban.pop.pct = urban.pop.pct,
                                 urban.strat.pct = urban.strat.pct, 
                                 out.dir = out.dir,
-                                sp.field.sim.strat = 'RF', 
+                                sp.field.sim.strat = 'SPDE', 
                                 seed = NULL,
                                 exp.iter = exp.iter)
-}
 
 saveRDS(file = sprintf('%s/simulated_obj/experiment%04d_iter%04d_sim_obj.rds', 
                        out.dir, exp.lvid, exp.iter),
         object = sim.obj)
+
+}
 
 ## process parts of the returned sim obj list into pieces we need for model fitting
 dt <- sim.obj$sim.dat ## simulated data, lat-long, year, covs, true surface
@@ -114,23 +115,28 @@ nperiods  <- length(year_list)
 
 ## get triangulation params 
 mesh.params    <- eval(parse(text=mesh_s_params))
-cutoff   <- mesh.params[1]
-max.edge <- mesh.params[-1]
-mesh.offset <- c(-0.05, -0.05)
 
-## use both data locs and the simple polygon boundary 
-boundary <- inla.sp2segment(simple_polygon)
-boundary.loc <- cbind(boundary$loc[, 1], boundary$loc[, 2])
-mesh.loc <- rbind(dt.coords, boundary.loc)
+## make delaunay triangulation from all pixel centroids in domain
 
-## make triangulation
-mesh_s <- inla.mesh.2d(
-  loc = mesh.loc,
-  max.edge = max.edge,
-  offset = mesh.offset,
-  cutoff = cutoff
-)
+## first, get the centroids
+pix.pts <- rasterToPoints(simple_raster, spatial = TRUE)
 
+## reproject sp obj to default used in covariates
+geo.prj <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0" 
+pix.pts <- spTransform(pix.pts, CRS(geo.prj)) 
+## proj4string(pix.pts) ## check proj is what we wanted
+
+## to simulate, we need lat-lon locs for the entire raster
+## get coords
+pix.pts@data <- data.frame(pix.pts@data, long=coordinates(pix.pts)[,1],
+                           lat=coordinates(pix.pts)[,2])
+pix.pts.numeric <- as.data.frame(pix.pts@data)
+
+## make the triangulation
+mesh_s <- inla.mesh.2d(loc.domain = as.matrix(pix.pts.numeric[,2:3]), 
+                       max.e = mesh.params)
+
+## plot the triangulation
 pdf(sprintf('%s/modeling/inputs/experiment%04d_iter%04d_mesh.pdf', out.dir, exp.lvid, exp.iter))
 plot(mesh_s)
 plot(simple_raster, add = TRUE) ## just to show loc of simple_raster under mesh for scale
@@ -152,11 +158,11 @@ A.proj <- inla.spde.make.A(mesh  = mesh_s,
                            loc   = dt.coords,
                            group = dt.pers)
 
-## save relevant objects
+## save relevant objects. NOTE: meshes are not deterministic!?
 saveRDS(file = sprintf('%s/modeling/inputs/experiment%04d_iter%04d_mesh.rds', out.dir, exp.lvid, exp.iter), mesh_s)
 saveRDS(file = sprintf('%s/modeling/inputs/experiment%04d_iter%04d_spde.rds', out.dir, exp.lvid, exp.iter), spde)
 
-## now that the mesh is made, we can grabb the default priors that it generates
+## now that the mesh is made, we can grab the default priors that it generates
 mesh.info <- param2.matern.orig(mesh_s)
 spde.theta1.pri <- c(mesh.info$theta.prior.mean[1], mesh.info$theta.prior.prec[1, 1])
 spde.theta2.pri <- c(mesh.info$theta.prior.mean[2], mesh.info$theta.prior.prec[2, 2])
