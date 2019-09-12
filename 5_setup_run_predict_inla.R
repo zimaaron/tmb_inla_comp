@@ -39,7 +39,7 @@ formula <- formula(paste('Y ~ -1',
                          ifelse(is.null(alpha), '', ' + int'), 
                          ifelse(is.null(betas), '', paste0(' + ', (paste(inla.covs, collapse = ' + ')))),
                          ifelse(is.null(clust.var), '',
-                                paste0(' + f(clust.id, model = \'iid\', hyper = list(theta = list(prior = \'loggamma\', param = c(',
+                                paste0(' + f(clust.id, model = \'iid\', hyper = list(prec = list(prior=\'pc.prec\', param = c(',
                                        clust.prec.pri[1],', ', clust.prec.pri[2], '))))')), 
                          ' + f(space, model = spde, group = space.group, control.group = list(model = \'ar1\'))',
                          sep = ''))
@@ -73,8 +73,7 @@ if(data.lik == 'normal'){
                   control.inla = list(strategy = inla.approx,
                                       int.strategy = inla.int.strat),
                   control.compute=list(config = TRUE),
-                  control.family = list(hyper = list(prec = list(prior = "loggamma", 
-                                                                 param = norm.prec.pri))),
+                  control.family = list(hyper = list(prec = list(prior="pc.prec", param = norm.prec.pri))), 
                   family = inla.lik.dict(data.lik),
                   num.threads = cores, #
                   Ntrials = dt$N,

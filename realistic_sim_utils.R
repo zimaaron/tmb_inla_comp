@@ -769,3 +769,10 @@ crpsNormal <- function(truth, my.est, my.var){
   
   return(res)
 }
+
+## pc.prior for gaussian precision
+dPCPriPrec <- function(tau, u, a, give_log=0){
+  lambda = -log(a)/u ## P( 1/sqrt(tau) > u ) = a 
+  logres = log(lambda/(2.0)) - (3.0/2.0)*log(tau) - lambda*1/sqrt(tau);
+  if(give_log){return(logres)}else{ return(exp(logres))}
+}

@@ -1,6 +1,6 @@
 ## this script can be used to launch 1_run_simulation.R in parallel on the IHME cluster
 ## written by aoz
-## 2019AUG12
+## 2019SEP12
 ## source('/homes/azimmer/tmb_inla_comp/0_launch_sims_1st_exp.R')
 
 ## DO THIS!
@@ -8,11 +8,11 @@
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
 'STUDY 01: vary number of clusters, cluster effect, and normal data variance. 
-TRIAL 04: first production run'
+TRIAL 09: full launch!'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
-extra.job.name <- 'study01trial04'
+extra.job.name <- 'study01trial09'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -20,10 +20,10 @@ extra.job.name <- 'study01trial04'
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ## specify queue, project, and job requirements
-q.q   <- '.q'
+q.q   <- 'geospatial.q' ## all.q ## long.q
 q.m   <- '25G' ## e.g. 10G
-q.t   <- '00:2:00:00' ## DD:HH:MM:SS
-q.p   <- 0 ## priority: -1023 (low) - 0 (high)
+q.t   <- '00:2:30:00' ## DD:HH:MM:SS
+q.p   <- -100 ## priority: -1023 (low) - 0 (high)
 cores <- 1 ## used for OMP/MKL in qsub_sim call TODO - parallel version? NOTE!! this is overwritten in arg 16
 
 #############################################
@@ -118,7 +118,7 @@ clust.var <-  c(NA, (c(1, 2, 4) / 10) ^ 2)
 ## loopvars 11: temporal auto-correlation (NOT USED IN SPACE-ONLY MODEL)
 t.rho <-  0.8           
 
-## loopvars 12: S2 mesh args: cutoff, largest allowed triangle edge length inner, and outer
+## loopvars 12: R2 mesh args: largest allowed triangle edge length inner, and outer
 mesh_s_params <- c("c(0.4, 5)") 
 
 ## loopvars 13: number of clusters to simulate per year
@@ -146,7 +146,7 @@ ndraws <- 500
 alphaj.pri <- "c(0, 3)" ## N(mean, sd)
 
 ## loopvars 19: ## shape and inv-scale for gamma prior on clust RE precision
-clust.prec.pri <- "c(1, 1e-5)" ## gamma(shape, inv-scale)
+clust.prec.pri <- "c(1, .001)" ## gamma(shape, inv-scale)
 
 ## loopvars 20: INLA hyperparam integration strategy. can be 'eb', 'ccd', or 'grid'
 inla.int.strat <- c('eb')
@@ -155,7 +155,7 @@ inla.int.strat <- c('eb')
 inla.approx <- 'simplified.laplace' 
 
 ## loopvars 22: number of times to repeat an experiment (monte carlo simulations)
-n.sim <- 100 
+n.sim <- 100
 
 ## loopvars 23: data distribution: either 'binom' or 'normal'
 data.lik <- c('normal', 'binom') 
@@ -163,8 +163,9 @@ data.lik <- c('normal', 'binom')
 ## loopvars 24: ONLY FOR data.lik=='normal'. variance of INDIVIDUAL normal data obs.
 norm.var <- c(0, (c(1, 2, 4) / 10) ^ 2)  
 
-## loopvars 25: shape and inv-scale for gamma prior on normal individual level precision
-norm.prec.pri <- "c(1, 1e-5)"
+## loopvars 25: OLD: shape and inv-scale for gamma prior on normal individual level precision
+## loopvars 25: NEW: (u, a) s.t. P(1/sqrt(prec) > u) = a, i.e. P(SD > u) = a
+norm.prec.pri <- "c(1, .01)"
 
 ## loopvars 26: bias correct the mean estimates. NOTE: applies to both INLA and TMB!!
 bias.correct <- c(TRUE) 
@@ -276,14 +277,15 @@ while(in_q > 0) {
   message(paste0('\n\n', Sys.time()))
   jt1 <- track.exp.iter(jid.dt, main.dir)
   js1 <- jt1[['summ.tracker']]
+  jf1 <- jt1[['full.tracker']]
   print(js1, nrow(js1))
-  print(js1[, c(on_track_per=mean(on_track),
+  print(jf1[, c(on_track_per=mean(on_track)*100,
           in_q=sum(in_q),
           running=sum(running),
           errored=sum(errored),
           completed=sum(completed),
-          completed_per=mean(completed))],
-          digits=5)
+          completed_per=mean(completed)*100)],
+          digits=3)
   in_q <- sum(js1$in_q)
   Sys.sleep(60)
 }
@@ -292,8 +294,8 @@ message(sprintf('%.2f%% of your experiments completed successfully',
                 mean(js1[, completed]==100)*100))
 message(sprintf('%.2f%% of your iterations across all experiments completed successfully', 
                 mean(jt1[['full.tracker']][, errored]==0)*100))
-# message('These experiments had some iterations fail:')
-# print(js[completed < 100,])
+message('These experiments had some iterations fail:')
+print(js1[errored > 0,])
 message('These are the failed experiment iterations:')
 print(jt1[['full.tracker']][errored==1, .(exp, iter, jid)])
 
@@ -302,11 +304,11 @@ save(list=ls(), file = sprintf('%s/completed_env.rdata', main.dir))
 
 
 ## relaunch the jobs that failed to see if that helps
-if(mean(jt2[['full.tracker']][, errored]==0) != 1){
+if(mean(jt1[['full.tracker']][, errored]==0) != 1){
   
   ## relaunch failed jobs - IF we think this will help
   ## load(sprintf('%s/completed_env.rdata', main.dir))
-  failed.j <- jt2[['full.tracker']][errored==1, .(exp, iter)]
+  failed.j <- jt1[['full.tracker']][errored==1, .(exp, iter)]
   for(ff in 1:nrow(failed.j)){
     ll <- as.numeric(failed.j[ff, exp])
     ii <- as.numeric(failed.j[ff, iter])
@@ -352,14 +354,15 @@ if(mean(jt2[['full.tracker']][, errored]==0) != 1){
     message(paste0('\n\n', Sys.time()))
     jt2 <- track.exp.iter(jid.dt, main.dir)
     js2 <- jt2[['summ.tracker']]
-    print(js2, nrow(js1))
-    print(js2[, c(on_track_per=mean(on_track),
+    jf2 <- jt2[['full.tracker']]
+    print(js2, nrow(js2))
+    print(jf2[, c(on_track_per=mean(on_track)*100,
                   in_q=sum(in_q),
                   running=sum(running),
                   errored=sum(errored),
                   completed=sum(completed),
-                  completed_per=mean(completed))],
-          digits=5)
+                  completed_per=mean(completed)*100)],
+          digits=3)
     in_q <- sum(js2$in_q)
     Sys.sleep(60)
   }
@@ -370,7 +373,7 @@ if(mean(jt2[['full.tracker']][, errored]==0) != 1){
   message(sprintf('%.2f%% of your iterations across all experiments completed successfully', 
                   mean(jt2[['full.tracker']][, errored]==0)*100))
   # message('These experiments had some iterations fail:')
-  # print(js[completed < 100,])
+  # print(js2[errored > 0,])
   message('These are the failed experiment iterations:')
   print(jt2[['full.tracker']][errored==1, .(exp, iter, jid)])
   

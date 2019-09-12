@@ -68,7 +68,7 @@ tmb_params <- list(alpha = 0.0, # intercept
                    log_obs_sigma = 0.0, # log(data sd) if using normal dist
                    log_tau   = 1.0, # Log inverse of tau (Epsilon)
                    log_kappa = 1.0, # Matern range parameter
-                   log_clust_sigma = -1.0, # log of cluster sd
+                   log_clust_sigma = 0.0, # log of cluster sd
                    clust_i = rep(0, nrow(dt)), # vector of cluster random effects
                    Epsilon_s = matrix(1, nrow=nodes, ncol=1) # GP value at obs locs
                    )
@@ -118,144 +118,155 @@ if(data_full$options[7] == 1){
 ## Run optimizer
 message('------ fitting TMB')
 ptm <- proc.time()[3]
-opt0 <- do.call("nlminb",list(start       =    obj$par,
+
+opt0 <- try(do.call("nlminb",list(start       =    obj$par,
                               objective   =    obj$fn,
                               gradient    =    obj$gr,
 ##                              lower = rep(-10, ncol(X_xp) + 3), ## TODO
 ##                              upper = rep( 10, ncol(X_xp) + 3), ## TODO
-                              control     =    list(trace=1)))
+                              control     =    list(trace=1))))
 fit_time_tmb <- proc.time()[3] - ptm
 
-## Get standard errors
-SD0 = TMB::sdreport(obj, getJointPrecision=TRUE,
-                    bias.correct = bias.correct, 
-                    bias.correct.control = list(sd = sd.correct)) 
-tmb_total_fit_time <- proc.time()[3] - ptm 
-tmb_sdreport_time <-  tmb_total_fit_time - fit_time_tmb
-
-
-## make a flag to see if tmb converged with a PD cov structure
-## we check in a minute to see if it actually is true
-tmb.pd.converge <- TRUE
-
-## ##########
-## PREDICT ##
-## ##########
-message('------ making TMB predictions')
-
-## now we can take draws and project to space-time raster locs
-mu <- c(SD0$par.fixed,SD0$par.random)
-
-## simulate draws
-ptm2 <- proc.time()[3]
-rmvnorm_prec <- function(mu, chol_prec, n.sims) {
-  z <- matrix(rnorm(length(mu) * n.sims), ncol=n.sims)
-  L <- chol_prec #Cholesky(prec, super=TRUE)
-  z <- Matrix::solve(L, z, system = "Lt") ## z = Lt^-1 %*% z
-  z <- Matrix::solve(L, z, system = "Pt") ## z = Pt    %*% z
-  z <- as.matrix(z)
-  mu + z
-}
-
-L <- try(suppressWarnings(Cholesky(SD0$jointPrecision, super = T)), silent = TRUE)
-if(class(L) == "try-error"){
-  tmb.pd.converge <- FALSE ## the jointPrec was not PD
-  message('------ WARNING: TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
-  message('------ WARNING: THIS RUN WILL BE LOGGED AS TMB FAILING TO CONVERGE ')
-  SD0$jointPrecision <- Matrix(nearPD(SD0$jointPrecision)$mat, sparse = T)
-  L <- Cholesky(SD0$jointPrecision, super = T)
-}
-tmb_draws <- rmvnorm_prec(mu = mu , chol_prec = L, n.sims = ndraws)
-tmb_get_draws_time <- proc.time()[3] - ptm2
-
-## separate out the tmb_draws
-parnames <- c(names(SD0$par.fixed), names(SD0$par.random))
-epsilon_tmb_draws  <- tmb_draws[parnames == 'Epsilon_s',]
-alpha_tmb_draws    <- matrix(tmb_draws[parnames == 'alpha',], nrow = 1)
-betas_tmb_draws    <- tmb_draws[parnames == 'betas',]
-if(!is.matrix(betas_tmb_draws)) betas_tmb_draws <- matrix(betas_tmb_draws, nrow = 1)
-log_kappa_tmb_draws <- tmb_draws[parnames == 'log_kappa',]
-log_tau_tmb_draws  <- tmb_draws[parnames == 'log_tau',]
-log_clust_sigma_draws <- tmb_draws[parnames == 'log_clust_sigma', ]
-log_gauss_sigma_draws <- tmb_draws[parnames == 'log_obs_sigma', ]
-
-## values of S at each cell (long by nperiods)
-## rows: pixels, cols: posterior draws
-pred_tmb <- as.matrix(A.pred %*% epsilon_tmb_draws)
-
-## is we have an intercept and no betas, add intercept here
-if(!is.null(alpha) & is.null(betas)){
-  ## add on intercept, one alpha draw per row
-  pred_tmb <- sweep(pred_tmb, 2, alpha_tmb_draws, '+')
-}
-
-## add betas (and intercept if applicable)
-if(!is.null(betas)){
+if(class(opt0) == "try-error"){
+  ## make a flag to see if tmb converged and also check that it converge with a PD cov structure
   
-  ## add column for intercept if included
-  if(!is.null(alpha)){
-    betas_tmb_draws <- rbind(rep(1, ndraws), betas_tmb_draws)
+  ## did the optimizer work?
+  ## if not, stop here and record as failure
+  tmb.pd.converge <- FALSE
+}else{
+  ## we can move onto final fit steps and predict
+  ## but we still need to test in a minute (line170) if we have PD cov
+  tmb.pd.converge <- TRUE
+  
+  ## Get standard errors
+  SD0 = TMB::sdreport(obj, getJointPrecision=TRUE,
+                      bias.correct = bias.correct, 
+                      bias.correct.control = list(sd = sd.correct)) 
+  tmb_total_fit_time <- proc.time()[3] - ptm 
+  tmb_sdreport_time <-  tmb_total_fit_time - fit_time_tmb
+  
+  
+  
+  
+  ## ##########
+  ## PREDICT ##
+  ## ##########
+  message('------ making TMB predictions')
+  
+  ## now we can take draws and project to space-time raster locs
+  mu <- c(SD0$par.fixed,SD0$par.random)
+  
+  ## simulate draws
+  ptm2 <- proc.time()[3]
+  rmvnorm_prec <- function(mu, chol_prec, n.sims) {
+    z <- matrix(rnorm(length(mu) * n.sims), ncol=n.sims)
+    L <- chol_prec #Cholesky(prec, super=TRUE)
+    z <- Matrix::solve(L, z, system = "Lt") ## z = Lt^-1 %*% z
+    z <- Matrix::solve(L, z, system = "Pt") ## z = Pt    %*% z
+    z <- as.matrix(z)
+    mu + z
   }
   
-  ## add on covariate values by draw
-  tmb_vals <- list()
-  for(p in 1:nperiods) tmb_vals[[p]] <- cov_vals[[p]] %*% betas_tmb_draws
-
-  cell_b <- do.call(rbind, tmb_vals)
-
-  ## add together linear and st components
-  pred_tmb <- cell_b + pred_tmb
-}
-
-## save prediction timing
-totalpredict_time_tmb <- proc.time()[3] - ptm2
-
-## #######
-## SAVE ##
-## #######
-
-## save the posterior param draws
-saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_param_draws.rds', 
-                       out.dir, exp.lvid, exp.iter),
-        object = tmb_draws)
-
-## save the cell preds
-saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds.rds', 
-                       out.dir, exp.lvid, exp.iter),
-        object = pred_tmb)
-
-## summarize the latent field
-summ_tmb <- cbind(median = (apply(pred_tmb, 1, median)),
-                  sd     = (apply(pred_tmb, 1, sd)))
-
-ras_med_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 1], ncol = nperiods))
-ras_sdv_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 2], ncol = nperiods))
-
-writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_median_raster.tif', 
-                       out.dir, exp.lvid, exp.iter), 
-        x = ras_med_tmb, format='GTiff', overwrite = TRUE)
-writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_stdev_raster.tif', 
-                       out.dir, exp.lvid, exp.iter), 
-        x = ras_sdv_tmb, format='GTiff', overwrite = TRUE)
-
-if(data.lik == 'binom'){
-  ## convert to prevalence space and summarize, rasterize, and save again
-  pred_tmb_p <- plogis(pred_tmb)
+  L <- try(suppressWarnings(Cholesky(SD0$jointPrecision, super = T)), silent = TRUE)
+  if(class(L) == "try-error"){
+    tmb.pd.converge <- FALSE ## the jointPrec was not PD
+    message('------ WARNING: TMB PRECISION IS NOT! PD - mapping to nearest PD precision ')
+    message('------ WARNING: THIS RUN WILL BE LOGGED AS TMB FAILING TO CONVERGE ')
+    SD0$jointPrecision <- Matrix(nearPD(SD0$jointPrecision)$mat, sparse = T)
+    L <- Cholesky(SD0$jointPrecision, super = T)
+  }
+  tmb_draws <- rmvnorm_prec(mu = mu , chol_prec = L, n.sims = ndraws)
+  tmb_get_draws_time <- proc.time()[3] - ptm2
   
-  saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_PREV.rds', 
-                         out.dir, exp.lvid, exp.iter),
-          object = pred_tmb_p)
+  ## separate out the tmb_draws
+  parnames <- c(names(SD0$par.fixed), names(SD0$par.random))
+  epsilon_tmb_draws  <- tmb_draws[parnames == 'Epsilon_s',]
+  alpha_tmb_draws    <- matrix(tmb_draws[parnames == 'alpha',], nrow = 1)
+  betas_tmb_draws    <- tmb_draws[parnames == 'betas',]
+  if(!is.matrix(betas_tmb_draws)) betas_tmb_draws <- matrix(betas_tmb_draws, nrow = 1)
+  log_kappa_tmb_draws <- tmb_draws[parnames == 'log_kappa',]
+  log_tau_tmb_draws  <- tmb_draws[parnames == 'log_tau',]
+  log_clust_sigma_draws <- tmb_draws[parnames == 'log_clust_sigma', ]
+  log_gauss_sigma_draws <- tmb_draws[parnames == 'log_obs_sigma', ]
   
-  summ_tmb_p <- cbind(median = (apply(pred_tmb_p, 1, median)),
-                      sd     = (apply(pred_tmb_p, 1, sd)))
-
-  ras_med_tmb_p <- insertRaster(simple_raster, matrix(summ_tmb_p[, 1], ncol = nperiods))
-  ras_sdv_tmb_p <- insertRaster(simple_raster, matrix(summ_tmb_p[, 2], ncol = nperiods))
-
-  writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_median_raster_PREV.rds', 
+  ## values of S at each cell (long by nperiods)
+  ## rows: pixels, cols: posterior draws
+  pred_tmb <- as.matrix(A.pred %*% epsilon_tmb_draws)
+  
+  ## is we have an intercept and no betas, add intercept here
+  if(!is.null(alpha) & is.null(betas)){
+    ## add on intercept, one alpha draw per row
+    pred_tmb <- sweep(pred_tmb, 2, alpha_tmb_draws, '+')
+  }
+  
+  ## add betas (and intercept if applicable)
+  if(!is.null(betas)){
+    
+    ## add column for intercept if included
+    if(!is.null(alpha)){
+      betas_tmb_draws <- rbind(rep(1, ndraws), betas_tmb_draws)
+    }
+    
+    ## add on covariate values by draw
+    tmb_vals <- list()
+    for(p in 1:nperiods) tmb_vals[[p]] <- cov_vals[[p]] %*% betas_tmb_draws
+    
+    cell_b <- do.call(rbind, tmb_vals)
+    
+    ## add together linear and st components
+    pred_tmb <- cell_b + pred_tmb
+  }
+  
+  ## save prediction timing
+  totalpredict_time_tmb <- proc.time()[3] - ptm2
+  
+  ## #######
+  ## SAVE ##
+  ## #######
+  
+  ## save the posterior param draws
+  saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_param_draws.rds', 
                          out.dir, exp.lvid, exp.iter),
-          x = ras_med_tmb_p, format='GTiff', overwrite = TRUE)
-  writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_stdev_raster_PREV.rds', 
+          object = tmb_draws)
+  
+  ## save the cell preds
+  saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds.rds', 
                          out.dir, exp.lvid, exp.iter),
-          x = ras_sdv_tmb_p, format='GTiff', overwrite = TRUE)
+          object = pred_tmb)
+  
+  ## summarize the latent field
+  summ_tmb <- cbind(median = (apply(pred_tmb, 1, median)),
+                    sd     = (apply(pred_tmb, 1, sd)))
+  
+  ras_med_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 1], ncol = nperiods))
+  ras_sdv_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 2], ncol = nperiods))
+  
+  writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_median_raster.tif', 
+                             out.dir, exp.lvid, exp.iter), 
+              x = ras_med_tmb, format='GTiff', overwrite = TRUE)
+  writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_stdev_raster.tif', 
+                             out.dir, exp.lvid, exp.iter), 
+              x = ras_sdv_tmb, format='GTiff', overwrite = TRUE)
+  
+  if(data.lik == 'binom'){
+    ## convert to prevalence space and summarize, rasterize, and save again
+    pred_tmb_p <- plogis(pred_tmb)
+    
+    saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_PREV.rds', 
+                           out.dir, exp.lvid, exp.iter),
+            object = pred_tmb_p)
+    
+    summ_tmb_p <- cbind(median = (apply(pred_tmb_p, 1, median)),
+                        sd     = (apply(pred_tmb_p, 1, sd)))
+    
+    ras_med_tmb_p <- insertRaster(simple_raster, matrix(summ_tmb_p[, 1], ncol = nperiods))
+    ras_sdv_tmb_p <- insertRaster(simple_raster, matrix(summ_tmb_p[, 2], ncol = nperiods))
+    
+    writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_median_raster_PREV.rds', 
+                               out.dir, exp.lvid, exp.iter),
+                x = ras_med_tmb_p, format='GTiff', overwrite = TRUE)
+    writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_stdev_raster_PREV.rds', 
+                               out.dir, exp.lvid, exp.iter),
+                x = ras_sdv_tmb_p, format='GTiff', overwrite = TRUE)
+  }
 }

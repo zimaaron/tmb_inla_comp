@@ -23,12 +23,12 @@
 ## this script pulls together some overall results from an experiment run
 main.dir.names <- c('2019_08_28_01_41_54') ## study 1
 
-##utility function from the interwebs
+## utility function from the interwebs
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
                       conf.interval=.95, .drop=TRUE) {
   library(plyr)
   
-    # New version of length which can handle NA's: if na.rm==T, don't count them
+    ## New version of length which can handle NA's: if na.rm==T, don't count them
     length2 <- function (x, na.rm=FALSE) {
         if (na.rm) sum(!is.na(x))
         else       length(x)
@@ -40,22 +40,22 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
       .fun = function(xx, col) {
         c(N    = length2(xx[[col]], na.rm=na.rm),
           mean = mean   (xx[[col]], na.rm=na.rm),
-          sd   = sd     (xx[[col]], na.rm=na.rm)
+          sd   = sd     (xx[[col]], na.rm=na.rm),
+          l.ci = stats::quantile(xx[[col]], probs = (1-conf.interval)/2, na.rm=na.rm), 
+          u.ci = stats::quantile(xx[[col]], probs = 1-(1-conf.interval)/2, na.rm=na.rm) 
         )
       },
       measurevar
     )
 
-    # Rename the "mean" column    
-    datac <- plyr::rename(datac, c("mean" = measurevar))
+    ## Rename the "mean" column    
+    datac <- plyr::rename(datac, c("mean" = measurevar,
+                                   "l.ci.2.5%" = 'l.ci',
+                                   "u.ci.97.5%" = 'u.ci'))
+                                
 
-    datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
-
-    # Confidence interval multiplier for standard error
-    # Calculate t-statistic for confidence interval: 
-    # e.g., if conf.interval is .95, use .975 (above/below), and use df=N-1
-    ciMult <- qt(conf.interval/2 + .5, datac$N-1)
-    datac$ci <- datac$se * ciMult
+    ## get with width of the ci
+    datac$w.ci <- datac$u.ci - datac$l.ci
 
     return(datac)
 }
@@ -90,63 +90,8 @@ for(main.dir.name in main.dir.names){
     } ## loading all iterations within
   }   ## all experiments
   
-
-  ## duplicate and add tmb and inla indicator
-  ## loopres <- rbind(loopvars, loopvars)
-  ## loopres[, model := c(rep('tmb', nrow(loopvars)), rep('inla', nrow(loopvars)))]
-
-  ## first, for each completed experiment, we can read the experimends in
-  for(i in 1:nrow(loopvars)){
-
-    ## complete metrics across all monte carlo iterations
-    cm.fn <- sprintf('%s/%i/validation/surface_metrics_complete.csv', main.dir, i)
-    if(file.exists(cm.fn)){
-      cm <- fread(cm.fn, stringsAsFactors = F)
-      
-
-      ## we also need to load in the param.summary.table from each iteration
-      for(j in 1:loopvars[i, Nsim]){
-        pst.fn <- sprintf('%s/%i/validation/iter%04d_param_summary_table.csv', main.dir, i, j)
-        pst <- fread(pst.fn, stringsAsFactors = F)
-        rn <- colnames(pst)
-        pst <- data.table(t(pst))
-        rownames(pst) <- rn
-        colnames(pst) <- as.character(pst[1, ])
-        pst <- pst[4:3, ]
-        pst[, model := c('tmb', 'inla')]
-
-        ## stick on the loopvars
-        pst <- cbind(pst, rbind(loopvars[i, ], loopvars[i, ]))
-        if(loopvars$data.lik[1] == 'binom')
-
-          if(j == 1){
-            pst.i <- pst
-          }else{
-            pst.i <- rbind(pst.i, pst)
-          }
-      }
-
-      ##TODO remove this step! bias should be quite small, if it is
-      ##large it is most likely due to convergence issues which i need
-      ##to keep track of in later runs...
-      cm <- cbind(cm, pst.i)
-      cm <- cm[bias < 1, ]
-
-      cm[, experiment := i]
-
-      if(i == 1){
-        cm.all <- cm
-        
-      }else{
-        cm.all <- rbind.fill(cm.all, cm)
-      }
-      
-    }else{
-      ## skip that iteration for now
-    }
-  }
-
-  cm.all <- data.table(cm.all)
+  ## save the combined metrics for the study 
+  write.csv(summary.metrics, file=sprintf('%sall_summary_metrics.csv', compar.dir))
   
 
   ## ####################################################################
@@ -155,18 +100,21 @@ for(main.dir.name in main.dir.names){
   ## we can make a bunch of plots
   ## ####################################################################
   ## ####################################################################
-
-  ##make new labels for INLA_EB, INLA_CCD, TMB
+  cm.all <- summary.metrics
+  
+  ## make new labels for INLA_EB, INLA_CCD, TMB
   cm.all[inla.int.strat == 'eb' & mean.l.model == 'inla', fit_type := 'INLA_EB']
   cm.all[inla.int.strat == 'ccd' & mean.l.model == 'inla', fit_type := 'INLA_CCD']
   cm.all[mean.l.model == 'tmb', fit_type := 'TMB']
 
   library(tidyr)
   library(ggplot2)
+  
+  ## Gather columns into key-value pairs and move them from wide to long format
   long.cov <- data.table(gather(cm.all,
-                                target_cov,
-                                obs_cov, 
-                                cov25:cov95,
+                                target_cov,  ## name of NEW key col
+                                obs_cov,     ## name of NEW value col
+                                cov25:cov95, ## cols to convert from wide to long
                                 factor_key = TRUE
                                 ))
   long.cov[target_cov == 'cov25', n_target_cov := 0.25]
@@ -174,26 +122,30 @@ for(main.dir.name in main.dir.names){
   long.cov[target_cov == 'cov80', n_target_cov := 0.80]
   long.cov[target_cov == 'cov90', n_target_cov := 0.90]
   long.cov[target_cov == 'cov95', n_target_cov := 0.95]
-
+  
   long.cov$noise_spatial_ratio <- long.cov$clust.var / long.cov$sp.var
   long.cov$noise_spatial_ratio[is.na(long.cov$noise_spatial_ratio)] <- 0
 
-  long.cov[model == 'tmb', fit.time := as.numeric(fit_time) + as.numeric(pt_tmb_sdreport_time)]
-  long.cov[model == 'tmb', pred.time :=  as.numeric(pred_time)]
-  long.cov[model == 'inla', fit.time :=  as.numeric(fit_time)]
-  long.cov[model == 'inla', pred.time :=  as.numeric(pred_time)]
+  long.cov[mean.l.model == 'tmb', fit.time := as.numeric(fit_time) + as.numeric(pt_tmb_sdreport_time)]
+  long.cov[mean.l.model == 'tmb', pred.time :=  as.numeric(pred_time)]
+  long.cov[mean.l.model == 'inla', fit.time :=  as.numeric(fit_time)]
+  long.cov[mean.l.model == 'inla', pred.time :=  as.numeric(pred_time)]
   long.cov[, total.time :=  pred.time + fit.time]
 
-  ## ##########
+  ## ########
   ## COVERAGE
-  ## ##########
+  ## ########
   
   ## facet by observations
   long.cov.sum <-  summarySE(long.cov, measurevar="obs_cov",
-                             groupvars=c("n_target_cov","fit_type", 'n.clust'))
+                             groupvars = c('n_target_cov', 'fit_type', 'n.clust', 'data.lik'))
+  long.cov.sum$fit_n_lik <- paste(long.cov.sum$fit_type, long.cov.sum$data.lik, sep='_')
+  
   fit_coverage_CI_summary <- ggplot(long.cov.sum,
-                                    aes(x=n_target_cov, y=obs_cov, colour=fit_type, group = fit_type)) + 
-  geom_errorbar(aes(ymin=obs_cov-ci, ymax=obs_cov+ci), width=.025) +
+                                    aes(x = n_target_cov, y = obs_cov, shape=data.lik,
+                                        colour = fit_n_lik, group = fit_n_lik),
+                                    position=position_jitter(w=0.02, h=0.02)) + 
+  geom_errorbar(aes(ymin = l.ci, ymax = u.ci), width = .025) +
   geom_line() +
   geom_point() +
   geom_abline(intercept = 0, slope = 1) +
@@ -238,8 +190,7 @@ for(main.dir.name in main.dir.names){
                                 operation,
                                 time_s, 
                                 fit.time:total.time,
-                                factor_key = TRUE
-                                ))
+                                factor_key = TRUE))
 
   
   ## facet by observations
@@ -278,30 +229,16 @@ for(main.dir.name in main.dir.names){
 
 }
 
-  ##
- 
-
-    ## ## average my modeling tool
-    ## if(i == 1){
-    ##   cm.m.tmb  <- cm[mean.l.model == 'tmb,' lapply(.SD, mean), by=mean.l.model]
-    ##   cm.m.inla <- cm[mean.l.model == 'inla', lapply(.SD, mean), by=mean.l.model]
-    ## }else{
-    ##   cm.m.tmb  <- rbind(cm.m.tmb,
-    ##                      cm[mean.l.model == 'tmb,' lapply(.SD, mean), by=mean.l.model])
-    ##   cm.m.inla <- rbind(cm.m.inla,
-    ##                      cm[mean.l.model == 'inla', lapply(.SD, mean), by=mean.l.model])
-    ## }
-
-  
+##
 
 
-
-
-
-
-
-
-
-
-
-}
+## ## average my modeling tool
+## if(i == 1){
+##   cm.m.tmb  <- cm[mean.l.model == 'tmb,' lapply(.SD, mean), by=mean.l.model]
+##   cm.m.inla <- cm[mean.l.model == 'inla', lapply(.SD, mean), by=mean.l.model]
+## }else{
+##   cm.m.tmb  <- rbind(cm.m.tmb,
+##                      cm[mean.l.model == 'tmb,' lapply(.SD, mean), by=mean.l.model])
+##   cm.m.inla <- rbind(cm.m.inla,
+##                      cm[mean.l.model == 'inla', lapply(.SD, mean), by=mean.l.model])
+## }

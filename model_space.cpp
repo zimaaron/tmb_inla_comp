@@ -41,6 +41,19 @@ bool isNA(Type x){
   return R_IsNA(asDouble(x));
 }
 
+// helper function for pc prior on precision of multi-var normal
+// type 2 gumbel
+template<class Type>
+Type dPCPriPrec(Type tau, Type u, Type a, int give_log=0)
+{
+  Type logres;
+  Type lambda = -log(a) / u; //) P( 1/sqrt(tau) > u ) = a 
+  logres = log(lambda/Type(2.0)) - Type(3.0/2.0)*log(tau) - lambda*pow(tau, -.5);
+  if(give_log)return logres; else return exp(logres);
+}
+
+
+
 // our main function
 template<class Type>
 Type objective_function<Type>::operator() ()
@@ -137,13 +150,16 @@ Type objective_function<Type>::operator() ()
   
   // evaluate fixed effects for intercept and covs if applicable
   fe_i = X_alpha * Type(0.0); // initialize
-  if(options[2] == 1){
-    fe_i = X_alpha * alpha; // add on intercept if using
-  }
   if(options[3] == 1){
-    fe_i = X_betas * betas.matrix(); // add on covariate effects if using
+    fe_i = X_betas * betas.matrix(); // init w/ covariate effects if using
   }
   
+  if(options[2] == 1){
+    for (int i = 0; i < num_i; i++){
+      fe_i[i] = fe_i[i] + alpha; // add on intercept if using
+    }
+  }
+
   // Transform GMRFs and make vector form
   for(int s = 0; s < num_s; s++){
     epsilon_s[s] = Epsilon_s(s); // This is probably unnecssary in space-only...
@@ -164,47 +180,10 @@ Type objective_function<Type>::operator() ()
   ///////// 
   // (1) // 
   /////////
-  // Prior contributions to joint likelihood (if options[0]==1)
-  if(options[1] == 1) {
-
-    // add in priors for spde gp
-    jnll -= dnorm(log_tau,   logtau_pri[0], logtau_pri[1], true);     // N(mean, sd) prior for logtau
-    jnll -= dnorm(log_kappa, logkappa_pri[0], logkappa_pri[1], true); // N(mean, sd) prior for logkappa
-
-    // prior for intercept
-    if(options[2] == 1){
-      jnll -= dnorm(alpha, alphaj_pri[0], alphaj_pri[1], true); // N(mean, sd)
-    }
-
-    // prior for covariate coefs
-    if(options[3] == 1){
-      for( int j = 0; j < betas.size(); j++){
-	      jnll -= dnorm(betas(j), alphaj_pri[0], alphaj_pri[1], true); // N(mean, sd)
-      }
-    }
-
-    // prior for log(cluster RE prec)
-    if(options[4] == 1){
-      // in tmb, log(X)~logGamma(shape, scale) where X~Gamma(shape, scale)
-      // almost like INLA, except INLA uses params (shape, inv-scale) which is *_prec_pri is defined
-      jnll -= dlgamma(log_clust_prec, clust_prec_pri[0], 1.0 / clust_prec_pri[1], true); // tmb takes (shape, scale)
-    }
-
-    // prior for log(obs prec) if using normal data lik
-    if(options[5] == 0){
-      // in tmb, log(X)~logGamma(shape, scale) where X~Gamma(shape, scale)
-      // almost like INLA, except INLA uses params (shape, inv-scale) which is *_prec_pri is defined
-      jnll -= dlgamma(log_gauss_prec, norm_prec_pri[0], 1.0 / norm_prec_pri[1], true); // tmb takes (shape, scale)
-    }
-    
-  } 
-
-  /////////
-  // (2) //
-  /////////
+  // the random effects. we do this so to do the normalization outside of every optimization step
   // 'GP' field contribution (i.e. log-lik of Gaussian-Markov random fields, GMRFs)
   // NOTE: likelihoods from namespace 'density' already return NEGATIVE log-liks so we add
-  //       other likelihoods return positibe log-liks
+  //       other likelihoods return positive log-liks
   if(options[6] == 1){
     // then we are not calculating the normalizing constant in the inner opt.
     // that norm constant means taking an expensive determinant of Q_ss
@@ -212,22 +191,65 @@ Type objective_function<Type>::operator() ()
   }else{
     jnll += GMRF(Q_ss)(epsilon_s);
   }
-
+  
   // cluster contribution to the likelihood
   if(options[4] == 1 ){
     for (int i = 0; i < num_i; i++){
       jnll -= dnorm(clust_i(i), Type(0.0), clust_sigma, true);
     }
   }
+  
+  if(options[6] == 1){
+    if (flag == 0) return jnll; // return without data ll contrib to avoid unneccesary log(det(Q)) calcs
+  }
+  
+
+  /////////
+  // (2) //
+  /////////
+  // Prior contributions to joint likelihood (if options[0]==1)
+  if(options[1] == 1) {
+    
+    // add in priors for spde gp
+    jnll -= dnorm(log_tau,   logtau_pri[0], logtau_pri[1], true);     // N(mean, sd) prior for logtau
+    jnll -= dnorm(log_kappa, logkappa_pri[0], logkappa_pri[1], true); // N(mean, sd) prior for logkappa
+    
+    // prior for intercept
+    if(options[2] == 1){
+      jnll -= dnorm(alpha, alphaj_pri[0], alphaj_pri[1], true); // N(mean, sd)
+    }
+    
+    // prior for covariate coefs
+    if(options[3] == 1){
+      for( int j = 0; j < betas.size(); j++){
+        jnll -= dnorm(betas(j), alphaj_pri[0], alphaj_pri[1], true); // N(mean, sd)
+      }
+    }
+    
+    // prior for log(cluster RE prec)
+    if(options[4] == 1){
+      // in tmb, log(X)~logGamma(shape, scale) where X~Gamma(shape, scale)
+      // almost like INLA, except INLA uses params (shape, inv-scale) which is *_prec_pri is defined
+      //jnll -= dlgamma(log_clust_prec, clust_prec_pri[0], 1.0 / clust_prec_pri[1], true); // tmb takes (shape, scale)
+      jnll -= dPCPriPrec(clust_prec, clust_prec_pri[0], clust_prec_pri[1], true); //type2gumbel. P(1/sqrt(prec)>u)=a
+    }
+    
+    // prior for log(obs prec) if using normal data lik
+    if(options[5] == 0){
+      // in tmb, log(X)~logGamma(shape, scale) where X~Gamma(shape, scale)
+      // almost like INLA, except INLA uses params (shape, inv-scale) which is *_prec_pri is defined
+      //jnll -= dlgamma(log_gauss_prec, norm_prec_pri[0], 1.0 / norm_prec_pri[1], true); // tmb takes (shape, scale)
+      jnll -= dPCPriPrec(gauss_prec, norm_prec_pri[0], norm_prec_pri[1], true); //type2gumbel. P(1/sqrt(prec)>u)=a
+      
+    }
+    
+  } 
 
   /////////
   // (3) //
   /////////
   // Likelihood contribution from each datapoint i
-  if(options[6] == 1){
-    if (flag == 0) return jnll; // return without data ll contrib to avoid unneccesary log(det(Q)) calcs
-  }
-  
+
   for (int i = 0; i < num_i; i++){
 
     // latent field estimate at each obs

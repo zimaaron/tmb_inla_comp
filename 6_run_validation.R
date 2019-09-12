@@ -41,8 +41,8 @@ res[, convergence.fails := c(tmb.converge.fails, inla.converge.fails)]
 
 ## fe coefficients
 if(!is.null(alpha) | !is.null(betas)){
-  res[, paste0('fe_',res_fit$names.fixed,'_mean') := rbind(res_fit$summary.fixed$mean, SD0$par.fixed[1:length(res_fit$names.fixed)])]
-  res[, paste0('fe_',res_fit$names.fixed,'_sd')   := rbind(res_fit$summary.fixed$sd, sqrt(diag(SD0$cov.fixed))[1:length(res_fit$names.fixed)])]
+  res[, paste0('fe_',res_fit$names.fixed,'_mean') := as.data.frame(rbind(res_fit$summary.fixed$mean, SD0$par.fixed[1:length(res_fit$names.fixed)]))]
+  res[, paste0('fe_',res_fit$names.fixed,'_sd')   := as.data.frame(rbind(res_fit$summary.fixed$sd, sqrt(diag(SD0$cov.fixed))[1:length(res_fit$names.fixed)]))]
 }
 
 ## cluster prec
@@ -82,8 +82,8 @@ if(!is.null(betas) & is.null(alpha)) { res[1, grep('fe.*med', colnames(res)) := 
 if(!is.null(betas) & !is.null(alpha)){ res[1, grep('fe.*med', colnames(res))[-1] := betas]; params <- c(params, rep('beta', length(betas)))}
 if(!is.null(clust.var)) {res[1, clust_prec := 1 / clust.var];params <- c(params, 'clust.prec')}
 if(data.lik == 'normal') {res[1, gauss_prec := 1 / norm.var]; params <- c(params, 'gauss.prec')}
-res[1, matern_logtau_mean := log(sp.tau)]; params <- c(params, 'logkappa')
-res[1, matern_logkappa_mean := log(sp.kappa)]; params <- c(params, 'logtau')
+res[1, matern_logtau_mean := log(sp.tau)]; params <- c(params, 'logtau')
+res[1, matern_logkappa_mean := log(sp.kappa)]; params <- c(params, 'logkappa')
 
 ## if(nperiods > 1){
 ##   res.true.params <- c(res.true.params, c(t.rho, NA))
@@ -134,7 +134,12 @@ png(sprintf('%s/validation/experiment%04d_iter%04d_plot_02_parameter_densities.p
 
 num.dists <- length(params)
 
-par(mfrow = rep(ceiling(sqrt(num.dists)), 2))
+## set layout
+par.dim <- rep(ceiling(sqrt(num.dists)), 2)
+while((par.dim[1]-1)*par.dim[2] >= num.dists){
+  par.dim[1] <- par.dim[1]-1
+} 
+par(mfrow = par.dim)
 
 for(ii in 1:num.dists){
 
@@ -158,7 +163,8 @@ for(ii in 1:num.dists){
     inla.post.draws <- pred_l[ii, ]
 
     ## get a safe range for plotting, and get the prior
-    xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val))
+    xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
+                            probs=c(.0001, .9999)) ## avoid crazy extremes
     if(xlim[1] == -Inf) xlim[1] <- -1000; if(xlim[2] == +Inf) xlim[2] <- +1000 
     x.prior    <- seq(xlim[1], xlim[2], len = 1000)
     y.prior    <- dnorm(x.prior, mean = prior.mean, sd = prior.sd)
@@ -182,7 +188,10 @@ for(ii in 1:num.dists){
     tmb.post.draws  <- betas_tmb_draws[ii, ]
     inla.post.draws <- pred_l[ii, ]
     
-    xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val)) 
+    ## get a safe range for plotting, and get the prior
+    xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
+                            probs=c(.0001, .9999)) ## avoid crazy extremes
+    if(xlim[1] == -Inf) xlim[1] <- -1000; if(xlim[2] == +Inf) xlim[2] <- +1000 
     x.prior    <- seq(xlim[1], xlim[2], len = 1000)
     y.prior    <- dnorm(x.prior, mean = prior.mean, sd = prior.sd)
 
@@ -205,8 +214,10 @@ for(ii in 1:num.dists){
                                     replace = TRUE, 
                                     res_fit$marginals.hyperpar[['Theta2 for space']][, 2])
 
-    xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val)) 
-
+    ## get a safe range for plotting, and get the prior
+    xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
+                            probs=c(.0001, .9999)) ## avoid crazy extremes
+    if(xlim[1] == -Inf) xlim[1] <- -1000; if(xlim[2] == +Inf) xlim[2] <- +1000 
     x.prior    <- seq(xlim[1], xlim[2], len = 1000)
     y.prior    <- dnorm(x.prior, mean = prior.mean, sd = prior.sd)
 
@@ -230,8 +241,10 @@ for(ii in 1:num.dists){
                                     replace = TRUE, 
                                     res_fit$marginals.hyperpar[['Theta1 for space']][, 2])
 
-    xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val)) 
-
+    ## get a safe range for plotting, and get the prior
+    xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
+                            probs=c(.0001, .9999)) ## avoid crazy extremes
+    if(xlim[1] == -Inf) xlim[1] <- -1000; if(xlim[2] == +Inf) xlim[2] <- +1000 
     x.prior    <- seq(xlim[1], xlim[2], len = 1000)
     y.prior    <- dnorm(x.prior, mean = prior.mean, sd = prior.sd)
 
@@ -243,8 +256,8 @@ for(ii in 1:num.dists){
 
     true.val <- 1 / norm.var
 
-    prior.shape  <- norm.prec.pri[1]
-    prior.iscale <- norm.prec.pri[2]
+    prior.u  <- norm.prec.pri[1]
+    prior.a <- norm.prec.pri[2]
     
     tmb.post.draws <- 1 / exp(log_gauss_sigma_draws * 2)
     inla.post.draws <- base::sample(x = res_fit$marginals.hyperpar[['Precision for the Gaussian observations']][, 1],
@@ -253,13 +266,19 @@ for(ii in 1:num.dists){
                                     res_fit$marginals.hyperpar[['Precision for the Gaussian observations']][, 2])
 
     if(true.val==Inf) {
-      xlim       <- range(c(tmb.post.draws, inla.post.draws)) 
+      ## get a safe range for plotting, and get the prior
+      xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws),
+                              probs=c(.0001, .9999)) ## avoid crazy extremes
     }else{
-      xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val)) 
+      ## get a safe range for plotting, and get the prior
+      xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
+                              probs=c(.0001, .9999)) ## avoid crazy extremes
     }
+    if(xlim[1] == -Inf) xlim[1] <- -1000; if(xlim[2] == +Inf) xlim[2] <- +1000 
+    
    
     x.prior <- seq(xlim[1], xlim[2], len = 1000)
-    y.prior <- dgamma(x.prior, shape = prior.shape, scale = 1 / prior.iscale)
+    y.prior <- dPCPriPrec(x.prior, u = prior.u, a=prior.a, give_log = 0)
     
     tmb.post.median <- median(tmb.post.draws)
     inla.post.median <- median(inla.post.draws)
@@ -269,8 +288,8 @@ for(ii in 1:num.dists){
 
     true.val <- 1 / clust.var
 
-    prior.shape  <- clust.prec.pri[1]
-    prior.iscale <- clust.prec.pri[2]
+    prior.u <- clust.prec.pri[1]
+    prior.a <- clust.prec.pri[2]
 
     tmb.post.draws <- 1 / exp(log_clust_sigma_draws * 2)
     inla.post.draws <- base::sample(x = res_fit$marginals.hyperpar[[names(res_fit$marginals.hyperpar)[grep('clust.id', names(res_fit$marginals.hyperpar))]]][, 1],
@@ -278,11 +297,13 @@ for(ii in 1:num.dists){
                                     replace = TRUE, 
                                     res_fit$marginals.hyperpar[[names(res_fit$marginals.hyperpar)[grep('clust.id', names(res_fit$marginals.hyperpar))]]][, 2])
     
-    xlim       <- range(c(tmb.post.draws, inla.post.draws, true.val)) 
-    
+    ## get a safe range for plotting, and get the prior
+    xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
+                            probs=c(.0001, .9999)) ## avoid crazy extremes
+    if(xlim[1] == -Inf) xlim[1] <- -1000; if(xlim[2] == +Inf) xlim[2] <- +1000 
     x.prior <- seq(xlim[1], xlim[2], len = 1000)
-    y.prior <- dgamma(x.prior, shape = prior.shape, scale = 1 / prior.iscale)
-   
+    y.prior <- dPCPriPrec(x.prior, u = prior.u, a=prior.a, give_log = 0)
+    
     tmb.post.median <- median(tmb.post.draws)
     inla.post.median <- median(inla.post.draws)
     param.name <- "log clust prec"
@@ -291,7 +312,7 @@ for(ii in 1:num.dists){
   ## get posterior samples (we'll use density curves)
   tmb.dens <- density(tmb.post.draws)
   inla.dens <- density(inla.post.draws)
-  xrange <- range(c(x.prior, tmb.dens$x, inla.dens$x))
+  xrange <- xlim ## range(c(x.prior, tmb.dens$x, inla.dens$x))
   yrange <- range(c(y.prior, tmb.dens$y, inla.dens$y))
 
   prior.col <- "black"
@@ -305,12 +326,12 @@ for(ii in 1:num.dists){
 
   ## plot tmb post and data
   lines(tmb.dens$x,tmb.dens$y, col = tmb.col)
-  points(tmb.post.draws, rep(0, ndraws), col = alpha(tmb.col, 0.25), cex = 2, pch = '|')
+  points(tmb.post.draws, rep(0, ndraws), col = alpha(tmb.col, 0.1), cex = 2, pch = '|')
   abline(v = tmb.post.median, col = tmb.col, lwd = 2)
     
   ## plot inla post and data
   lines(inla.dens$x,inla.dens$y, col = inla.col)
-  points(inla.post.draws, rep(0, ndraws), col = alpha(inla.col, 0.25), cex = 2, pch = '|')
+  points(inla.post.draws, rep(0, ndraws), col = alpha(inla.col, 0.1), cex = 2, pch = '|')
   abline(v = inla.post.median, col = inla.col, lwd = 2)
 
   ## plot truth
@@ -348,14 +369,15 @@ for(sum.meas in c('median','stdev')){
       rtmb  <- ras_med_tmb[[1]]
     }
     all.vec <- c(as.vector(rtmb), as.vector(rinla), as.vector(true))
-    all.diff.vec <- c( as.vector(true- rtmb), as.vector(true - rinla), as.vector(rtmb - rinla))
+    all.diff.vec <- as.vector(rinla - rtmb)
+    diff.truth.zrange <- range(c( as.vector(rtmb-true), as.vector(rinla-true) ), na.rm=T)
     rast.list <- list('TRUE' = true,
                       'TMB' = rtmb,
                       'INLA' = rinla)
     
     png(sprintf('%s/validation/experiment%04d_iter%04d_plot_03_median_rasters.png', out.dir, exp.lvid, exp.iter),
         height=12, width=12, units = 'in', res = 250)
-  }
+  } ## sum.meas==median
   
   if(sum.meas=='stdev'){
     if(data.lik == 'binom'){
@@ -366,13 +388,13 @@ for(sum.meas in c('median','stdev')){
       rtmb  <- ras_sdv_tmb[[1]]
     }
     all.vec <- c(as.vector(rtmb), as.vector(rinla))
-    all.diff.vec <- as.vector(rtmb - rinla)
+    all.diff.vec <- as.vector(rinla - rtmb)
     rast.list <- list('TMB' = rtmb,
                       'INLA' = rinla)
     
     png(sprintf('%s/validation/experiment%04d_iter%04d_plot_04_stdev_rasters.png', out.dir, exp.lvid, exp.iter),
-        height=12, width=12, units = 'in', res = 250)
-  }
+        height=8, width=8, units = 'in', res = 250)
+  } ## sum.meas==stdev
   
   layout(matrix(1:length(rast.list) ^ 2, byrow = T, ncol = length(rast.list)))
   
@@ -381,14 +403,36 @@ for(sum.meas in c('median','stdev')){
   ## get limits
   rast.zrange <- range(all.vec, na.rm = T)
   diff.zrange <- range(all.diff.vec, na.rm = T)
+  
+  ## set some plot args for mean and stdev separately
+  if(sum.meas=='median'){
+    ## set the legend.width to get nice plots
+    lw <- 5
+    tick.space.val  <- 0.5
+    tick.space.truth.diff <- 0.25
+    tick.space.diff <- 0.1
+    mar <- c(0, 0, 1.4, 8)
+  }
+  if(sum.meas=='stdev'){
+    ## set the legend.width to get nice plots
+    lw <- 2
+    tick.space.val  <- 0.1
+    tick.space.diff <- 0.05
+    mar <- c(0, 0, 1.4, 4)
+  }
+  
+ 
 
   for(i in 1:length(rast.list)){
     for(j in 1:length(rast.list)){
 
       if(i == j){
         ## plot raster
-        par(mar = c(0, 0, 1.4, 8), bty='n')
-        plot(rast.list[[i]],  maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend.width = 5,
+        par(mar = mar, bty='n')
+        plot(rast.list[[i]],  maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend.width = lw,
+             axis.args=list(at=c(seq(rast.zrange[1], rast.zrange[2], by=tick.space.val), rast.zrange[2]),
+                            labels=round(c(seq(rast.zrange[1], rast.zrange[2], by=tick.space.val), rast.zrange[2]), 3), 
+                            cex.axis=0.6),
              legend.args=list(text='', side=2, font=1, line=0, cex=0.1), main=paste0(names(rast.list)[i], ': ', sum.meas),
              zlim=rast.zrange)
       }
@@ -398,20 +442,38 @@ for(sum.meas in c('median','stdev')){
         par(mar = c(4, 4, 2, 2),bty='n')
         plot(x=as.vector(rast.list[[j]])[samp],
              y=as.vector(rast.list[[i]])[samp],
-             xlab=names(rast.list)[j],
-             ylab=names(rast.list)[i],
+             xlab='',
+             ylab='',
              cex=.05, pch=19,
              main=paste0('(sub)SCATTER (', names(rast.list)[i], ' vs ', names(rast.list)[j], '): '))
         lines(x=rast.zrange, y=rast.zrange, col='red')
+        title(xlab=names(rast.list)[j], line=-1, cex.lab=1.2)
+        title(ylab=names(rast.list)[i], line=-1, cex.lab=1.2)
       }
 
       if(i > j){
         ## plot difference rasters
-        par(mar = c(0, 0, 1.4, 8), bty='n')
-        plot(rast.list[[i]] - rast.list[[j]],  maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend.width = 5,
+        
+        if(sum.meas=='median' & j == 1){
+          ## these are for truth - *_estiamte
+          diff.col <- rev(plasma(100))
+          dz  <- diff.truth.zrange
+          tsd <- tick.space.truth.diff
+          
+        }else{
+          ## these are for inla_est - tmb_est
+          diff.col <- rev(cividis(100))
+          dz  <- diff.zrange
+          tsd <- tick.space.diff
+        }
+        par(mar = mar, bty='n')
+        plot(rast.list[[i]] - rast.list[[j]],  maxpixel=1e7, col=diff.col, axes=FALSE, legend.width = lw,
+             axis.args=list(at=sort(c(0, seq(dz[1], dz[2], by=tsd), dz[2])),
+                            labels=round(sort(c(0, seq(dz[1], dz[2], by=tsd), dz[2])), 3),
+                            cex.axis=0.6),
              legend.args=list(text='', side=2, font=1, line=0, cex=0.1),
              main=paste0('Diff: ', names(rast.list)[i], ' - ', names(rast.list)[j]),
-             zlim=diff.zrange)
+             zlim=dz)
         points( x=tmp$long,y=tmp$lat, pch=19, cex=.1 )
 
       }
@@ -488,7 +550,7 @@ all.preds <- data.table(rbind(pred_tmb, pred_inla))
 
 ## make a data.table with prediction draws, model type, and truth
 ## NOTE! the truth and the median.fit are in logit-space!
-non.na.idx <- which(!is.na(values(true.rast)))
+non.na.idx <- which(!is.na(values(simple_raster)))
 d <- data.table(truth        = rep(values(true.rast)[non.na.idx], 2),
                 model        = c(rep('tmb', nrow(pred_tmb)),
                                  rep('inla', nrow(pred_inla))), 
@@ -496,12 +558,16 @@ d <- data.table(truth        = rep(values(true.rast)[non.na.idx], 2),
 
 ## get some coverage probs
 coverage_probs <- c(25, 50, 80, 90, 95)
-for(c in coverage_probs){
-  message(paste0('-------- calcing ', c ,'% coverage of linear predictor'))
-  coverage <- c / 100
-  li       <- apply(all.preds, 1, quantile, p = (1 - coverage)/2, na.rm=T)
-  ui       <- apply(all.preds, 1, quantile, p = coverage + (1 - coverage) / 2, na.rm=T)
-  d[, paste0('pix.cov.',c)] = d[['truth']] >= li & d[['truth']] <= ui
+## it's much faster to get all quantiles at once then to iteratively calculate them
+lui <- apply(all.preds, 1, quantile, 
+             p = c((1 - coverage_probs/100)/2, 
+                   coverage_probs/100 + (1 - coverage_probs/100) / 2), na.rm=T)
+for(cc in 1:length(coverage_probs)){
+  c <- coverage_probs[cc]
+  message(paste0('-------- calcing ', c ,'% coverage of binomial prob'))
+  li       <- lui[cc,]
+  ui       <- lui[length(coverage_probs) + cc]
+  d[, paste0('pix.cov.',c)] <- d[['truth']] >= li & d[['truth']] <= ui
 }
 
 ## get error and pred var
@@ -522,11 +588,15 @@ if(data.lik == 'binom'){
   
   ## get some coverage probs
   coverage_probs <- c(25, 50, 80, 90, 95)
-  for(c in coverage_probs){
+  ## it's much faster to get all quantiles at once then to iteratively calculate them
+  lui <- apply(all.preds, 1, quantile, 
+               p = c((1 - coverage_probs/100)/2, 
+                     coverage_probs/100 + (1 - coverage_probs/100) / 2), na.rm=T)
+  for(cc in 1:length(coverage_probs)){
+    c <- coverage_probs[cc]
     message(paste0('-------- calcing ', c ,'% coverage of binomial prob'))
-    coverage <- c / 100
-    li       <- apply(all.preds, 1, quantile, p = (1 - coverage)/2, na.rm=T)
-    ui       <- apply(all.preds, 1, quantile, p = coverage + (1 - coverage) / 2, na.rm=T)
+    li       <- lui[cc,]
+    ui       <- lui[length(coverage_probs) + cc]
     d[, paste0('p.pix.cov.',c)] = d[['truth.p']] >= li & d[['truth.p']] <= ui
   }
 
@@ -575,12 +645,3 @@ summary.metrics[, iter := exp.iter]
 
 ## save
 write.csv(summary.metrics, sprintf('%s/validation/experiment%04d_iter%04d_summary_metrics.csv', out.dir, exp.lvid, exp.iter))
-
-
-
-# ## append into overall metrics for assessing monte carlo variance of metrics
-# if(exp.iter == 1){
-#   complete.summary.metrics <- summary.metrics
-# }else{
-#   complete.summary.metrics <- rbind(complete.summary.metrics, summary.metrics)
-# }
