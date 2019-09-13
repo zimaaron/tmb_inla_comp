@@ -8,11 +8,11 @@
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
 'STUDY 01: vary number of clusters, cluster effect, and normal data variance. 
-TRIAL 09: full launch!'
+TRIAL 10: studying log_kappa which seems off... also intercepts'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
-extra.job.name <- 'study01trial09'
+extra.job.name <- 'study01trial10'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -380,3 +380,13 @@ if(mean(jt1[['full.tracker']][, errored]==0) != 1){
   ## save the environment - mostly the job ideas and qsub commands
   save(list=ls(), file = sprintf('%s/completed_env_2.rdata', main.dir))
 }
+
+# ## print columns of loopvar that vary
+# ## so we can easily see what's going on in the experiments that fail...
+# loopvars[,!apply(loopvars, MARGIN = 2, 
+#                  FUN=function(x){col.var <- sort(x, decreasing=F)[1] == sort(x, decreasing=T)[1]
+#                  if(is.na(col.var)){
+#                    return(TRUE)
+#                  }else{
+#                    return(col.var)}
+#                  })]

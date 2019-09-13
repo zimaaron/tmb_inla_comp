@@ -380,3 +380,13 @@ if(mean(jt1[['full.tracker']][, errored]==0) != 1){
   ## save the environment - mostly the job ideas and qsub commands
   save(list=ls(), file = sprintf('%s/completed_env_2.rdata', main.dir))
 }
+
+# ## print columns of loopvar that vary
+# ## so we can easily see what's going on in the experiments that fail...
+# loopvars[,!apply(loopvars, MARGIN = 2, 
+#                  FUN=function(x){col.var <- sort(x, decreasing=F)[1] == sort(x, decreasing=T)[1]
+#                  if(is.na(col.var)){
+#                    return(TRUE)
+#                  }else{
+#                    return(col.var)}
+#                  })]

@@ -225,6 +225,7 @@ sim.realistic.data <- function(reg,
                                year_list,
                                data.lik, ## either 'binom' or 'normal'
                                sd.norm = NULL, ## sd of normal observations 
+                               alpha = NULL, ## global intercept. if null, no intercept
                                betas = NULL, ## if null, use no covs
                                sp.kappa,
                                sp.alpha,
@@ -540,8 +541,11 @@ sim.realistic.data <- function(reg,
   
   ## finally, we combine the gp and the covariate effects to get our surface in link (e.g. logit if binomial) space
   
-  ## start with spatial field
-  true.rast <- sf.rast
+  ## setup the global intercept
+  if(is.null(alpha)) alpha <- 0
+  
+  ## start with spatial field and intercept
+  true.rast <- alpha + sf.rast
   
   ## add on covs
   if(!is.null(betas)){

@@ -21,7 +21,7 @@
 # library(viridis)
 
 ## this script pulls together some overall results from an experiment run
-main.dir.names <- c('2019_08_28_01_41_54') ## study 1
+main.dir.names <- c('2019_09_12_08_06_46') ## study 1
 
 ## utility function from the interwebs
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
@@ -71,6 +71,16 @@ for(main.dir.name in main.dir.names){
 
   ## read in all experiment parameters
   loopvars <- fread(file = paste0(main.dir, '/loopvars.csv'), stringsAsFactors = F)
+  
+  # ## print columns of loopvar that vary
+  # ## so we can easily see what's going on in the experiments that fail...
+  loopvars[,!apply(loopvars, MARGIN = 2,
+                   FUN=function(x){col.var <- sort(x, decreasing=F)[1] == sort(x, decreasing=T)[1]
+                   if(is.na(col.var)){
+                     return(TRUE)
+                   }else{
+                     return(col.var)}
+                   }), with=F]
   
   ## read in the summary metrics log from each iteration of each experiment
   for(lvid in 1:nrow(loopvars)){
@@ -136,6 +146,26 @@ for(main.dir.name in main.dir.names){
   ## COVERAGE
   ## ########
   
+  ## loop through binomial and normal with different obs variances
+  ## make one plot for each different data model
+  
+  loop.params <- data.table(dl=c('binom', rep('normal', length(loopvars[, unique(norm.var)]))),
+                            nv=c(NA, loopvars[, unique(norm.var)]))
+  
+  for(ii in 1:loopvars[,.N]){
+    
+    dl <- loop.params[ii, dl]
+    nv <- loop.params[ii, nv]
+    
+    ## make the plot title
+    pt <- sprintf('Average pixel coverage with %s observations', toupper(dl))
+    if(dl == 'normal'){
+      pt <- paste(pt, sprintf('\n normal SD = %.03f', nv))
+    }
+      
+    ## TODO make plots with correct subsetting and titles
+  }
+  
   ## facet by observations
   long.cov.sum <-  summarySE(long.cov, measurevar="obs_cov",
                              groupvars = c('n_target_cov', 'fit_type', 'n.clust', 'data.lik'))
@@ -149,7 +179,7 @@ for(main.dir.name in main.dir.names){
   geom_line() +
   geom_point() +
   geom_abline(intercept = 0, slope = 1) +
-  facet_wrap(. ~ n.clust) + ggtitle(sprintf('Comparison of coverage in: %s', loopvars$data.lik[1]))
+  facet_wrap(. ~ n.clust) + ggtitle(pt)
 
   ggsave(sprintf('%s/%s_coverage_summary_nclust.png', compar.dir, loopvars$data.lik[1]),
          plot = fit_coverage_CI_summary,
