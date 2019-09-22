@@ -8,11 +8,11 @@
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
 'STUDY 01: vary number of clusters, cluster effect, and normal data variance. 
-TRIAL 10: studying log_kappa which seems off... also intercepts'
+TRIAL 11: studying log_kappa which seems off... also intercepts'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
-extra.job.name <- 'study01trial10'
+extra.job.name <- 'study01trial11'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -175,7 +175,7 @@ sd.correct <- c(TRUE)
 
 ## TODO always add all vars to exand.grid()
 ## NOTE: I use a named list here to ensure the columns in loopvars are named
-loopvars <- expand.grid(list(reg = reg, ## 1
+loopvars <- data.table(expand.grid(list(reg = reg, ## 1
                              year_list = year_list,
                              cov_names = cov_names,
                              cov_measures = cov_measures,
@@ -201,7 +201,7 @@ loopvars <- expand.grid(list(reg = reg, ## 1
                              norm.var = norm.var,
                              norm.prec.pri = norm.prec.pri, ## 25
                              bias.correct = bias.correct,
-                             sd.correct = sd.correct))
+                             sd.correct = sd.correct)))
 
 message(sprintf('YOU ARE ABOUT TO LAUNCH %i EXPERIMENTS', nrow(loopvars)))
 message(sprintf('-- EACH WITH %i ITERATIONS', n.sim))

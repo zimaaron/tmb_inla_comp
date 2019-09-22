@@ -52,9 +52,9 @@ source('./2_setup_experiment_settings.R')
 ## ######################################################################
 ## setup convergence checks and loop until met. record number of times ##
 ## ######################################################################
-tmb.converge <- 0 ## set to 1 when tmb converges
-tmb.converge.fails <- 0 ## counts how many times TMB didn't converge
-inla.converge <- 0 ## set to 1 when inla converges
+tmb.converge        <- 0 ## set to 1 when tmb converges
+tmb.converge.fails  <- 0 ## counts how many times TMB didn't converge
+inla.converge       <- 0 ## set to 1 when inla converges
 inla.converge.fails <- 0 ## counts how many times INLA didn't converge
 
 ## loop until both methods have converged or one method has failed fifth time

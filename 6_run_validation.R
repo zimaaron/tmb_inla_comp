@@ -134,7 +134,7 @@ png(sprintf('%s/validation/experiment%04d_iter%04d_plot_02_parameter_densities.p
 
 num.dists <- length(params)
 
-## set layout
+## set layout: start with a square, and drop rows is not needed
 par.dim <- rep(ceiling(sqrt(num.dists)), 2)
 while((par.dim[1]-1)*par.dim[2] >= num.dists){
   par.dim[1] <- par.dim[1]-1

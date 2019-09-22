@@ -15,6 +15,7 @@ if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
                                 year_list = year_list,
                                 data.lik = data.lik,
                                 sd.norm = sqrt(norm.var), 
+                                alpha = alpha, 
                                 betas = betas,
                                 sp.kappa = sp.kappa,
                                 sp.alpha = sp.alpha,
@@ -32,7 +33,7 @@ if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
                                 urban.strat.pct = urban.strat.pct, 
                                 out.dir = out.dir,
                                 sp.field.sim.strat = 'SPDE', 
-                                seed = NULL,
+                                seed = seed,
                                 exp.iter = exp.iter)
   
   ## save the cov_list for future iterations to speed things up
@@ -51,6 +52,7 @@ if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
                                 year_list = year_list,
                                 data.lik = data.lik,
                                 sd.norm = sqrt(norm.var),
+                                alpha = alpha, 
                                 betas = betas,
                                 sp.kappa = sp.kappa,
                                 sp.alpha = sp.alpha,
@@ -68,7 +70,7 @@ if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
                                 urban.strat.pct = urban.strat.pct, 
                                 out.dir = out.dir,
                                 sp.field.sim.strat = 'SPDE', 
-                                seed = NULL,
+                                seed = seed,
                                 exp.iter = exp.iter)
 
 saveRDS(file = sprintf('%s/simulated_obj/experiment%04d_iter%04d_sim_obj.rds', 
