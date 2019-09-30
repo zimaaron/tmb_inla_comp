@@ -85,10 +85,6 @@ if(data.lik == 'normal') {res[1, gauss_prec := 1 / norm.var]; params <- c(params
 res[1, matern_logtau_mean := log(sp.tau)]; params <- c(params, 'logtau')
 res[1, matern_logkappa_mean := log(sp.kappa)]; params <- c(params, 'logkappa')
 
-## if(nperiods > 1){
-##   res.true.params <- c(res.true.params, c(t.rho, NA))
-## }
-
 rr <- data.table(item=colnames(res))
 rr <- cbind(rr, t(res))
 names(rr) <- c('quantity','TRUE', 'R-INLA','TMB')
@@ -117,30 +113,32 @@ rr[,(cols) := round(.SD, 3), .SDcols=cols]
 grid.table(rr)
 dev.off()
 
-## ~~~~~~~~~~~~~~~~~~~~~~~~~~
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## plot priors and posteriors
-## ~~~~~~~~~~~~~~~~~~~~~~~~~~
+## also get coverage for params
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 message('------ plotting priors and posteriors')
+message('------ also getting coverage for each param')
 
 ## assume:
 ## 1) alphas are normal
 ## 2) logtau and logkappa are normal
-## 3) log clust precision is gamma
+## 3) log(SD) is pc.prior
 
 ## NOTE: also assume that intercept is the first 'beta' and that betas are listed first!
 
 png(sprintf('%s/validation/experiment%04d_iter%04d_plot_02_parameter_densities.png', out.dir, exp.lvid, exp.iter),
     height=9, width=9, units = 'in', res = 250)
 
-num.dists <- length(params)
-
 ## set layout: start with a square, and drop rows is not needed
+num.dists <- length(params)
 par.dim <- rep(ceiling(sqrt(num.dists)), 2)
 while((par.dim[1]-1)*par.dim[2] >= num.dists){
   par.dim[1] <- par.dim[1]-1
 } 
 par(mfrow = par.dim)
 
+## make the plots
 for(ii in 1:num.dists){
 
   param <- params[ii]
@@ -273,10 +271,10 @@ for(ii in 1:num.dists){
       ## get a safe range for plotting, and get the prior
       xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
                               probs=c(.0001, .9999)) ## avoid crazy extremes
+      xlim <- range(c(xlim, true.val))
     }
     if(xlim[1] == -Inf) xlim[1] <- -1000; if(xlim[2] == +Inf) xlim[2] <- +1000 
     
-   
     x.prior <- seq(xlim[1], xlim[2], len = 1000)
     y.prior <- dPCPriPrec(x.prior, u = prior.u, a=prior.a, give_log = 0)
     
@@ -338,7 +336,29 @@ for(ii in 1:num.dists){
   abline(v = true.val, col = prior.col, lwd = 2)
   
   ## add legend
-  legend("topright", legend = c("prior/truth", "tmb", "inla"), col = c(prior.col, tmb.col, inla.col), lwd = rep(2, 3))
+  legend("topright", legend = c("prior/truth", "tmb", "inla"), 
+         col = c(prior.col, tmb.col, inla.col), lwd = rep(2, 3))
+  
+  
+  
+  ## and we also record the coverage for a parameter since we have the param draws here
+  coverage_probs <- c(25, 50, 80, 90, 95)
+  
+  ## it's much faster to get all quantiles at once then to iteratively calculate them
+  param.lui <- apply(rbind(inla.post.draws, tmb.post.draws), 1, quantile, 
+               p = c((1 - coverage_probs/100)/2, 
+                     coverage_probs/100 + (1 - coverage_probs/100) / 2), na.rm=T)
+  
+  ## add the binary coverage into the res table
+  res[,type := c('truth', 'inla', 'tmb')]
+  for(cc in 1:length(coverage_probs)){
+    c <- coverage_probs[cc]
+    li       <- param.lui[cc,]
+    ui       <- param.lui[length(coverage_probs) + cc,]
+    res[type=='inla', paste0(param, '.cov.',c) := (true.val >= li & true.val <= ui)[1]]
+    res[type=='tmb', paste0(param, '.cov.',c) := (true.val >= li & true.val <= ui)[1]]
+  }
+  
 }
 dev.off()
 
@@ -596,7 +616,7 @@ if(data.lik == 'binom'){
     c <- coverage_probs[cc]
     message(paste0('-------- calcing ', c ,'% coverage of binomial prob'))
     li       <- lui[cc,]
-    ui       <- lui[length(coverage_probs) + cc]
+    ui       <- lui[length(coverage_probs) + cc,]
     d[, paste0('p.pix.cov.',c)] = d[['truth.p']] >= li & d[['truth.p']] <= ui
   }
 
@@ -614,11 +634,11 @@ surface.metrics <- data.table(cbind(mean.l      = d[, .(truth = mean(truth, na.r
                                     cor         = d[, .(cor = my.cor(truth, median.fit)), by = c('model')]$cor,
                                     CoV         = d[, .(cov = mean(error / var, na.rm = T)), by = c('model')]$cov,
                                     crps        = d[, .(crps = mean(crpsNormal(truth, median.fit, var), na.rm = T)), by = c('model')]$crps,
-                                    cov25       = d[, .(cov25 = mean(pix.cov.25, na.rm = T)), by = c('model')]$cov25,
-                                    cov50       = d[, .(cov50 = mean(pix.cov.50, na.rm = T)), by = c('model')]$cov50,
-                                    cov80       = d[, .(cov80 = mean(pix.cov.80, na.rm = T)), by = c('model')]$cov80,
-                                    cov90       = d[, .(cov90 = mean(pix.cov.90, na.rm = T)), by = c('model')]$cov90,
-                                    cov95       = d[, .(cov95 = mean(pix.cov.95, na.rm = T)), by = c('model')]$cov95))
+                                    pix.cov25       = d[, .(cov25 = mean(pix.cov.25, na.rm = T)), by = c('model')]$cov25,
+                                    pix.cov50       = d[, .(cov50 = mean(pix.cov.50, na.rm = T)), by = c('model')]$cov50,
+                                    pix.cov80       = d[, .(cov80 = mean(pix.cov.80, na.rm = T)), by = c('model')]$cov80,
+                                    pix.cov90       = d[, .(cov90 = mean(pix.cov.90, na.rm = T)), by = c('model')]$cov90,
+                                    pix.cov95       = d[, .(cov95 = mean(pix.cov.95, na.rm = T)), by = c('model')]$cov95))
 
 if(data.lik == 'binom'){
   surface.metrics.p <- data.table(cbind(
@@ -632,13 +652,21 @@ if(data.lik == 'binom'){
   surface.metrics <- cbind(surface.metrics, surface.metrics.p)
 }
 
+## add together all two row summaries. first row inla, swcond row tmb
+surface.metrics <- surface.metrics[order(mean.l.model), ]
+
 ## add on things from the res tab
 res.addon <- t(rr[, c('R-INLA', 'TMB')])
 colnames(res.addon) <- rr[, quantity]
 
-## and addon loovars for easy summary later
+## add on parameter coverage
+pc.addon <- res[type != 'truth', .SD, .SDcols = names(res) %like% ".cov."]
+
+## add on loopvars for easy summary later
 lv.addon <- rbind(loopvars[exp.lvid, ], loopvars[exp.lvid, ])
-summary.metrics <- cbind(surface.metrics, res.addon, lv.addon)
+
+## combine the pieces
+summary.metrics <- cbind(surface.metrics, res.addon, pc.addon, lv.addon)
 
 ## note iteration
 summary.metrics[, iter := exp.iter]
