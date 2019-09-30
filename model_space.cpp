@@ -207,12 +207,12 @@ Type objective_function<Type>::operator() ()
   /////////
   // (2) //
   /////////
-  // Prior contributions to joint likelihood (if options[0]==1)
+  // Prior contributions to joint likelihood (if options[1]==1)
   if(options[1] == 1) {
     
     // add in priors for spde gp
-    jnll -= dnorm(log_tau,   logtau_pri[0], logtau_pri[1], true);     // N(mean, sd) prior for logtau
-    jnll -= dnorm(log_kappa, logkappa_pri[0], logkappa_pri[1], true); // N(mean, sd) prior for logkappa
+    jnll -= dnorm(log_tau,   logtau_pri[0], sqrt(1/logtau_pri[1]), true);     // N(mean, sd) prior for logtau
+    jnll -= dnorm(log_kappa, logkappa_pri[0], sqrt(1/logkappa_pri[1]), true); // N(mean, sd) prior for logkappa
     
     // prior for intercept
     if(options[2] == 1){
