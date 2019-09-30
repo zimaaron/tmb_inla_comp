@@ -1,6 +1,6 @@
 ## this script can be used to launch 1_run_simulation.R in parallel on the IHME cluster
 ## written by aoz
-## 2019SEP12
+## 2019SEP27
 ## source('/homes/azimmer/tmb_inla_comp/0_launch_sims_1st_exp.R')
 
 ## DO THIS!
@@ -8,11 +8,11 @@
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
 'STUDY 01: vary number of clusters, cluster effect, and normal data variance. 
-TRIAL 11: studying log_kappa which seems off... also intercepts'
+TRIAL 16: looking good - full launch'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
-extra.job.name <- 'study01trial11'
+extra.job.name <- 'study01trial16'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -22,7 +22,7 @@ extra.job.name <- 'study01trial11'
 ## specify queue, project, and job requirements
 q.q   <- 'geospatial.q' ## all.q ## long.q
 q.m   <- '25G' ## e.g. 10G
-q.t   <- '00:2:30:00' ## DD:HH:MM:SS
+q.t   <- '00:3:30:00' ## DD:HH:MM:SS
 q.p   <- -100 ## priority: -1023 (low) - 0 (high)
 cores <- 1 ## used for OMP/MKL in qsub_sim call TODO - parallel version? NOTE!! this is overwritten in arg 16
 
@@ -145,8 +145,9 @@ ndraws <- 500
 ## loopvars 18: mean and sd for normal prior on fixed effects (alpha and betas)
 alphaj.pri <- "c(0, 3)" ## N(mean, sd)
 
-## loopvars 19: ## shape and inv-scale for gamma prior on clust RE precision
-clust.prec.pri <- "c(1, .001)" ## gamma(shape, inv-scale)
+## loopvars 19: pc.prior on clust RE precision
+## (u, a) s.t. P(1/sqrt(prec) > u) = a, i.e. P(SD > u) = a
+clust.prec.pri <- "c(1, .01)" 
 
 ## loopvars 20: INLA hyperparam integration strategy. can be 'eb', 'ccd', or 'grid'
 inla.int.strat <- c('eb')
@@ -161,10 +162,10 @@ n.sim <- 100
 data.lik <- c('normal', 'binom') 
 
 ## loopvars 24: ONLY FOR data.lik=='normal'. variance of INDIVIDUAL normal data obs.
-norm.var <- c(0, (c(1, 2, 4) / 10) ^ 2)  
+norm.var <- (c(1, 2, 4, 5) / 10) ^ 2
 
-## loopvars 25: OLD: shape and inv-scale for gamma prior on normal individual level precision
-## loopvars 25: NEW: (u, a) s.t. P(1/sqrt(prec) > u) = a, i.e. P(SD > u) = a
+## loopvars 25: pc.prior on normal individual level precision
+## (u, a) s.t. P(1/sqrt(prec) > u) = a, i.e. P(SD > u) = a
 norm.prec.pri <- "c(1, .01)"
 
 ## loopvars 26: bias correct the mean estimates. NOTE: applies to both INLA and TMB!!
@@ -193,7 +194,7 @@ loopvars <- data.table(expand.grid(list(reg = reg, ## 1
                              cores = cores,
                              ndraws = ndraws,
                              alphaj.pri = alphaj.pri,
-                             clust.prec.pri = clust.prec.pri,
+                             clust.pexrec.pri = clust.prec.pri,
                              inla.int.strat = inla.int.strat, ## 20
                              inla.approx = inla.approx, 
                              n.sim = n.sim,
@@ -270,6 +271,8 @@ for(ll in 1:nrow(loopvars)){
   
   } ## iteration
 }   ## experiment/loopvar row
+
+time.start.running <- proc.time()
 
 ## track job progress
 in_q <- 1
@@ -381,12 +384,18 @@ if(mean(jt1[['full.tracker']][, errored]==0) != 1){
   save(list=ls(), file = sprintf('%s/completed_env_2.rdata', main.dir))
 }
 
+time.done.running <- proc.time()
+
+message('running time:')
+print(time.done.running - time.start.running)
+
 # ## print columns of loopvar that vary
 # ## so we can easily see what's going on in the experiments that fail...
-# loopvars[,!apply(loopvars, MARGIN = 2, 
+# loopvars[jt2[['full.tracker']][errored==1, as.numeric(unique(exp))],
+#          !apply(loopvars, MARGIN = 2,
 #                  FUN=function(x){col.var <- sort(x, decreasing=F)[1] == sort(x, decreasing=T)[1]
 #                  if(is.na(col.var)){
 #                    return(TRUE)
 #                  }else{
 #                    return(col.var)}
-#                  })]
+#                  }), with=F]

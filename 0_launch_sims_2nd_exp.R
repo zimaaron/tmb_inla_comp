@@ -1,6 +1,6 @@
 ## this script can be used to launch 1_run_simulation.R in parallel on the IHME cluster
 ## written by aoz
-## 2019SEP12
+## 2019SEP25
 ## source('/homes/azimmer/tmb_inla_comp/0_launch_sims_2nd_exp.R')
 
 ## DO THIS!
@@ -8,11 +8,11 @@
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
 'STUDY 02: vary number of clusters, cluster effect, and normal data variance WITH two covariates
-TRIAL 05: all fixes test'
+TRIAL 07: alpha and kappa fixes test. now also with seed fixes'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
-extra.job.name <- 'study02trial05'
+extra.job.name <- 'study02trial07'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -145,8 +145,9 @@ ndraws <- 500
 ## loopvars 18: mean and sd for normal prior on fixed effects (alpha and betas)
 alphaj.pri <- "c(0, 3)" ## N(mean, sd)
 
-## loopvars 19: ## shape and inv-scale for gamma prior on clust RE precision
-clust.prec.pri <- "c(1, .001)" ## gamma(shape, inv-scale)
+## loopvars 19: pc.prior on clust RE precision
+## (u, a) s.t. P(1/sqrt(prec) > u) = a, i.e. P(SD > u) = a
+clust.prec.pri <- "c(1, .01)" 
 
 ## loopvars 20: INLA hyperparam integration strategy. can be 'eb', 'ccd', or 'grid'
 inla.int.strat <- c('eb')
@@ -161,10 +162,10 @@ n.sim <- 3
 data.lik <- c('normal', 'binom') 
 
 ## loopvars 24: ONLY FOR data.lik=='normal'. variance of INDIVIDUAL normal data obs.
-norm.var <- c(0, (c(1, 2, 4) / 10) ^ 2)  
+norm.var <- (c(1, 2, 4, 5) / 10) ^ 2
 
-## loopvars 25: OLD: shape and inv-scale for gamma prior on normal individual level precision
-## loopvars 25: NEW: (u, a) s.t. P(1/sqrt(prec) > u) = a, i.e. P(SD > u) = a
+## loopvars 25: pc.prior on normal individual level precision
+## (u, a) s.t. P(1/sqrt(prec) > u) = a, i.e. P(SD > u) = a
 norm.prec.pri <- "c(1, .01)"
 
 ## loopvars 26: bias correct the mean estimates. NOTE: applies to both INLA and TMB!!
@@ -175,7 +176,7 @@ sd.correct <- c(TRUE)
 
 ## TODO always add all vars to exand.grid()
 ## NOTE: I use a named list here to ensure the columns in loopvars are named
-loopvars <- expand.grid(list(reg = reg, ## 1
+loopvars <- data.table(expand.grid(list(reg = reg, ## 1
                              year_list = year_list,
                              cov_names = cov_names,
                              cov_measures = cov_measures,
@@ -201,7 +202,7 @@ loopvars <- expand.grid(list(reg = reg, ## 1
                              norm.var = norm.var,
                              norm.prec.pri = norm.prec.pri, ## 25
                              bias.correct = bias.correct,
-                             sd.correct = sd.correct))
+                             sd.correct = sd.correct)))
 
 message(sprintf('YOU ARE ABOUT TO LAUNCH %i EXPERIMENTS', nrow(loopvars)))
 message(sprintf('-- EACH WITH %i ITERATIONS', n.sim))
@@ -270,6 +271,8 @@ for(ll in 1:nrow(loopvars)){
   
   } ## iteration
 }   ## experiment/loopvar row
+
+time.start.running <- proc.time()
 
 ## track job progress
 in_q <- 1
@@ -381,12 +384,18 @@ if(mean(jt1[['full.tracker']][, errored]==0) != 1){
   save(list=ls(), file = sprintf('%s/completed_env_2.rdata', main.dir))
 }
 
+time.done.running <- proc.time()
+
+message('running time:')
+print(time.done.running - time.start.running)
+
 # ## print columns of loopvar that vary
 # ## so we can easily see what's going on in the experiments that fail...
-# loopvars[,!apply(loopvars, MARGIN = 2, 
-#                  FUN=function(x){col.var <- sort(x, decreasing=F)[1] == sort(x, decreasing=T)[1]
-#                  if(is.na(col.var)){
-#                    return(TRUE)
-#                  }else{
-#                    return(col.var)}
-#                  })]
+loopvars[jt2[['full.tracker']][errored==1, as.numeric(unique(exp))],
+         !apply(loopvars, MARGIN = 2,
+                 FUN=function(x){col.var <- sort(x, decreasing=F)[1] == sort(x, decreasing=T)[1]
+                 if(is.na(col.var)){
+                   return(TRUE)
+                 }else{
+                   return(col.var)}
+                 }), with=F]
