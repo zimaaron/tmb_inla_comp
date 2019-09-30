@@ -705,6 +705,8 @@ sim.realistic.data <- function(reg,
   ## ###################################
   sim.dat <- cbind(sim.dat, cov.mat)
   
+  ## and drop NAs so they don't cause issues
+  sim.dat <- na.omit(sim.dat)
   
   ## #################################
   ## save everything we might want ##
