@@ -20,20 +20,22 @@ if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
                                 sp.kappa = sp.kappa,
                                 sp.alpha = sp.alpha,
                                 t.rho = t.rho,
-                                clust.re.var = clust.var, 
+                                pixel.iid.var = NULL,
                                 n.clust = n.clust,
                                 m.clust = m.clust,
+                                clust.re.var = clust.var, 
                                 covs = covs,
                                 cov_layers = NULL, 
                                 simple_raster = simple_raster,
                                 simple_polygon = simple_polygon,
+                                out.dir = out.dir,
                                 pop_raster = pop_raster, 
                                 obs.loc.strat = obs.loc.strat,
                                 urban.pop.pct = urban.pop.pct,
                                 urban.strat.pct = urban.strat.pct, 
-                                out.dir = out.dir,
                                 sp.field.sim.strat = 'SPDE', 
                                 seed = seed,
+                                verbose = FALSE,
                                 exp.iter = exp.iter)
   
   ## save the cov_list for future iterations to speed things up
@@ -148,6 +150,11 @@ dev.off()
 
 nodes <- mesh_s$n ## get number of mesh nodes
 spde <- inla.spde2.matern(mesh_s, alphac = 2)
+## TODO - if we move to pc priors, need to adjust draws, plots, and validation
+##        bc inla produce range and variance (not theta1,2) by default when using PC
+# spde <- inla.spde2.pcmatern(mesh = mesh_s, 
+#                             prior.range = c(0.05, 0.01), ## P(range < 0.05) = 0.01
+#                             prior.sigma = c(2, 0.01))    ## P(sigma > 2) = 0.01
 ## Build SPDE object using INLA (must pass mesh$idx$loc when supplying Boundary)
 ## ^ this gives us a linear reduction of \Sigma^{-1} as:
 ## \Sigma^{-1} = \kappa^4 M_0 + 2\kappa^2M_1 + M_2
@@ -166,7 +173,9 @@ saveRDS(file = sprintf('%s/modeling/inputs/experiment%04d_iter%04d_spde.rds', ou
 
 ## now that the mesh is made, we can grab the default priors that it generates
 mesh.info <- param2.matern.orig(mesh_s)
+## theta1 = log(tau). The prior on theta1 is:   log(tau)   ~ Normal(mean, var)
 spde.theta1.pri <- c(mesh.info$theta.prior.mean[1], mesh.info$theta.prior.prec[1, 1])
+## theta2 = log(kappa). The prior on theta2 is: log(kappa) ~ Normal(mean, var)
 spde.theta2.pri <- c(mesh.info$theta.prior.mean[2], mesh.info$theta.prior.prec[2, 2])
 
 ## ~~~~~~~~~~~~~~~~~~~~
