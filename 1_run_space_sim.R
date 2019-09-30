@@ -59,7 +59,7 @@ inla.converge.fails <- 0 ## counts how many times INLA didn't converge
 
 ## loop until both methods have converged or one method has failed fifth time
 sim.loop.ct <- 0 ## ready to start looping
-while( (tmb.converge != 1 | inla.converge != 1) & !(tmb.converge.fails >= 5 | inla.converge.fails >= 5) ) {
+while( (tmb.converge != 1 | inla.converge != 1) & !(tmb.converge.fails >= 15 | inla.converge.fails >= 15) ) {
   
   ## update the counter
   sim.loop.ct <- sim.loop.ct + 1
@@ -95,6 +95,19 @@ while( (tmb.converge != 1 | inla.converge != 1) & !(tmb.converge.fails >= 5 | in
     inla.converge.fails <- inla.converge.fails + 1
   }
   
+  ## update the seed so that a new GP is simulated 
+  ## 1e6 is added to update the 'seconds' of the 
+  ## minute-second timestamp used to create the seed
+  ## this ensures that every iteration within this lvid e
+  ## experiment will still have a unique seed
+  seed <- (seed + 1e6) %% (2^31 - 1) ## modulo max allowed seed
+}
+
+## 
+if(tmb.converge==1 & inla.converge==1){
+  message('-- BOTH INLA AND TMB CONVERGED!')
+}else{
+  message('-- AT LEAST ONE METHOD DID NOT CONVERGED!')
 }
 
 ## #############
