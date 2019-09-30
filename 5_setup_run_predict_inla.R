@@ -165,9 +165,9 @@ saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_inla_par
         object = inla_draws)
 
 ## save the cell_pred
-saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds.rds', 
-                       out.dir, exp.lvid, exp.iter),
-        object = pred_inla)
+# saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds.rds', 
+#                        out.dir, exp.lvid, exp.iter),
+#         object = pred_inla)
 
 ## summarize the latent field
 summ_inla <- cbind(median = (apply(pred_inla, 1, median)),
@@ -187,9 +187,9 @@ if(data.lik == 'binom'){
   ## convert to prevalence space and summarize, rasterize, and save again
   pred_inla_p <- plogis(pred_inla)
   
-  saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_PREV.rds', 
-                         out.dir, exp.lvid, exp.iter),
-          object = pred_inla_p)
+  # saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_PREV.rds', 
+  #                        out.dir, exp.lvid, exp.iter),
+  #         object = pred_inla_p)
   
   summ_inla_p <- cbind(median = (apply(pred_inla_p, 1, median)),
                        sd     = (apply(pred_inla_p, 1, sd)))
