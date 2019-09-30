@@ -8,11 +8,11 @@
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
 'STUDY 02: vary number of clusters, cluster effect, and normal data variance WITH two covariates
-TRIAL 07: alpha and kappa fixes test. now also with seed fixes'
+TRIAL 09: all tests completed. now running full run!'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
-extra.job.name <- 'study02trial07'
+extra.job.name <- 'study02trial09'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -156,7 +156,7 @@ inla.int.strat <- c('eb')
 inla.approx <- 'simplified.laplace' 
 
 ## loopvars 22: number of times to repeat an experiment (monte carlo simulations)
-n.sim <- 3
+n.sim <- 100
 
 ## loopvars 23: data distribution: either 'binom' or 'normal'
 data.lik <- c('normal', 'binom') 
@@ -391,11 +391,11 @@ print(time.done.running - time.start.running)
 
 # ## print columns of loopvar that vary
 # ## so we can easily see what's going on in the experiments that fail...
-loopvars[jt2[['full.tracker']][errored==1, as.numeric(unique(exp))],
-         !apply(loopvars, MARGIN = 2,
-                 FUN=function(x){col.var <- sort(x, decreasing=F)[1] == sort(x, decreasing=T)[1]
-                 if(is.na(col.var)){
-                   return(TRUE)
-                 }else{
-                   return(col.var)}
-                 }), with=F]
+# loopvars[jt2[['full.tracker']][errored==1, as.numeric(unique(exp))],
+#          !apply(loopvars, MARGIN = 2,
+#                  FUN=function(x){col.var <- sort(x, decreasing=F)[1] == sort(x, decreasing=T)[1]
+#                  if(is.na(col.var)){
+#                    return(TRUE)
+#                  }else{
+#                    return(col.var)}
+#                  }), with=F]
