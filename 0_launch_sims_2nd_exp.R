@@ -1,6 +1,6 @@
 ## this script can be used to launch 1_run_simulation.R in parallel on the IHME cluster
 ## written by aoz
-## 2019SEP25
+## 2019NOV16
 ## source('/homes/azimmer/tmb_inla_comp/0_launch_sims_2nd_exp.R')
 
 ## DO THIS!
@@ -8,11 +8,11 @@
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
 'STUDY 02: vary number of clusters, cluster effect, and normal data variance WITH two covariates
-TRIAL 09: all tests completed. now running full run!'
+TRIAL 11: first run in a long time. just testing where we left off... now with jacobian'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
-extra.job.name <- 'study02trial09'
+extra.job.name <- 'study02trial11'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -203,6 +203,11 @@ loopvars <- data.table(expand.grid(list(reg = reg, ## 1
                              norm.prec.pri = norm.prec.pri, ## 25
                              bias.correct = bias.correct,
                              sd.correct = sd.correct)))
+
+## drop wasteful combinations that don't need to be run
+
+## drop varying norm.var with binomial
+loopvars <- loopvars[!(data.lik=='binom' & norm.var > min(norm.var)),]
 
 message(sprintf('YOU ARE ABOUT TO LAUNCH %i EXPERIMENTS', nrow(loopvars)))
 message(sprintf('-- EACH WITH %i ITERATIONS', n.sim))

@@ -232,6 +232,12 @@ Type objective_function<Type>::operator() ()
       // almost like INLA, except INLA uses params (shape, inv-scale) which is *_prec_pri is defined
       //jnll -= dlgamma(log_clust_prec, clust_prec_pri[0], 1.0 / clust_prec_pri[1], true); // tmb takes (shape, scale)
       jnll -= dPCPriPrec(clust_prec, clust_prec_pri[0], clust_prec_pri[1], true); //type2gumbel. P(1/sqrt(prec)>u)=a
+      
+      // don't forget the jacobian!
+      // optimizer is passing in log(sigma), but the prior is defined on log(tau)
+      // pi(log(sigma)) = pi(log(tau))*|dflog(sigma)/dlog(sigma)|, where log(tau) = f(log(sigma))
+      // so, f(x) = -2x --> jacoabian = 2
+      jnll -= log(2.0);
     }
     
     // prior for log(obs prec) if using normal data lik
@@ -241,6 +247,11 @@ Type objective_function<Type>::operator() ()
       //jnll -= dlgamma(log_gauss_prec, norm_prec_pri[0], 1.0 / norm_prec_pri[1], true); // tmb takes (shape, scale)
       jnll -= dPCPriPrec(gauss_prec, norm_prec_pri[0], norm_prec_pri[1], true); //type2gumbel. P(1/sqrt(prec)>u)=a
       
+      // don't forget the jacobian!
+      // optimizer is passing in log(sigma), but the prior is defined on log(tau)
+      // pi(log(sigma)) = pi(log(tau))*|dflog(sigma)/dlog(sigma)|, where log(tau) = f(log(sigma))
+      // so, f(x) = -2x --> jacoabian = 2
+      jnll -= log(2.0);
     }
     
   } 

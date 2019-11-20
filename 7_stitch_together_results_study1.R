@@ -21,11 +21,14 @@
 # library(viridis)
 
 ## this script pulls together some overall results from an experiment run
-main.dir.names <- c('2019_09_12_08_06_46') ## study 1
+#main.dir.names <- c('2019_09_27_10_46_18') ## study 1
+#main.dir.names <- c('2019_09_29_21_38_14') ## study 2
+
+## source('/homes/azimmer/tmb_inla_comp/7_stitch_together_results_study1.R')
 
 ## utility function from the interwebs
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
-                      conf.interval=.95, .drop=TRUE) {
+                      conf.interval=.80, .drop=TRUE) {
   library(plyr)
   
     ## New version of length which can handle NA's: if na.rm==T, don't count them
@@ -49,11 +52,12 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
     )
 
     ## Rename the "mean" column    
-    datac <- plyr::rename(datac, c("mean" = measurevar,
-                                   "l.ci.2.5%" = 'l.ci',
-                                   "u.ci.97.5%" = 'u.ci'))
+    old.names <- c("mean", 
+                   paste0('l.ci.', (1-conf.interval)/2*100, '%'), 
+                   paste0('u.ci.', (1-(1-conf.interval)/2)*100, '%'))
+    new.names <- c(measurevar, 'l.ci', 'u.ci')
+    names(datac)[match(old.names, names(datac))] <- new.names
                                 
-
     ## get with width of the ci
     datac$w.ci <- datac$u.ci - datac$l.ci
 
@@ -102,6 +106,8 @@ for(main.dir.name in main.dir.names){
   
   ## save the combined metrics for the study 
   write.csv(summary.metrics, file=sprintf('%sall_summary_metrics.csv', compar.dir))
+  ## reload summary metrics if needed:
+  ## summary.metrics <- fread(sprintf('%sall_summary_metrics.csv', compar.dir))
   
 
   ## ####################################################################
@@ -124,14 +130,14 @@ for(main.dir.name in main.dir.names){
   long.cov <- data.table(gather(cm.all,
                                 target_cov,  ## name of NEW key col
                                 obs_cov,     ## name of NEW value col
-                                cov25:cov95, ## cols to convert from wide to long
+                                pix.cov25:pix.cov95, ## cols to convert from wide to long
                                 factor_key = TRUE
                                 ))
-  long.cov[target_cov == 'cov25', n_target_cov := 0.25]
-  long.cov[target_cov == 'cov50', n_target_cov := 0.50]
-  long.cov[target_cov == 'cov80', n_target_cov := 0.80]
-  long.cov[target_cov == 'cov90', n_target_cov := 0.90]
-  long.cov[target_cov == 'cov95', n_target_cov := 0.95]
+  long.cov[target_cov == 'pix.cov25', n_target_cov := 0.25]
+  long.cov[target_cov == 'pix.cov50', n_target_cov := 0.50]
+  long.cov[target_cov == 'pix.cov80', n_target_cov := 0.80]
+  long.cov[target_cov == 'pix.cov90', n_target_cov := 0.90]
+  long.cov[target_cov == 'pix.cov95', n_target_cov := 0.95]
   
   long.cov$noise_spatial_ratio <- long.cov$clust.var / long.cov$sp.var
   long.cov$noise_spatial_ratio[is.na(long.cov$noise_spatial_ratio)] <- 0
@@ -151,19 +157,49 @@ for(main.dir.name in main.dir.names){
   
   loop.params <- data.table(dl=c('binom', rep('normal', length(loopvars[, unique(norm.var)]))),
                             nv=c(NA, loopvars[, unique(norm.var)]))
-  
-  for(ii in 1:loopvars[,.N]){
+  cov.width <- 0.5
+  for(ii in 1:loop.params[,.N]){
     
     dl <- loop.params[ii, dl]
     nv <- loop.params[ii, nv]
     
     ## make the plot title
-    pt <- sprintf('Average pixel coverage with %s observations', toupper(dl))
+    pt <- sprintf('Average pixel coverage with %s observations | %0.0f%% intervals shown', toupper(dl), cov.width*100)
     if(dl == 'normal'){
       pt <- paste(pt, sprintf('\n normal SD = %.03f', nv))
     }
       
     ## TODO make plots with correct subsetting and titles
+    if(dl == 'binom') {
+      long.cov.sub <- subset(long.cov, data.lik == dl & norm.var==0.01) ## TODO binom should have NA norm.var
+    }else if(dl == 'normal') {
+      long.cov.sub <- subset(long.cov, data.lik == dl & norm.var == nv)
+    }
+    
+    ## facet by observations
+    long.cov.sum <-  summarySE(long.cov.sub, measurevar="obs_cov",
+                               groupvars = c('n_target_cov', 'fit_type', 'n.clust', 'data.lik', 'clust.var'),
+                               conf.interval = cov.width)
+    ## groups to plot lines
+    long.cov.sum$line_group <- paste(long.cov.sum$fit_type, long.cov.sum$clust.var, sep='_')
+    
+    pd <- position_dodge(0.05)
+    fit_coverage_CI_summary <- ggplot(long.cov.sum,
+                                      aes(x = n_target_cov, y = obs_cov,
+                                          shape = fit_type, 
+                                          color = factor(clust.var),
+                                          group = line_group),
+                                      position=position_jitter(w=0.02, h=0.02)) + 
+      geom_errorbar(position=pd, aes(ymin = l.ci, ymax = u.ci), width = .025) +
+      geom_line(position=pd) +
+      geom_point(position=pd) +
+      geom_abline(intercept = 0, slope = 1) +
+      facet_wrap(. ~ n.clust) + ggtitle(pt)
+    
+    ggsave(sprintf('%s/%s_%0.2f_coverage_summary_nclust.png', compar.dir, dl, nv),
+           plot = fit_coverage_CI_summary,
+           device = 'png', units = 'in',
+           width = 12, height = 8)
   }
   
   ## facet by observations
@@ -181,7 +217,7 @@ for(main.dir.name in main.dir.names){
   geom_abline(intercept = 0, slope = 1) +
   facet_wrap(. ~ n.clust) + ggtitle(pt)
 
-  ggsave(sprintf('%s/%s_coverage_summary_nclust.png', compar.dir, loopvars$data.lik[1]),
+  ggsave(sprintf('%s/%s_%s_coverage_summary_nclust.png', compar.dir, dl, nv),
          plot = fit_coverage_CI_summary,
          device = 'png', units = 'in',
          width = 12, height = 12)
