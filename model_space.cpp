@@ -237,7 +237,7 @@ Type objective_function<Type>::operator() ()
       // optimizer is passing in log(sigma), but the prior is defined on log(tau)
       // pi(log(sigma)) = pi(log(tau))*|dflog(sigma)/dlog(sigma)|, where log(tau) = f(log(sigma))
       // so, f(x) = -2x --> jacoabian = 2
-      jnll -= log(2.0);
+      //jnll -= log(2.0);
     }
     
     // prior for log(obs prec) if using normal data lik
@@ -251,7 +251,7 @@ Type objective_function<Type>::operator() ()
       // optimizer is passing in log(sigma), but the prior is defined on log(tau)
       // pi(log(sigma)) = pi(log(tau))*|dflog(sigma)/dlog(sigma)|, where log(tau) = f(log(sigma))
       // so, f(x) = -2x --> jacoabian = 2
-      jnll -= log(2.0);
+      //jnll -= log(2.0);
     }
     
   } 

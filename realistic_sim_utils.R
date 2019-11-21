@@ -1,5 +1,5 @@
 ## some functions to help with realistic inla/tmb simulation comparison
-## written by a0z 5/17/18
+## written by aoz 19nov2019
 
 ## qsub_sim: function to launch sims (and sim comparisons) on the cluster
 qsub_sim <- function(exp.lvid, ## if looping through multiple experiments - i.e. row of loopvars
@@ -85,6 +85,8 @@ qsub_sim <- function(exp.lvid, ## if looping through multiple experiments - i.e.
 }
 
 ## used to monitor a set of jobs given amatrix of job.ids
+## given a jid.dt, it tracks the progress of a fleet of jobs
+## if jid.dt==NULL, then this function just queries the output folders and reports completion
 track.exp.iter <- function(jid.dt, main.dir) {
   
   ## query the system to see all jobs
@@ -98,9 +100,10 @@ track.exp.iter <- function(jid.dt, main.dir) {
                                        data.table(jid    = q.ret.spl[3],
                                                   j.status = q.ret.spl[12])
                                      }))
-  
-  ## merge status onto jid.dt
-  jid.dt <- merge(jid.dt, q.jobs, by ='jid', all.x=T, all.y=F)
+  if(!is.null(jid.dt)){
+    ## merge status onto jid.dt
+    jid.dt <- merge(jid.dt, q.jobs, by ='jid', all.x=T, all.y=F)
+  }
   
   ## check the csvs
   jt.dir <- paste(main.dir, 'common', 'job_tracking', sep = '/')
@@ -126,40 +129,53 @@ track.exp.iter <- function(jid.dt, main.dir) {
     ) ## do.call
   } ## else: length(jt.csvs) > 0
   
-  ## merge on csv jt info
-  jid.dt <-  merge(jid.dt, jt.info, by = c('exp', 'iter'), all.x=T)
+  if(!is.null(jid.dt)){
+    ## merge on csv jt info
+    jid.dt <-  merge(jid.dt, jt.info, by = c('exp', 'iter'), all.x=T)
+    
+    ## determine status (not started, running, failed, completed) for each job
+    
+    ## number of jobs in queue
+    jid.dt[(grepl('qw', j.status) | grepl('r', j.status)), in_q := 1]
+    ## not started means job in qw
+    jid.dt[grepl('qw', j.status), not_started := 1]
+    ## running
+    jid.dt[grepl('r', j.status), running := 1]
+    ## errored
+    jid.dt[(is.na(j.status) & (script_num != 0 | is.na(script_num))), errored := 1]
+    ## not errored
+    jid.dt[is.na(errored), on_track := 1]
+    ## completed
+    jid.dt[(is.na(j.status) & script_num==0), completed := 1]
+    
+    ## swap NA for 0 for averaging
+    jid.dt[is.na(jid.dt)] <- 0
+    
+    ## count number of iterations in q by experiment
+    exp.sum <- jid.dt[, lapply(.SD, sum), by=exp, .SDcols=c('in_q')]
+    
+    ## take the mean of running status
+    exp.sum <- merge(exp.sum, 
+                     jid.dt[, lapply(.SD, FUN=function(x){round(100*mean(x, na.rm=T), 2)}), 
+                            by=exp, 
+                            .SDcols=c('on_track', 'not_started', 'running', 
+                                      'errored', 'completed')],
+                     all.x=T, all.y=F, by='exp')
+    
+    return(list(full.tracker = jid.dt,
+                summ.tracker = exp.sum))
+  }else{ 
+    ## there is no job tracking, so just check for percent completion by exp
+    exp.sum <- jt.info[, mean(script_num==0)*100, by=exp]
+    setnames(exp.sum, 'V1', 'perc_comp')
+    return(list(message=sprintf('%0.2f percent of experimets completed. %0.2f percent of iterations completed',
+                                exp.sum[,mean(perc_comp==100)*100], 
+                                jt.info[,mean(script_num==0)]*100),
+                summ.tracker=exp.sum))
+    
+  }
   
-  ## determine status (not started, running, failed, completed) for each job
-  
-  ## number of jobs in queue
-  jid.dt[(grepl('qw', j.status) | grepl('r', j.status)), in_q := 1]
-  ## not started means job in qw
-  jid.dt[grepl('qw', j.status), not_started := 1]
-  ## running
-  jid.dt[grepl('r', j.status), running := 1]
-  ## errored
-  jid.dt[(is.na(j.status) & (script_num != 0 | is.na(script_num))), errored := 1]
-  ## not errored
-  jid.dt[is.na(errored), on_track := 1]
-  ## completed
-  jid.dt[(is.na(j.status) & script_num==0), completed := 1]
-  
-  ## swap NA for 0 for averaging
-  jid.dt[is.na(jid.dt)] <- 0
-  
-  ## count number of iterations in q by experiment
-  exp.sum <- jid.dt[, lapply(.SD, sum), by=exp, .SDcols=c('in_q')]
-  
-  ## take the mean of running status
-  exp.sum <- merge(exp.sum, 
-                   jid.dt[, lapply(.SD, FUN=function(x){round(100*mean(x, na.rm=T), 2)}), 
-                             by=exp, 
-                    .SDcols=c('on_track', 'not_started', 'running', 
-                              'errored', 'completed')],
-                   all.x=T, all.y=F, by='exp')
-  
-  return(list(full.tracker = jid.dt,
-              summ.tracker = exp.sum))
+ 
 }
 
 ## a function to simulate from a GF using INLA
