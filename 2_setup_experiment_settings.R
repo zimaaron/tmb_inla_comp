@@ -31,7 +31,7 @@ setwd(tmb_repo)
 source('./realistic_sim_utils.R')
 
 ## set other needed global args 
-modeling_shapefile_version <- 'current'
+modeling_shapefile_version <- '2019_10_10'
 
 ## setup is now done. setup some parameters for this simulation
 

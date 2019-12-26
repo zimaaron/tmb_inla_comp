@@ -66,8 +66,8 @@ data_full <- list(num_i = nrow(dt),  # Total number of observations
 tmb_params <- list(alpha = 0.0, # intercept
                    betas = rep(0, ncol(X_betas)), # cov effects
                    log_obs_sigma = 0.0, # log(data sd) if using normal dist
-                   log_tau   = 1.0, # Log inverse of tau (Epsilon)
-                   log_kappa = 1.0, # Matern range parameter
+                   log_tau   = -1.0, # Log inverse of tau (Epsilon)
+                   log_kappa = -1.0, # Matern range parameter
                    log_clust_sigma = 0.0, # log of cluster sd
                    clust_i = rep(0, nrow(dt)), # vector of cluster random effects
                    Epsilon_s = matrix(0, nrow=nodes, ncol=1) # GP value at obs locs

@@ -1,6 +1,6 @@
 ## this script can be used to launch 1_run_simulation.R in parallel on the IHME cluster
 ## written by aoz
-## 2019NOV16
+## 2019DEC18
 ## source('/homes/azimmer/tmb_inla_comp/0_launch_sims_1st_exp.R')
 
 ## DO THIS!
@@ -8,11 +8,11 @@
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
 'STUDY 01: vary number of clusters, cluster effect, and normal data variance. 
-TRIAL 19: first run in a long time. just testing where we left off... now withOUT jacobian'
+TRIAL 21: testing new starting values. to see if they help with tmb not converging. also saving extra summary objects to make coverage by gp magnitude and coverage by distance to data plots.'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
-extra.job.name <- 'study01trial19'
+extra.job.name <- 'study01trial21'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

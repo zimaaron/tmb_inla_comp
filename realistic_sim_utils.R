@@ -798,3 +798,189 @@ dPCPriPrec <- function(tau, u, a, give_log=0){
   logres = log(lambda/(2.0)) - (3.0/2.0)*log(tau) - lambda*1/sqrt(tau);
   if(give_log){return(logres)}else{ return(exp(logres))}
 }
+
+## summary function for long data
+## utility function from the interwebs
+summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
+                      conf.interval=.80, .drop=TRUE) {
+  library(plyr)
+  
+  ## New version of length which can handle NA's: if na.rm==T, don't count them
+  length2 <- function (x, na.rm=FALSE) {
+    if (na.rm) sum(!is.na(x))
+    else       length(x)
+  }
+  
+  # This does the summary. For each group's data frame, return a vector with
+  # N, mean, and sd
+  datac <- ddply(data, groupvars, .drop=.drop,
+                 .fun = function(xx, col) {
+                   c(N    = length2(xx[[col]], na.rm=na.rm),
+                     mean = mean   (xx[[col]], na.rm=na.rm),
+                     med  = median (xx[[col]], na.rm=na.rm),
+                     sd   = sd     (xx[[col]], na.rm=na.rm),
+                     l.ci = stats::quantile(xx[[col]], probs = (1-conf.interval)/2, na.rm=na.rm), 
+                     u.ci = stats::quantile(xx[[col]], probs = 1-(1-conf.interval)/2, na.rm=na.rm) 
+                   )
+                 },
+                 measurevar
+  )
+  
+  ## Rename the "mean" column    
+  old.names <- c("mean", 
+                 paste0('l.ci.', (1-conf.interval)/2*100, '%'), 
+                 paste0('u.ci.', (1-(1-conf.interval)/2)*100, '%'))
+  new.names <- c(measurevar, 'l.ci', 'u.ci')
+  names(datac)[match(old.names, names(datac))] <- new.names
+  
+  ## get with width of the ci
+  datac$w.ci <- datac$u.ci - datac$l.ci
+  
+  return(datac)
+}
+
+
+###########################
+########################### 
+## rasterize_check_coverage and build_simple_raster_pop
+## added to get PR fix more quickly to deal with shapefile version
+
+
+build_simple_raster_pop <- function(subset_shape,
+                                    field = NULL,
+                                    raking = FALSE,
+                                    link_table = modeling_shapefile_version,
+                                    id_raster = NULL,
+                                    pop_measure = 'total',
+                                    pop_release = NULL,
+                                    pop_start_year = 2000,
+                                    pop_end_year = 2018,
+                                    shapefile_version = modeling_shapefile_version) {
+  
+  if (is.null(field)) {
+    if ('GAUL_CODE' %in% names(subset_shape@data)) field <- 'GAUL_CODE'
+    if ('ADM0_CODE' %in% names(subset_shape@data)) field <- 'ADM0_CODE'
+  }
+  
+  if(raking) {
+    field <- 'loc_id'
+    # no 'loc_id' field in the link table, so we can't use it
+    link_table <- NULL
+  }
+  
+  ## if unspecified, get the most recent worldpop release
+  if (is.null(pop_release)) {
+    helper <- CovariatePathHelper$new()
+    pop_rast_path  <- helper$covariate_paths(covariates = 'worldpop',
+                                             measures = pop_measure,
+                                             releases = pop_release)
+    pop_release <- helper$newest_covariate_release(pop_rast_path)
+  }
+  
+  # To ensure correct "snap" method is used, first convert to a template raster that is masked to population
+  pop_rast <- brick(paste0("/snfs1/WORK/11_geospatial/01_covariates/00_MBG_STANDARD/worldpop/total/", pop_release, "/1y/worldpop_total_1y_2010_00_00.tif"))
+  template_raster <- raster::crop(pop_rast, raster::extent(subset_shape), snap = "out")
+  
+  # load in the population raster given the measure and the release
+  cropped_pop <- load_worldpop_covariate(template_raster,
+                                         covariate = 'worldpop',
+                                         pop_measure = pop_measure,
+                                         pop_release = pop_release,
+                                         start_year = pop_start_year,
+                                         end_year = pop_end_year,
+                                         interval = 12)[['worldpop']]
+  
+  ## Fix rasterize
+  initial_raster <- rasterize_check_coverage(subset_shape, cropped_pop, field = field, link_table = link_table, id_raster = id_raster,
+                                             shapefile_version = shapefile_version)
+  if (length(subset(subset_shape, !(get(field) %in% unique(initial_raster)))) != 0) {
+    rasterized_shape <-
+      raster::merge(
+        rasterize_check_coverage(subset(subset_shape, !(get(field) %in% unique(initial_raster))),
+                                 cropped_pop,
+                                 field = field,
+                                 link_table = link_table,
+                                 id_raster = id_raster,
+                                 shapefile_version = shapefile_version),
+        initial_raster)
+  }
+  if (length(subset(subset_shape, !(get(field) %in% unique(initial_raster)))) == 0) {
+    rasterized_shape <- initial_raster
+  }
+  masked_pop <- raster::mask(x = cropped_pop, mask = rasterized_shape)
+  
+  raster_list <- list()
+  raster_list[['simple_raster']] <- rasterized_shape
+  raster_list[['pop_raster']] <- masked_pop
+  
+  return(raster_list)
+  
+}
+
+rasterize_check_coverage <- function(shapes, template_raster, field, ..., link_table = modeling_shapefile_version, id_raster = NULL,
+                                     shapefile_version = modeling_shapefile_version) {
+  # backwards-compatible behavior - just call rasterize()
+  if (is.null(link_table)) return(raster::rasterize(shapes, template_raster, field = field, ...))
+  
+  # Validate arguments
+  is_admin_link_table <- FALSE
+  if (is.data.table(link_table)) {
+    is_admin_link_table <- TRUE
+    # nothing to do - already a link table loaded in memory
+  } else if (R.utils::isAbsolutePath(link_table)) {
+    link_table <- readRDS(link_table)
+  } else if (is_admin_shapefile_string(link_table)) {
+    is_admin_link_table <- TRUE
+    # load link table with pre-computed ownership percentages for each pixel cell
+    link_table_file <- paste0(get_admin_shape_dir(link_table), "lbd_standard_link.rds")
+    link_table <- readRDS(link_table_file)
+  } else {
+    stop("link_table argument was neither a data.table, an admin shapefile string, or an absolute path to a RDS file.")
+  }
+  
+  if (! field %in% names(link_table)) {
+    msg <- paste("WARNING: rasterize_check_coverage called with field", field,
+                 "which is not present in link_table. Defaulting to raster::rasterize()")
+    message(msg)
+    return(raster::rasterize(shapes, template_raster, field = field, ...))
+  }
+  
+  # aggregate link table generically for admin 0/1/2
+  # Note: we need `with=FALSE` because `field` is passed as a parameter (not a hard-coded string)
+  table <- link_table[,c("pixel_id", field, "area_fraction"), with = FALSE]
+  if (is_admin_link_table && field != "ADM2_CODE") {
+    # sum rows; area_fraction now represents the total area coverage by ADM0/1_CODE instead of ADM2_CODE
+    table <- table[, .(area_fraction = sum(area_fraction)), by = c("pixel_id", field)]
+  }
+  # subset table so that we have 1 entry per pixel_id - the value of `field` with the maximum
+  # area_fraction value for that pixel_id
+  # https://stackoverflow.com/a/24558696
+  pixel_owner <- table[table[, .I[which.max(area_fraction)], by = pixel_id]$V1]
+  pixel_owner <- pixel_owner[order(pixel_id)]
+  
+  # Grab id_raster that shape was built against, if null defaulting to being built against world raster
+  if (is.null(id_raster)) {
+    # generate world raster with pixel values for `field`
+    reference_pixel_owner <- suppressWarnings(empty_world_raster(shapefile_version=="2019_12_12")) 
+  } else {
+    # Use id raster as reference, assign as NA to later fill only with pixels contained in link table
+    reference_pixel_owner <- id_raster
+    values(reference_pixel_owner) <- NA
+  }
+  
+  # subset to only those pixels owned by a shape we're interested in
+  owned_pixels <- pixel_owner[pixel_owner[[field]] %in% shapes[[field]]]
+  reference_pixel_owner[owned_pixels$pixel_id] <- owned_pixels[[field]]
+  
+  result <- raster::crop(reference_pixel_owner, template_raster, snap = "near")
+  if (raster::ncell(result) != raster::ncell(template_raster)) {
+    message <- paste("Error in creating result raster. Should have created a raster of shape",
+                     paste(dim(result), collapse=","),
+                     "but instead created a raster of shape",
+                     paste(dim(template_raster), collapse=","))
+    stop(message)
+  }
+  return(result)
+}
+
+

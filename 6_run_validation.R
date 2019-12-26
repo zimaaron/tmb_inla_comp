@@ -35,9 +35,9 @@ res[,pt_tmb_sdreport_time := c(NA,tmb_sdreport_time)]
 res[,pt_get_draws_time := c(inla_get_draws_time,tmb_get_draws_time)]
 
 ## convergence
-res[, convergence := c(tmb.converge, inla.converge)]
+res[, convergence := c(inla.converge, tmb.converge)]
 ## converge attempts
-res[, convergence.fails := c(tmb.converge.fails, inla.converge.fails)]
+res[, convergence.fails := c(inla.converge.fails, tmb.converge.fails)]
 
 ## fe coefficients
 if(!is.null(alpha) | !is.null(betas)){
@@ -45,33 +45,43 @@ if(!is.null(alpha) | !is.null(betas)){
   res[, paste0('fe_',res_fit$names.fixed,'_sd')   := as.data.frame(rbind(res_fit$summary.fixed$sd, sqrt(diag(SD0$cov.fixed))[1:length(res_fit$names.fixed)]))]
 }
 
-## cluster prec
+## cluster var
 if(!is.null(clust.var)){
-  res[,clust_prec := unname(c(res_fit$summary.hyperpar[grep('clust.id',rownames(res_fit$summary.hyperpar)),4],
-                                   SD0$value[grep('clust_prec', names(SD0$value))]))]
-  res[,clust_prec_sd := c(res_fit$summary.hyperpar[grep('clust.id',rownames(res_fit$summary.hyperpar)),2],
-                             sqrt(SD0$cov[grep('clust_prec', names(SD0$value)), grep('clust_prec', names(SD0$value))])) ]
+  inla.var <- 1/res_fit$summary.hyperpar[grep('clust.id',rownames(res_fit$summary.hyperpar)),4]
+  tmb.var  <- 1/SD0$value[grep('clust_prec', names(SD0$value))]
+  res[,clust_var_mean := unname(c(inla.var, tmb.var))]
+  ## apply delta method. var(f(x)) = var(x)*f'(x)^2 -> var(1/prec)  = var(prec)* (-1/prec^2)^2 = var(prec)/prec^4 = sd(prec)/prec^2
+  res[,clust_var_sd := c(res_fit$summary.hyperpar[grep('clust.id',rownames(res_fit$summary.hyperpar)),2] * inla.var^2,
+                             sqrt( SD0$cov[grep('clust_prec', names(SD0$value)), grep('clust_prec', names(SD0$value))]) * tmb.var^2) ]
 }
 
-## normal data obs prec
+## normal data obs var
 if(data.lik == 'normal'){
-  res[,gauss_prec := unname(c(res_fit$summary.hyperpar[grep('Gaussian',rownames(res_fit$summary.hyperpar)),4],
-                                   SD0$value[grep('gauss_prec', names(SD0$value))]))]
-  res[,gauss_prec_sd := c(res_fit$summary.hyperpar[grep('Gaussian',rownames(res_fit$summary.hyperpar)),2],
-                             sqrt(SD0$cov[grep('gauss_prec', names(SD0$value)), grep('gauss_prec', names(SD0$value))])) ]
+  inla.var <- 1/res_fit$summary.hyperpar[grep('Gaussian',rownames(res_fit$summary.hyperpar)),4]
+  tmb.var  <- 1/SD0$value[grep('gauss_prec', names(SD0$value))]
+  res[,gauss_var_mean := unname(c(inla.var, tmb.var))]
+  ## apply delta method. var(f(x)) = var(x)*f'(x)^2 -> var(1/prec)  = var(prec)* (-1/prec^2)^2 = var(prec)/prec^4
+  res[,gauss_var_sd := c(res_fit$summary.hyperpar[grep('Gaussian',rownames(res_fit$summary.hyperpar)),2] * inla.var^2,
+                             sqrt(SD0$cov[grep('gauss_prec', names(SD0$value)), grep('gauss_prec', names(SD0$value))]) * tmb.var^2) ]
 }
 
 ## hyperparameters
-res[,matern_logtau_mean := unname(c(res_fit$summary.hyperpar[grep('Theta1',rownames(res_fit$summary.hyperpar)),4],
-                                      SD0$par.fixed['log_tau']))]
+inla.log.tau <- res_fit$summary.hyperpar[grep('Theta1',rownames(res_fit$summary.hyperpar)),4]
+tmb.log.tau  <- SD0$par.fixed['log_tau']
+res[,matern_logtau_mean := unname(c(inla.log.tau, tmb.log.tau))]
 res[,matern_logtau_sd := c(res_fit$summary.hyperpar[grep('Theta1',rownames(res_fit$summary.hyperpar)),2],
                              sqrt(SD0$cov.fixed['log_tau','log_tau'])) ]
 
-res[,matern_logkappa_mean := c(res_fit$summary.hyperpar[grep('Theta2',rownames(res_fit$summary.hyperpar)),4],
-                                 SD0$par.fixed['log_kappa']) ]
+inla.log.kappa <- res_fit$summary.hyperpar[grep('Theta2',rownames(res_fit$summary.hyperpar)),4]
+tmb.log.kappa  <- SD0$par.fixed['log_kappa']
+res[,matern_logkappa_mean := unname(c(inla.log.kappa, inla.log.tau)) ]
 res[,matern_logkappa_sd := c(res_fit$summary.hyperpar[grep('Theta2',rownames(res_fit$summary.hyperpar)),2],
                                sqrt(SD0$cov.fixed['log_kappa','log_kappa'])) ]
 
+## TODO and their transformations
+## res[,matern_range_mean := unname(c(,))]
+## res[,matern_var_mean   := unname(c(,))]
+      
 ## add extra row to filled with the truth
 res <- rbind(lapply(1:ncol(res), function(x){NA}), res)
 
@@ -84,6 +94,7 @@ if(!is.null(clust.var)) {res[1, clust_prec := 1 / clust.var];params <- c(params,
 if(data.lik == 'normal') {res[1, gauss_prec := 1 / norm.var]; params <- c(params, 'gauss.prec')}
 res[1, matern_logtau_mean := log(sp.tau)]; params <- c(params, 'logtau')
 res[1, matern_logkappa_mean := log(sp.kappa)]; params <- c(params, 'logkappa')
+
 
 rr <- data.table(item=colnames(res))
 rr <- cbind(rr, t(res))
@@ -339,8 +350,6 @@ for(ii in 1:num.dists){
   legend("topright", legend = c("prior/truth", "tmb", "inla"), 
          col = c(prior.col, tmb.col, inla.col), lwd = rep(2, 3))
   
-  
-  
   ## and we also record the coverage for a parameter since we have the param draws here
   coverage_probs <- c(25, 50, 80, 90, 95)
   
@@ -576,6 +585,33 @@ d <- data.table(truth        = rep(values(true.rast)[non.na.idx], 2),
                                  rep('inla', nrow(pred_inla))), 
                 median.fit   = apply(all.preds, 1, median))
 
+## add on distance from nearest data observation to pixel
+
+## first, get the centroids of the pixels
+pix.pts <- rasterToPoints(simple_raster, spatial = TRUE)
+geo.prj <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0" 
+pix.pts <- spTransform(pix.pts, CRS(geo.prj)) 
+pix.pts@data <- data.frame(pix.pts@data, 
+                           long = coordinates(pix.pts)[,1],
+                           lat  = coordinates(pix.pts)[,2])
+pix.pts.numeric <- as.data.frame(pix.pts@data)[,2:3]
+
+## then calculate the distance from all the centroid pixels to 
+## all the data observation locations, and take the smallest distance
+
+min.obs.dist <- apply(raster::pointDistance(pix.pts.numeric, dt[,.(long, lat)],
+                                      lonlat=T, allpairs = T),
+                      1, min)/1000 ## distance comes out in meters
+
+## break this into approx number of 5km pixels distant
+min.obs.dist <- round(min.obs.dist / 5)
+d$obs.dist <- rep(min.obs.dist, 2)
+
+## also, get the relative magnitude of the true gp
+## break gp magnitude into deciles
+gp.dec1 <- dplyr::ntile(d[1:(.N/2),truth], 10)
+d[,gp.dec := rep(gp.dec1, 2)]
+
 ## get some coverage probs
 coverage_probs <- c(25, 50, 80, 90, 95)
 ## it's much faster to get all quantiles at once then to iteratively calculate them
@@ -624,6 +660,130 @@ if(data.lik == 'binom'){
   d[, error.p := truth.p - median.fit.p]
   d[, var.p := apply(all.preds, 1, var)]
 }
+
+## MAKE COVERAGE PLOTS
+
+require('tidyr')
+message('------ making coverage plots')
+cov.width <- 0.5 ## set the coverage interval width
+
+## TODO add coverage plot of pixels from 7 
+ 
+## TODO add coverage plot of params from 7
+
+## make some plots of coverage by distance to observations
+message('-------- making coverage vs dist to obs plots')
+
+long.cov <- data.table(gather(d,
+                              target_cov,  ## name of NEW key col
+                              obs_cov,     ## name of NEW value col
+                              pix.cov.25:pix.cov.95, ## cols to convert from wide to long
+                              factor_key = TRUE))
+## get the coverages calculated
+nom.cov.names <- long.cov[,sort(unique(target_cov))] 
+nom.cov.vals <- as.numeric(gsub("[^0-9]", "",  nom.cov.names))/100
+## and assign the numeric coverage for the rows
+for(i in 1:length(nom.cov.names)){
+  long.cov[target_cov == nom.cov.names[i], n_target_cov := nom.cov.vals[i]]
+}
+
+## facet by observations
+long.cov.sum <-  summarySE(long.cov, measurevar="obs_cov",
+                           groupvars = c('obs.dist', 'model', 'n_target_cov'),
+                           conf.interval = cov.width)
+
+## add on some relevant lvid params and save to use in the combination validation plot
+long.cov.sum$lv.id     <- exp.lvid
+long.cov.sum$n.clust   <- n.clust
+long.cov.sum$nv        <- norm.var
+long.cov.sum$clust.var <- clust.var
+long.cov.sum$dl        <- data.lik
+long.cov.sum$fit_type  <- long.cov.sum$model
+## and save for validation
+write.csv(long.cov.sum, sprintf('%s/validation/experiment%04d_iter%04d_distance_coverage_summary.csv', out.dir, exp.lvid, exp.iter))
+
+## make a plot of coverage as function of distance
+## group the lines
+long.cov.sum$line_group <- paste(long.cov.sum$model, long.cov.sum$obs.dist, sep='_')
+
+pd <- position_dodge(0.05)
+gg.dist.cov <- ggplot(long.cov.sum,
+                      aes(x = n_target_cov, y = obs_cov,
+                          shape = model, 
+                          linetype = model,
+                          color = factor(obs.dist),
+                          group = line_group),
+                      position=position_jitter(w=0.02, h=0.02)) + 
+  #geom_errorbar(position=pd, aes(ymin = l.ci, ymax = u.ci), width = .025) +
+  geom_line(position=pd) +
+  geom_point(position=pd) +
+  geom_abline(intercept = 0, slope = 1) +
+  ##facet_wrap(. ~ n.clust, labeller = facet_labs) + 
+  ggtitle('Coverage vs Distance') +
+  ## fix the legends a bit
+  labs(color = "Pixels to Nearest Obs", shape='Fit Type', linetype='Fit Type') + ## legend titles
+  xlab('Nominal Coverage') + 
+  ylab('Observed Monte Carlo Coverage')
+
+if(interactive()){ ## then we can view
+  print(gg.dist.cov)
+}
+
+ggsave(sprintf('%s/validation/experiment%04d_iter%04d_plot_06_coverage_distance_to_obs.png', out.dir, exp.lvid, exp.iter),
+       plot = gg.dist.cov,
+       device = 'png', units = 'in',
+       width = 12, height = 8)
+
+## make some plots of coverage by GP magnitude
+message('-------- making coverage vs GP magnitude plots')
+
+## facet by observations
+long.cov.sum <-  summarySE(long.cov, measurevar="obs_cov",
+                           groupvars = c('gp.dec', 'model', 'n_target_cov'),
+                           conf.interval = cov.width)
+
+## add on some relevant lvid params and save to use in the combination validation plot
+long.cov.sum$lv.id     <- exp.lvid
+long.cov.sum$n.clust   <- n.clust
+long.cov.sum$nv        <- norm.var
+long.cov.sum$clust.var <- clust.var
+long.cov.sum$dl        <- data.lik
+long.cov.sum$fit_type  <- long.cov.sum$model
+## and save for validation
+write.csv(long.cov.sum, sprintf('%s/validation/experiment%04d_iter%04d_GP_magnitude_coverage_summary.csv', out.dir, exp.lvid, exp.iter))
+
+## make a plot of coverage as function of distance
+## group the lines
+long.cov.sum$line_group <- paste(long.cov.sum$model, long.cov.sum$gp.dec, sep='_')
+
+pd <- position_dodge(0.05)
+gg.mag.cov <- ggplot(long.cov.sum,
+                      aes(x = n_target_cov, y = obs_cov,
+                          shape = model, 
+                          linetype = model,
+                          color = factor(gp.dec),
+                          group = line_group),
+                      position=position_jitter(w=0.02, h=0.02)) + 
+  #geom_errorbar(position=pd, aes(ymin = l.ci, ymax = u.ci), width = .025) +
+  geom_line(position=pd) +
+  geom_point(position=pd) +
+  geom_abline(intercept = 0, slope = 1) +
+  ##facet_wrap(. ~ n.clust, labeller = facet_labs) + 
+  ggtitle('Coverage vs True GP Magnitude') +
+  ## fix the legends a bit
+  labs(color = "GP Decile", shape='Fit Type', linetype='Fit Type') + ## legend titles
+  xlab('Nominal Coverage') + 
+  ylab('Observed Monte Carlo Coverage')
+
+if(interactive()){ ## then we can view
+  print(gg.mag.cov)
+}
+
+ggsave(sprintf('%s/validation/experiment%04d_iter%04d_plot_07_coverage_gpMagnitude.png', out.dir, exp.lvid, exp.iter),
+       plot = gg.mag.cov,
+       device = 'png', units = 'in',
+       width = 12, height = 8)
+
 
 message('-------- making final table of summary metrics and scores')
 ## summarize across pixels
