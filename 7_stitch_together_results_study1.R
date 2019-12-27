@@ -27,7 +27,7 @@ library(tidyr)
 library(ggplot2)
 
 ## this script pulls together some overall results from an experiment run
-# main.dir.name <- main.dir.names <- c('2019_11_18_21_24_49') ## study 1
+# main.dir.name <- main.dir.names <- c('2019_12_18_23_25_42') ## study 1
 # main.dir.name <- main.dir.names <- c('2019_09_29_21_38_14') ## study 2
 
 ## source('/homes/azimmer/tmb_inla_comp/7_stitch_together_results_study1.R')
@@ -66,23 +66,40 @@ for(main.dir.name in main.dir.names){
         if(lvid==1 & iter==1){
           summary.metrics <- fread(sprintf('%s/validation/experiment%04d_iter%04d_summary_metrics.csv', 
                                            out.dir, lvid, iter))[,lvid:=lvid]
+          cov.gp   <- fread(sprintf('%s/validation/experiment%04d_iter%04d_GP_magnitude_coverage_summary.csv', 
+                                           out.dir, lvid, iter))[,lvid:=lvid]
+          cov.dist <- fread(sprintf('%s/validation/experiment%04d_iter%04d_distance_coverage_summary.csv', 
+                                           out.dir, lvid, iter))[,lvid:=lvid]
         }else{
           summary.metrics <- rbind(summary.metrics,
                                    fread(sprintf('%s/validation/experiment%04d_iter%04d_summary_metrics.csv', 
                                                  out.dir, lvid, iter))[,lvid:=lvid], fill=T)
+          cov.gp   <- rbind(cov.gp,
+                            fread(sprintf('%s/validation/experiment%04d_iter%04d_GP_magnitude_coverage_summary.csv', 
+                                          out.dir, lvid, iter))[,lvid:=lvid], fill = T)
+          cov.dist <- rbind(cov.dist,
+                            fread(sprintf('%s/validation/experiment%04d_iter%04d_distance_coverage_summary.csv', 
+                                          out.dir, lvid, iter))[,lvid:=lvid], fill = T)
         }
       } ## loading all iterations within
     }   ## all experiments
     
     ## save the combined metrics for the study 
-    write.csv(summary.metrics, file=sprintf('%sall_summary_metrics.csv', compar.dir))
+    write.csv(summary.metrics, file = sprintf('%sall_summary_metrics.csv', compar.dir))
+    write.csv(cov.gp, file = sprintf('%sall_gp_coverage_metrics.csv', compar.dir))
+    write.csv(cov.dist, file = sprintf('%sall_dist_coverage_metrics.csv', compar.dir))
+
     
     message('--summary metrics from all experiments and all iterations succesfully combined and saved')
  
   }else{
+    
     ## reload the prepped file
     message('--reloading in combined summary metrics')
     summary.metrics <- fread(sprintf('%sall_summary_metrics.csv', compar.dir))
+    cov.gp          <- fread(sprintf('%sall_gp_coverage_metrics.csv', compar.dir))
+    cov.dist        <- fread(sprintf('%sall_dist_coverage_metrics.csv', compar.dir))
+
   }
   
   message('summary metrics from all experiments and all iterations prepped and ready to go')

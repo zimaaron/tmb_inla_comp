@@ -90,8 +90,8 @@ params <- NULL
 if(!is.null(alpha)){ res[1, fe_int_mean := alpha]; params <- c(params, 'alpha')}
 if(!is.null(betas) & is.null(alpha)) { res[1, grep('fe.*med', colnames(res)) := betas]; params <- c(params, rep('beta', length(betas)))}
 if(!is.null(betas) & !is.null(alpha)){ res[1, grep('fe.*med', colnames(res))[-1] := betas]; params <- c(params, rep('beta', length(betas)))}
-if(!is.null(clust.var)) {res[1, clust_prec := 1 / clust.var];params <- c(params, 'clust.prec')}
-if(data.lik == 'normal') {res[1, gauss_prec := 1 / norm.var]; params <- c(params, 'gauss.prec')}
+if(!is.null(clust.var)) {res[1, clust_prec_mean:= 1 / clust.var];params <- c(params, 'clust.prec')}
+if(data.lik == 'normal') {res[1, gauss_prec_mean:= 1 / norm.var]; params <- c(params, 'gauss.prec')}
 res[1, matern_logtau_mean := log(sp.tau)]; params <- c(params, 'logtau')
 res[1, matern_logkappa_mean := log(sp.kappa)]; params <- c(params, 'logkappa')
 
