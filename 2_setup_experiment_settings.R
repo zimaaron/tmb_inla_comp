@@ -4,6 +4,9 @@
 
 message('---- ON SCRIPT 2: setup experiment settings')
 
+## to help with loading in arguments in loopvars
+options(stringsAsFactors = FALSE)
+
 ## Set core_repo location and tmb_repo loc
 user      <- Sys.info()['user']
 core_repo <- sprintf('/share/code/geospatial/%s/lbd_core/', user)
@@ -76,7 +79,7 @@ alpha           <- as.numeric(loopvars[exp.lvid, 6]);if(is.na(alpha)) alpha <- N
 sp.range        <- as.numeric(loopvars[exp.lvid, 7])
 sp.var          <- as.numeric(loopvars[exp.lvid, 8])
 sp.alpha        <- as.numeric(loopvars[exp.lvid, 9])
-clust.var         <- as.numeric(loopvars[exp.lvid, 10]);if(is.na(clust.var)) clust.var <- NULL
+clust.var       <- as.numeric(loopvars[exp.lvid, 10]);if(is.na(clust.var)) clust.var <- NULL
 
 t.rho           <- as.numeric(loopvars[exp.lvid, 11])
 mesh_s_params   <- as.character(loopvars[exp.lvid, 12])
@@ -94,15 +97,16 @@ clust.prec.pri    <- eval(parse(text = as.character(loopvars[exp.lvid, 19])))  #
 inla.int.strat  <- as.character(loopvars[exp.lvid, 20]) ## can be one of: 'eb', 'ccd', 'grid'
 
 inla.approx     <- as.character(loopvars[exp.lvid, 21]) ## can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
-l.tau.pri       <- NULL  ## taken from INLA spde mesh obj
-l.kap.pri       <- NULL  ## taken from INLA spde mesh obj
-Nsim <-  as.numeric(loopvars[exp.lvid, 22]) ## number of times to repeat simulation
-data.lik <- as.character(loopvars[exp.lvid, 23])
-norm.var  <-  as.numeric(loopvars[exp.lvid, 24])
-norm.prec.pri  <-  eval(parse(text = as.character(loopvars[exp.lvid, 25])))
+l.tau.pri     <- NULL  ## taken from INLA spde mesh obj
+l.kap.pri     <- NULL  ## taken from INLA spde mesh obj
+Nsim          <- as.numeric(loopvars[exp.lvid, 22]) ## number of times to repeat simulation
+data.lik      <- as.character(loopvars[exp.lvid, 23])
+norm.var      <- as.numeric(loopvars[exp.lvid, 24])
+norm.prec.pri <- eval(parse(text = as.character(loopvars[exp.lvid, 25])))
 
 bias.correct <- as.logical(loopvars[exp.lvid, 26])
-sd.correct <- as.logical(loopvars[exp.lvid, 27])
+sd.correct   <- as.logical(loopvars[exp.lvid, 27])
+matern.pri   <- eval(parse(text = as.character(loopvars[exp.lvid, 28]))) ## pc prior for matern
 
 
 ## TODO? add in some validation options? or maybe just always do them all

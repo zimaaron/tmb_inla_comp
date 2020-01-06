@@ -16,7 +16,7 @@
 exp.lvid      <- as.numeric(commandArgs()[4]) ## all we need is to grab which (i.e. row of loopvars),
 exp.iter      <- as.numeric(commandArgs()[5])  ## which monte carlo iteration,
 main.dir.name <- as.character(commandArgs()[6]) ## the run_date folder name
-## exp.iter <- exp.lvid <- 1;main.dir.name <- main.dir.names <- c('2019_11_18_21_24_49') ## study 1
+## exp.lvid <- 2; exp.iter <- 1; main.dir.name <- main.dir.names <- c('2019_11_18_21_24_49') ## study 1
 
 message(sprintf('ON EXPERIMENT LV ID: %04d', exp.lvid))
 message(sprintf('-- ON SIM ITER: %04d', exp.iter))

@@ -431,8 +431,8 @@ message('plotting coverage by gp decile')
 cov.width <- 0.5 ## set the coverage interval width
 for(ii in 1:loop.params[,.N]){
   
-  d.l <- loop.params[ii, dl]
-  n.v <- loop.params[ii, nv]
+  d.l <- dl <- loop.params[ii, dl]
+  n.v <- nv <- loop.params[ii, nv]
 
   ## make the plot title
   if(d.l == 'normal'){
@@ -468,7 +468,7 @@ for(ii in 1:loop.params[,.N]){
     geom_errorbar(position=pd, aes(ymin=l.ci, ymax=u.ci), width=.025) +
     geom_line(position=pd) +
     geom_point(position=pd, size=2) +
-    scale_colour_brewer(type='div', palette = 'RdYlBu') + ## RdYlBu, RdYlGn, Spectral
+    scale_colour_brewer(type='div', palette = 'RdYlBu', direction=-1) + ## RdYlBu, RdYlGn, Spectral
     geom_abline(intercept = 0, slope=1) +
     facet_grid(clust.var~n.clust, scales='free_y') +
     ggtitle(pt) +

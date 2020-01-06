@@ -3,5 +3,5 @@
 *~
 .nfs*
 .DS_STORE
-*.0
+*.o
 *.so

@@ -58,17 +58,18 @@ data_full <- list(num_i = nrow(dt),  # Total number of observations
                   norm_prec_pri = norm.prec.pri, ## gamma on log(prec)
                   clust_prec_pri = clust.prec.pri, ## gamma on log(prec)
                   alphaj_pri = alphaj.pri, ## normal
-                  logtau_pri = spde.theta1.pri, ## logtau: normal(mean, prec)
-                  logkappa_pri = spde.theta1.pri ## logkappa: normal(mean, prec)
+                  ## logtau_pri = spde.theta1.pri, ## logtau: normal(mean, prec)
+                  ## logkappa_pri = spde.theta1.pri ## logkappa: normal(mean, prec)
+                  matern_pri = matern.pri ## c(a, b, c, d): P(range < a) = b; P(sigma > c) = d
                   )
 
 ## Specify starting values for TMB parameters for GP
 tmb_params <- list(alpha = 0.0, # intercept
                    betas = rep(0, ncol(X_betas)), # cov effects
-                   log_obs_sigma = 0.0, # log(data sd) if using normal dist
+                   log_obs_sigma = -2, # log(data sd) if using normal dist
                    log_tau   = -1.0, # Log inverse of tau (Epsilon)
                    log_kappa = -1.0, # Matern range parameter
-                   log_clust_sigma = 0.0, # log of cluster sd
+                   log_clust_sigma = -2, # log of cluster sd
                    clust_i = rep(0, nrow(dt)), # vector of cluster random effects
                    Epsilon_s = matrix(0, nrow=nodes, ncol=1) # GP value at obs locs
                    )
@@ -145,6 +146,7 @@ if(class(opt0) == "try-error"){
                       bias.correct.control = list(sd = sd.correct)) 
   tmb_total_fit_time <- proc.time()[3] - ptm 
   tmb_sdreport_time <-  tmb_total_fit_time - fit_time_tmb
+  summary(SD0, 'report')
   
   ## ##########
   ## PREDICT ##
@@ -180,8 +182,10 @@ if(class(opt0) == "try-error"){
     if(!is.matrix(betas_tmb_draws)) betas_tmb_draws <- matrix(betas_tmb_draws, nrow = 1)
     log_kappa_tmb_draws <- tmb_draws[parnames == 'log_kappa',]
     log_tau_tmb_draws  <- tmb_draws[parnames == 'log_tau',]
-    log_clust_sigma_draws <- tmb_draws[parnames == 'log_clust_sigma', ]
-    log_gauss_sigma_draws <- tmb_draws[parnames == 'log_obs_sigma', ]
+    log_clust_sigma_tmb_draws <- tmb_draws[parnames == 'log_clust_sigma', ]
+    log_gauss_sigma_tmb_draws <- tmb_draws[parnames == 'log_obs_sigma', ]
+    sp_range_tmb_draws <- sqrt(8) / exp(log_kappa_tmb_draws)
+    sp_sigma_tmb_draws <- (4 * pi * exp(2*log_kappa_tmb_draws) * exp(2 * log_tau_tmb_draws)) ^ (-.5)
     
     ## values of S at each cell (long by nperiods)
     ## rows: pixels, cols: posterior draws

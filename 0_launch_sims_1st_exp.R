@@ -1,6 +1,6 @@
 ## this script can be used to launch 1_run_simulation.R in parallel on the IHME cluster
 ## written by aoz
-## 2019DEC18
+## 2020JAN03
 ## source('/homes/azimmer/tmb_inla_comp/0_launch_sims_1st_exp.R')
 
 ## DO THIS!
@@ -8,11 +8,11 @@
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
 'STUDY 01: vary number of clusters, cluster effect, and normal data variance. 
-TRIAL 21: testing new starting values. to see if they help with tmb not converging. also saving extra summary objects to make coverage by gp magnitude and coverage by distance to data plots.'
+TRIAL 22: testing new pc.prior for matern'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
-extra.job.name <- 'study01trial21'
+extra.job.name <- 'study01trial22'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -147,7 +147,7 @@ alphaj.pri <- "c(0, 3)" ## N(mean, sd)
 
 ## loopvars 19: pc.prior on clust RE precision
 ## (u, a) s.t. P(1/sqrt(prec) > u) = a, i.e. P(SD > u) = a
-clust.prec.pri <- "c(1, .01)" 
+clust.prec.pri <- "c(.5, .05)" 
 
 ## loopvars 20: INLA hyperparam integration strategy. can be 'eb', 'ccd', or 'grid'
 inla.int.strat <- c('eb')
@@ -173,6 +173,12 @@ bias.correct <- c(TRUE)
 
 ## loopvars 27: perform sd correction. NOTE!! for TMB only
 sd.correct <- c(TRUE)
+
+## loopvars 28: pc.prior on spde parameters
+## c(a, b, c, d), where
+## P(sp.range < a) = b
+## P(sp.sigma > c) = d
+matern.pri <- "c(10, .95, 1., .05)" ## a, b, c, d
 
 ## TODO always add all vars to exand.grid()
 ## NOTE: I use a named list here to ensure the columns in loopvars are named
@@ -202,7 +208,8 @@ loopvars <- data.table(expand.grid(list(reg = reg, ## 1
                              norm.var = norm.var,
                              norm.prec.pri = norm.prec.pri, ## 25
                              bias.correct = bias.correct,
-                             sd.correct = sd.correct)))
+                             sd.correct = sd.correct,
+                             matern.pri)))
 
 ## drop wasteful combinations that don't need to be run
 

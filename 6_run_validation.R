@@ -41,59 +41,78 @@ res[, convergence.fails := c(inla.converge.fails, tmb.converge.fails)]
 
 ## fe coefficients
 if(!is.null(alpha) | !is.null(betas)){
-  res[, paste0('fe_',res_fit$names.fixed,'_mean') := as.data.frame(rbind(res_fit$summary.fixed$mean, SD0$par.fixed[1:length(res_fit$names.fixed)]))]
-  res[, paste0('fe_',res_fit$names.fixed,'_sd')   := as.data.frame(rbind(res_fit$summary.fixed$sd, sqrt(diag(SD0$cov.fixed))[1:length(res_fit$names.fixed)]))]
+  res[, paste0('fe_',res_fit$names.fixed,'_mean') := 
+        as.data.frame(rbind(res_fit$summary.fixed$mean, SD0$par.fixed[1:length(res_fit$names.fixed)]))]
+  res[, paste0('fe_',res_fit$names.fixed,'_sd')   := 
+        as.data.frame(rbind(res_fit$summary.fixed$sd, sqrt(diag(SD0$cov.fixed))[1:length(res_fit$names.fixed)]))]
 }
 
 ## cluster var
 if(!is.null(clust.var)){
-  inla.var <- 1/res_fit$summary.hyperpar[grep('clust.id',rownames(res_fit$summary.hyperpar)),4]
+  inla.var <- 1/res_fit$summary.hyperpar[grep('clust.id',rownames(res_fit$summary.hyperpar)),'0.5quant']
   tmb.var  <- 1/SD0$value[grep('clust_prec', names(SD0$value))]
   res[,clust_var_mean := unname(c(inla.var, tmb.var))]
   ## apply delta method. var(f(x)) = var(x)*f'(x)^2 -> var(1/prec)  = var(prec)* (-1/prec^2)^2 = var(prec)/prec^4 = sd(prec)/prec^2
-  res[,clust_var_sd := c(res_fit$summary.hyperpar[grep('clust.id',rownames(res_fit$summary.hyperpar)),2] * inla.var^2,
-                             sqrt( SD0$cov[grep('clust_prec', names(SD0$value)), grep('clust_prec', names(SD0$value))]) * tmb.var^2) ]
+  res[,clust_var_sd := c(res_fit$summary.hyperpar[grep('clust.id',
+                                                       rownames(res_fit$summary.hyperpar)), 'sd'] * inla.var^2,
+                         SD0$sd[grep('clust_prec', names(SD0$value))] * tmb.var^2) ]
 }
 
 ## normal data obs var
 if(data.lik == 'normal'){
-  inla.var <- 1/res_fit$summary.hyperpar[grep('Gaussian',rownames(res_fit$summary.hyperpar)),4]
+  inla.var <- 1/res_fit$summary.hyperpar[grep('Gaussian',rownames(res_fit$summary.hyperpar)),'0.5quant']
   tmb.var  <- 1/SD0$value[grep('gauss_prec', names(SD0$value))]
   res[,gauss_var_mean := unname(c(inla.var, tmb.var))]
   ## apply delta method. var(f(x)) = var(x)*f'(x)^2 -> var(1/prec)  = var(prec)* (-1/prec^2)^2 = var(prec)/prec^4
-  res[,gauss_var_sd := c(res_fit$summary.hyperpar[grep('Gaussian',rownames(res_fit$summary.hyperpar)),2] * inla.var^2,
-                             sqrt(SD0$cov[grep('gauss_prec', names(SD0$value)), grep('gauss_prec', names(SD0$value))]) * tmb.var^2) ]
+  res[,gauss_var_sd := c(res_fit$summary.hyperpar[grep('Gaussian',
+                                                       rownames(res_fit$summary.hyperpar)), 'sd'] * inla.var^2,
+                             SD0$sd[grep('gauss_prec', names(SD0$value))] * tmb.var^2) ]
 }
 
 ## hyperparameters
-inla.log.tau <- res_fit$summary.hyperpar[grep('Theta1',rownames(res_fit$summary.hyperpar)),4]
-tmb.log.tau  <- SD0$par.fixed['log_tau']
-res[,matern_logtau_mean := unname(c(inla.log.tau, tmb.log.tau))]
-res[,matern_logtau_sd := c(res_fit$summary.hyperpar[grep('Theta1',rownames(res_fit$summary.hyperpar)),2],
-                             sqrt(SD0$cov.fixed['log_tau','log_tau'])) ]
+# inla.log.tau <- res_fit$summary.hyperpar[grep('Theta1',rownames(res_fit$summary.hyperpar)),4]
+# tmb.log.tau  <- SD0$par.fixed['log_tau']
+# res[,matern_logtau_mean := unname(c(inla.log.tau, tmb.log.tau))]
+# res[,matern_logtau_sd := c(res_fit$summary.hyperpar[grep('Theta1',rownames(res_fit$summary.hyperpar)),2],
+#                              sqrt(SD0$cov.fixed['log_tau','log_tau'])) ]
+# 
+# inla.log.kappa <- res_fit$summary.hyperpar[grep('Theta2',rownames(res_fit$summary.hyperpar)),4]
+# tmb.log.kappa  <- SD0$par.fixed['log_kappa']
+# res[,matern_logkappa_mean := unname(c(inla.log.kappa, inla.log.tau)) ]
+# res[,matern_logkappa_sd := c(res_fit$summary.hyperpar[grep('Theta2',rownames(res_fit$summary.hyperpar)),2],
+#                                sqrt(SD0$cov.fixed['log_kappa','log_kappa'])) ]
 
-inla.log.kappa <- res_fit$summary.hyperpar[grep('Theta2',rownames(res_fit$summary.hyperpar)),4]
-tmb.log.kappa  <- SD0$par.fixed['log_kappa']
-res[,matern_logkappa_mean := unname(c(inla.log.kappa, inla.log.tau)) ]
-res[,matern_logkappa_sd := c(res_fit$summary.hyperpar[grep('Theta2',rownames(res_fit$summary.hyperpar)),2],
-                               sqrt(SD0$cov.fixed['log_kappa','log_kappa'])) ]
+inla.sp.range <- res_fit$summary.hyperpar[grep('Range for space',
+                                               rownames(res_fit$summary.hyperpar)), '0.5quant']
+tmb.sp.range  <- SD0$value['sp_range']
+res[,matern_range_mean := unname(c(inla.sp.range, tmb.sp.range))]
+res[,matern_range_sd := c(res_fit$summary.hyperpar[grep('Range for space',
+                                                        rownames(res_fit$summary.hyperpar)),'sd'],
+                          SD0$sd[which(names(SD0$value)=='sp_range')]) ]
 
-## TODO and their transformations
-## res[,matern_range_mean := unname(c(,))]
-## res[,matern_var_mean   := unname(c(,))]
-      
+inla.sp.sigma <- res_fit$summary.hyperpar[grep('Stdev for space',rownames(res_fit$summary.hyperpar)),'0.5quant']
+tmb.sp.sigma  <- SD0$value['sp_sigma']
+res[,matern_sigma_mean := unname(c(inla.sp.sigma, tmb.sp.sigma))]
+res[,matern_sigma_sd := c(res_fit$summary.hyperpar[grep('Stdev for space',
+                                                        rownames(res_fit$summary.hyperpar)),'sd'],
+                          SD0$sd[which(names(SD0$value)=='sp_sigma')]) ]
+
 ## add extra row to filled with the truth
 res <- rbind(lapply(1:ncol(res), function(x){NA}), res)
 
 ## slot in the truth and also make a list of all params in the model
 params <- NULL
 if(!is.null(alpha)){ res[1, fe_int_mean := alpha]; params <- c(params, 'alpha')}
-if(!is.null(betas) & is.null(alpha)) { res[1, grep('fe.*med', colnames(res)) := betas]; params <- c(params, rep('beta', length(betas)))}
-if(!is.null(betas) & !is.null(alpha)){ res[1, grep('fe.*med', colnames(res))[-1] := betas]; params <- c(params, rep('beta', length(betas)))}
-if(!is.null(clust.var)) {res[1, clust_prec_mean:= 1 / clust.var];params <- c(params, 'clust.prec')}
+if(!is.null(betas) & is.null(alpha)) { 
+  res[1, grep('fe.*med', colnames(res)) := betas]
+  params <- c(params, rep('beta', length(betas)))}
+if(!is.null(betas) & !is.null(alpha)) {
+  res[1, grep('fe.*med', colnames(res))[-1] := betas]
+  params <- c(params, rep('beta', length(betas)))}
+if(!is.null(clust.var)) {res[1, clust_prec_mean:= 1 / clust.var]; params <- c(params, 'clust.prec')}
 if(data.lik == 'normal') {res[1, gauss_prec_mean:= 1 / norm.var]; params <- c(params, 'gauss.prec')}
-res[1, matern_logtau_mean := log(sp.tau)]; params <- c(params, 'logtau')
-res[1, matern_logkappa_mean := log(sp.kappa)]; params <- c(params, 'logkappa')
+res[1, matern_range_mean := sp.range];     params <- c(params, 'sp.range')
+res[1, matern_sigma_mean := sqrt(sp.var)]; params <- c(params, 'sp.sigma')
 
 
 rr <- data.table(item=colnames(res))
@@ -129,7 +148,7 @@ dev.off()
 ## also get coverage for params
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 message('------ plotting priors and posteriors')
-message('------ also getting coverage for each param')
+message('------- (while also getting coverage for each param)')
 
 ## assume:
 ## 1) alphas are normal
@@ -218,10 +237,14 @@ for(ii in 1:num.dists){
     prior.sd   <- 1 / sqrt(prior.prec)
 
     tmb.post.draws  <- log_kappa_tmb_draws
-    inla.post.draws <- base::sample(x = res_fit$marginals.hyperpar[['Theta2 for space']][, 1],
-                                    size = ndraws,
-                                    replace = TRUE, 
-                                    res_fit$marginals.hyperpar[['Theta2 for space']][, 2])
+    inla.post.dist  <- res_fit$marginals.hyperpar[['Theta2 for space']]
+    ## to sample from the approximate posterior, we need to get the discrete probabilities for each x-value. we do this by assuming an approximate rectangle
+    inla.post.dist.widths <- diff(inla.post.dist[,1])
+    inla.post.dist.widths <- c(inla.post.dist.widths[1] / 2,
+                               (inla.post.dist.widths[-length(inla.post.dist.widths)] + inla.post.dist.widths[-1])/2,
+                               inla.post.dist.widths[length(inla.post.dist.widths)]/2)
+    inla.post.dist.probs <- inla.post.dist.widths * inla.post.dist[,2] ## width * pdf heigh approx= prob
+    inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
 
     ## get a safe range for plotting, and get the prior
     xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
@@ -235,6 +258,7 @@ for(ii in 1:num.dists){
     inla.post.median <- median(inla.post.draws)
     param.name <- "log kappa"
   }
+  
   if(param == 'logtau'){
 
     true.val <- logtau
@@ -245,10 +269,14 @@ for(ii in 1:num.dists){
     prior.sd   <- 1 / sqrt(prior.prec)
     
     tmb.post.draws <- log_tau_tmb_draws
-    inla.post.draws <- base::sample(x = res_fit$marginals.hyperpar[['Theta1 for space']][, 1],
-                                    size = ndraws,
-                                    replace = TRUE, 
-                                    res_fit$marginals.hyperpar[['Theta1 for space']][, 2])
+    inla.post.dist  <- res_fit$marginals.hyperpar[['Theta1 for space']]
+    ## to sample from the approximate posterior, we need to get the discrete probabilities for each x-value. we do this by assuming an approximate rectangle
+    inla.post.dist.widths <- diff(inla.post.dist[,1])
+    inla.post.dist.widths <- c(inla.post.dist.widths[1] / 2,
+                               (inla.post.dist.widths[-length(inla.post.dist.widths)] + inla.post.dist.widths[-1])/2,
+                               inla.post.dist.widths[length(inla.post.dist.widths)]/2)
+    inla.post.dist.probs <- inla.post.dist.widths * inla.post.dist[,2] ## width * pdf heigh approx= prob
+    inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
 
     ## get a safe range for plotting, and get the prior
     xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
@@ -261,6 +289,87 @@ for(ii in 1:num.dists){
     inla.post.median <- median(inla.post.draws)
     param.name <- "log tau"
   }
+  
+  if(param == 'sp.range'){
+    
+    true.val <- sp.range
+    
+    all.hyper <- inla_all_hyper_postprocess(res_fit$all.hyper)
+    hyper   <- res_fit$marginals.hyperpar
+    hyp.id  <- grep('Range for space', names(hyper))
+    id <- unlist(strsplit(attr(hyper[[hyp.id]], "hyperid"), "\\|"))
+    prior <- INLA:::inla.extract.prior(tolower(id[2]), id[1], all.hyper)
+    l1 <- INLA:::inla.extract.prior(id[2], id[1], all.hyper)$param[1]
+    l2 <- INLA:::inla.extract.prior(id[2], id[1], all.hyper)$param[2]
+    d <- INLA:::inla.extract.prior(id[2], id[1], all.hyper)$param[3]
+    
+    # calculate pc priors as done in the Fuglstad 2017 paper
+    calc_pc_prior_ranges <- function(ranges){
+      d/2 * l1 * ranges^(-d/2 - 1) * exp(-l1 * ranges^(-d/2))
+    }
+    
+    tmb.post.draws  <- sp_range_tmb_draws
+    inla.post.dist  <- res_fit$marginals.hyperpar[['Range for space']]
+    ## to sample from the approximate posterior, we need to get the discrete probabilities for each x-value. we do this by assuming an approximate rectangle
+    inla.post.dist.widths <- diff(inla.post.dist[,1])
+    inla.post.dist.widths <- c(inla.post.dist.widths[1] / 2,
+                               (inla.post.dist.widths[-length(inla.post.dist.widths)] + inla.post.dist.widths[-1])/2,
+                               inla.post.dist.widths[length(inla.post.dist.widths)]/2)
+    inla.post.dist.probs <- inla.post.dist.widths * inla.post.dist[,2] ## width * pdf heigh approx= prob
+    inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
+    
+    ## get a safe range for plotting, and get the prior
+    xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
+                            probs=c(.0001, .9999)) ## avoid crazy extremes
+    if(xlim[1] == -Inf) xlim[1] <- -1000; if(xlim[2] == +Inf) xlim[2] <- +1000 
+    x.prior    <- seq(xlim[1], xlim[2], len = 1000)
+    y.prior    <- calc_pc_prior_ranges(x.prior)
+    
+    tmb.post.median  <- median(tmb.post.draws)
+    inla.post.median <- median(inla.post.draws)
+    param.name <- "Matern range"
+  }
+  
+  if(param == 'sp.sigma'){
+    
+    true.val <- sqrt(sp.var)
+    
+    ## we get the params from the joint pcmatern using the range, even though this is for the sigma/stdev
+    all.hyper <- inla_all_hyper_postprocess(res_fit$all.hyper)
+    hyper   <- res_fit$marginals.hyperpar
+    hyp.id  <- grep('Range for space', names(hyper))
+    id <- unlist(strsplit(attr(hyper[[hyp.id]], "hyperid"), "\\|"))
+    prior <- INLA:::inla.extract.prior(tolower(id[2]), id[1], all.hyper)
+    l1 <- INLA:::inla.extract.prior(id[2], id[1], all.hyper)$param[1]
+    l2 <- INLA:::inla.extract.prior(id[2], id[1], all.hyper)$param[2]
+    d <- INLA:::inla.extract.prior(id[2], id[1], all.hyper)$param[3]
+    
+    calc_pc_prior_sigmas <- function(sigmas){
+      l2 * exp(- l2 * sigmas)
+    }
+    
+    tmb.post.draws  <- sp_sigma_tmb_draws
+    inla.post.dist  <- res_fit$marginals.hyperpar[['Stdev for space']]
+    ## to sample from the approximate posterior, we need to get the discrete probabilities 
+    ## for each x-value. we do this by assuming an approximate rectangle
+    inla.post.dist.widths <- diff(inla.post.dist[,1])
+    inla.post.dist.widths <- c(inla.post.dist.widths[1] / 2,
+                               (inla.post.dist.widths[-length(inla.post.dist.widths)] + inla.post.dist.widths[-1])/2,
+                               inla.post.dist.widths[length(inla.post.dist.widths)]/2)
+    inla.post.dist.probs <- inla.post.dist.widths * inla.post.dist[,2] ## width * pdf heigh approx= prob
+    inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
+    
+    ## get a safe range for plotting, and get the prior
+    xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
+                            probs=c(.0001, .9999)) ## avoid crazy extremes
+    if(xlim[1] == -Inf) xlim[1] <- -1000; if(xlim[2] == +Inf) xlim[2] <- +1000 
+    x.prior    <- seq(xlim[1], xlim[2], len = 1000)
+    y.prior    <- calc_pc_prior_sigmas(x.prior)
+    
+    tmb.post.median  <- median(tmb.post.draws)
+    inla.post.median <- median(inla.post.draws)
+    param.name <- "Matern sigma"
+  }
   if(param == 'gauss.prec'){
 
     true.val <- 1 / norm.var
@@ -268,30 +377,40 @@ for(ii in 1:num.dists){
     prior.u  <- norm.prec.pri[1]
     prior.a <- norm.prec.pri[2]
     
-    tmb.post.draws <- 1 / exp(log_gauss_sigma_draws * 2)
-    inla.post.draws <- base::sample(x = res_fit$marginals.hyperpar[['Precision for the Gaussian observations']][, 1],
-                                    size = ndraws,
-                                    replace = TRUE, 
-                                    res_fit$marginals.hyperpar[['Precision for the Gaussian observations']][, 2])
+    tmb.post.draws <- 1 / exp(log_gauss_sigma_tmb_draws * 2)
+    inla.post.dist  <- res_fit$marginals.hyperpar[['Precision for the Gaussian observations']]
+    ## to sample from the approximate posterior, we need to get the discrete probabilities 
+    ## for each x-value. we do this by assuming an approximate rectangle
+    inla.post.dist.widths <- diff(inla.post.dist[,1])
+    inla.post.dist.widths <- c(inla.post.dist.widths[1] / 2,
+                               (inla.post.dist.widths[-length(inla.post.dist.widths)] + inla.post.dist.widths[-1])/2,
+                               inla.post.dist.widths[length(inla.post.dist.widths)]/2)
+    inla.post.dist.probs <- inla.post.dist.widths * inla.post.dist[,2] ## width * pdf heigh approx= prob
+    inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
 
     if(true.val==Inf) {
       ## get a safe range for plotting, and get the prior
       xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws),
-                              probs=c(.0001, .9999)) ## avoid crazy extremes
+                              probs=c(.0001, .95)) ## avoid crazy extremes
     }else{
       ## get a safe range for plotting, and get the prior
       xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
-                              probs=c(.0001, .9999)) ## avoid crazy extremes
+                              probs=c(.0001, .95)) ## avoid crazy extremes
       xlim <- range(c(xlim, true.val))
     }
-    if(xlim[1] == -Inf) xlim[1] <- -1000; if(xlim[2] == +Inf) xlim[2] <- +1000 
+    if(xlim[1] == -Inf) xlim[1] <- -1000
+    if(xlim[2] == +Inf) xlim[2] <- +1000 
+    
+    ## this posterior can have crazy long right tail... 
+    ## for visualization purposes, we set the max xlim to be 5x the true.val
+    if(xlim[2] > 5*true.val){xlim[2] <- 5*true.val}
     
     x.prior <- seq(xlim[1], xlim[2], len = 1000)
     y.prior <- dPCPriPrec(x.prior, u = prior.u, a=prior.a, give_log = 0)
     
     tmb.post.median <- median(tmb.post.draws)
     inla.post.median <- median(inla.post.draws)
-    param.name <- "log gauss prec"
+    param.name <- "Gauss prec"
   }
   if(param == 'clust.prec'){
 
@@ -300,11 +419,16 @@ for(ii in 1:num.dists){
     prior.u <- clust.prec.pri[1]
     prior.a <- clust.prec.pri[2]
 
-    tmb.post.draws <- 1 / exp(log_clust_sigma_draws * 2)
-    inla.post.draws <- base::sample(x = res_fit$marginals.hyperpar[[names(res_fit$marginals.hyperpar)[grep('clust.id', names(res_fit$marginals.hyperpar))]]][, 1],
-                                    size = ndraws,
-                                    replace = TRUE, 
-                                    res_fit$marginals.hyperpar[[names(res_fit$marginals.hyperpar)[grep('clust.id', names(res_fit$marginals.hyperpar))]]][, 2])
+    tmb.post.draws <- 1 / exp(log_clust_sigma_tmb_draws * 2)
+    inla.post.dist  <- res_fit$marginals.hyperpar[[grep('clust.id', names(res_fit$marginals.hyperpar))]]
+    ## to sample from the approximate posterior, we need to get the discrete probabilities 
+    ## for each x-value. we do this by assuming an approximate rectangle
+    inla.post.dist.widths <- diff(inla.post.dist[,1])
+    inla.post.dist.widths <- c(inla.post.dist.widths[1] / 2,
+                               (inla.post.dist.widths[-length(inla.post.dist.widths)] + inla.post.dist.widths[-1])/2,
+                               inla.post.dist.widths[length(inla.post.dist.widths)]/2)
+    inla.post.dist.probs <- inla.post.dist.widths * inla.post.dist[,2] ## width * pdf heigh approx= prob
+    inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
     
     ## get a safe range for plotting, and get the prior
     xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
@@ -315,7 +439,22 @@ for(ii in 1:num.dists){
     
     tmb.post.median <- median(tmb.post.draws)
     inla.post.median <- median(inla.post.draws)
-    param.name <- "log clust prec"
+    param.name <- "clust prec"
+    
+    # ## test pc.prec.priors
+    # prior.u <- c(.1, .25, .5, .75, 1)
+    # prior.a <- c(.01, .05, .1, .25, .5)
+    # par(mfrow=c(length(prior.u), length(prior.a)), mar= c(5, 4, 4, 2) + .1)
+    # for(uu in prior.u){
+    #   for(aa in prior.a){
+    #     x <- seq(0, 200, len=1000)
+    #     y <- dPCPriPrec(x, u=uu, a=aa)
+    #     plot(x, y, main = sprintf('u = %0.3f || a = %0.3f', uu, aa))
+    #     abline(v=100, col = 'red')
+    #   }
+    # }
+    
+    
   }
 
   ## get posterior samples (we'll use density curves)
@@ -611,6 +750,21 @@ d$obs.dist <- rep(min.obs.dist, 2)
 ## break gp magnitude into deciles
 gp.dec1 <- dplyr::ntile(d[1:(.N/2),truth], 10)
 d[,gp.dec := rep(gp.dec1, 2)]
+
+
+## TODO 
+## TODO
+## start after ultimate
+
+
+## make sure the decile is working
+par(mfrow=c(1, 2))
+plot(true.rast)
+plot(true.rast)
+for(i in 1:10){
+  dec.pts <- d[(.N/2+1):.N, which(gp.dec == i)]
+  points(pix.pts.numeric[dec.pts,], col=rev(brewer.pal(n=10, name='RdYlBu'))[i], pch=16)
+}
 
 ## get some coverage probs
 coverage_probs <- c(25, 50, 80, 90, 95)

@@ -149,7 +149,7 @@ points(dt.coords, col = 'red', pch = '.')
 dev.off()
 
 nodes <- mesh_s$n ## get number of mesh nodes
-spde <- inla.spde2.matern(mesh_s, alphac = 2)
+## spde <- inla.spde2.matern(mesh_s, alphac = 2)
 ## TODO - if we move to pc priors, need to adjust draws, plots, and validation
 ##        bc inla produce range and variance (not theta1,2) by default when using PC
 # spde <- inla.spde2.pcmatern(mesh = mesh_s, 
@@ -161,6 +161,10 @@ spde <- inla.spde2.matern(mesh_s, alphac = 2)
 ## M_2 = M_1M_0^{-1}M_1
 ## Where the Ms are all sparse matrices stored as "dgTMatrix"
 ## names(spde$param.inla)
+spde <- inla.spde2.pcmatern(mesh=mesh_s, alpha =2,
+                            ## constr = TRUE, integrate-to-zero constraint
+                            prior.range = matern.pri[1:2],
+                            prior.sigma = matern.pri[3:4])
 
 ## use inla helper functions to project the spatial effect from mesh points to data points
 A.proj <- inla.spde.make.A(mesh  = mesh_s,
@@ -172,6 +176,7 @@ saveRDS(file = sprintf('%s/modeling/inputs/experiment%04d_iter%04d_mesh.rds', ou
 saveRDS(file = sprintf('%s/modeling/inputs/experiment%04d_iter%04d_spde.rds', out.dir, exp.lvid, exp.iter), spde)
 
 ## now that the mesh is made, we can grab the default priors that it generates
+## only needed for non-pc matern priors
 mesh.info <- param2.matern.orig(mesh_s)
 ## theta1 = log(tau). The prior on theta1 is:   log(tau)   ~ Normal(mean, var)
 spde.theta1.pri <- c(mesh.info$theta.prior.mean[1], mesh.info$theta.prior.prec[1, 1])

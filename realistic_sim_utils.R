@@ -984,3 +984,55 @@ rasterize_check_coverage <- function(shapes, template_raster, field, ..., link_t
 }
 
 
+## inla_all_hyper_postprocess() ################################################
+#' @title inla_all_hyper_postprocess
+#' @description Postprocess multivariate normal hyperparameters to get thier
+#' normal marginals
+#' @param all.hyper hyper parameters from inla fit ex: inla.result$all.hyper
+#' @return updated hyperparameter object
+#' @rdname inla_all_hyper_postprocess
+
+inla_all_hyper_postprocess <- function(all.hyper){
+  ## postprocess all.hyper, by converting and replacing prior = 'mvnorm' into
+  ## p marginals. this is for the spde-models
+  
+  len.n <- function(param, max.dim = 10000){
+    len <- function(n) {
+      return (n + n^2)
+    }
+    
+    len.target <- length(param)
+    for(n in 1:max.dim) {
+      if (len(n) == len.target) {
+        return(n)
+      }
+    }
+    stop(paste("length(param) is wrong:", len.target))
+  }
+  
+  get.mvnorm.marginals = function(param){
+    n <- len.n(param)
+    mu <- param[1:n]
+    Q <- matrix(param[-(1:n)], n, n)
+    Sigma <- solve((Q + t(Q))/2.)
+    return(list(mean = mu, prec = 1/diag(Sigma)))
+  }
+  
+  for (i in seq_along(all.hyper$random)) {
+    for(j in seq_along(all.hyper$random[[i]]$hyper)) {
+      
+      if (all.hyper$random[[i]]$hyper[[j]]$prior == "mvnorm") {
+        ## replace this one, and the p-following ones, with its marginals
+        m <- get.mvnorm.marginals(all.hyper$random[[i]]$hyper[[j]]$param)
+        for(k in 1:length(m$mean)) {
+          kk <- j + k - 1
+          all.hyper$random[[i]]$hyper[[kk]]$prior <- "normal"
+          all.hyper$random[[i]]$hyper[[kk]]$param <- c(m$mean[k], m$prec[k])
+        }
+      }
+    }
+  }
+  
+  return (all.hyper)
+}
+

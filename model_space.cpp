@@ -52,9 +52,38 @@ Type dPCPriPrec(Type tau, Type u, Type a, int give_log=0)
   if(give_log)return logres; else return exp(logres);
 }
 
+template<class Type>
+Type dPCPriSPDE(Type logtau, Type logkappa,
+                Type matern_par_a, Type matern_par_b, 
+                Type matern_par_c, Type matern_par_d,
+                //vector<Type> matern_pri(4),
+                int give_log=0)
+{
+  
+  // matern_pri = c(a, b, c, d): P(range < a) = b; P(sigma > c) = d
+  
+  Type penalty; // prior contribution to jnll
+  
+  Type d = 2.;  // dimension
+  Type lambda1 = -log(matern_par_b) * pow(matern_par_a, d/2.);
+  Type lambda2 = -log(matern_par_d) / matern_par_c;
+  Type range   = sqrt(8.0) / exp(logkappa);
+  Type sigma   = 1.0 / sqrt(4.0 * 3.14159265359 * exp(2.0 * logtau) * exp(2.0 * logkappa));
+  
+  penalty = (-d/2. - 1.) * log(range) - lambda1 * pow(range, -d/2.) - lambda2 * sigma;
+  // Note: (rho, sigma) --> (x=log kappa, y=log tau) -->
+  //  transforms: rho = sqrt(8)/e^x & sigma = 1/(sqrt(4pi)*e^x*e^y)
+  //  --> Jacobian: |J| propto e^(-y -2x)
+  Type jacobian = - logtau - 2.0*logkappa;
+  penalty += jacobian;
+  
+  if(give_log)return penalty; else return exp(penalty);
+}
 
-
-// our main function
+///////////////////////////
+// our main function     //
+// to calculate the jnll //
+///////////////////////////
 template<class Type>
 Type objective_function<Type>::operator() ()
 {
@@ -99,9 +128,13 @@ Type objective_function<Type>::operator() ()
   DATA_VECTOR( norm_prec_pri );
   DATA_VECTOR( clust_prec_pri );
   DATA_VECTOR( alphaj_pri );
-  DATA_VECTOR( logtau_pri );
-  DATA_VECTOR( logkappa_pri );
-
+  // DATA_VECTOR( logtau_pri );
+  // DATA_VECTOR( logkappa_pri );
+  DATA_VECTOR( matern_pri);   // matern_pri = c(a, b, c, d): P(range < a) = b; P(sigma > c) = d
+  Type matern_par_a = matern_pri[0]; // range limit:    rho0
+  Type matern_par_b = matern_pri[1]; // range prob:     alpha_rho
+  Type matern_par_c = matern_pri[2]; // field sd limit: sigma0
+  Type matern_par_d = matern_pri[3]; // field sd prob:  alpha_sigma
 
   // Fixed effects
   PARAMETER( alpha );            // Intercept
@@ -109,7 +142,7 @@ Type objective_function<Type>::operator() ()
   PARAMETER( log_obs_sigma);     // if using normal likelihood, sd of single normal obs
   PARAMETER( log_tau );          // Log of INLA tau param (precision of space covariance matrix)
   PARAMETER( log_kappa );        // Log of INLA kappa (related to spatial correlation and range)
-  PARAMETER( log_clust_sigma ); // Log of SD for cluster RE
+  PARAMETER( log_clust_sigma );  // Log of SD for cluster RE
   PARAMETER_VECTOR( clust_i );    // random effect estimate for each cluster observation
   
   // Random effects
@@ -134,11 +167,12 @@ Type objective_function<Type>::operator() ()
   SparseMatrix<Type> Q_ss = spde_Q(log_kappa, log_tau, M0, M1, M2);
 
   // Transform some of our parameters
-  Type range = sqrt(8.0) / exp(log_kappa);
-  Type sigma = 1.0 / sqrt(4.0 * 3.14159265359 * exp(2.0 * log_tau) * exp(2.0 * log_kappa));
-  Type clust_sigma  = exp(log_clust_sigma);
-  Type log_clust_prec = -2.0 * log_clust_sigma;
-  Type log_gauss_prec = -2.0 * log_obs_sigma;
+  Type sp_range = sqrt(8.0) / exp(log_kappa);
+  Type sp_sigma = 1.0 / sqrt(4.0 * 3.14159265359 * exp(2.0 * log_tau) * exp(2.0 * log_kappa));
+  Type clust_sigma = exp(log_clust_sigma);
+  Type gauss_sigma = exp(log_obs_sigma); 
+  // Type log_clust_prec = -2.0 * log_clust_sigma; // needed if using non-pc prior
+  // Type log_gauss_prec = -2.0 * log_obs_sigma;   // needed if using non-pc prior
   Type clust_prec = exp(-2.0 * log_clust_sigma);
   Type gauss_prec = exp(-2.0 * log_obs_sigma);
     
@@ -211,8 +245,11 @@ Type objective_function<Type>::operator() ()
   if(options[1] == 1) {
     
     // add in priors for spde gp
-    jnll -= dnorm(log_tau,   logtau_pri[0], sqrt(1/logtau_pri[1]), true);     // N(mean, sd) prior for logtau
-    jnll -= dnorm(log_kappa, logkappa_pri[0], sqrt(1/logkappa_pri[1]), true); // N(mean, sd) prior for logkappa
+    // jnll -= dnorm(log_tau,   logtau_pri[0], sqrt(1/logtau_pri[1]), true);     // N(mean, sd) prior for logtau
+    // jnll -= dnorm(log_kappa, logkappa_pri[0], sqrt(1/logkappa_pri[1]), true); // N(mean, sd) prior for logkappa
+    jnll -= dPCPriSPDE(log_tau, log_kappa,
+                       matern_par_a, matern_par_b, matern_par_c, matern_par_d,
+                       true);
     
     // prior for intercept
     if(options[2] == 1){
@@ -228,11 +265,13 @@ Type objective_function<Type>::operator() ()
     
     // prior for log(cluster RE prec)
     if(options[4] == 1){
+
+      // pc.prior on precision
+      jnll -= dPCPriPrec(clust_prec, clust_prec_pri[0], clust_prec_pri[1], true); //type2gumbel. P(1/sqrt(prec)>u)=a
+      
       // in tmb, log(X)~logGamma(shape, scale) where X~Gamma(shape, scale)
       // almost like INLA, except INLA uses params (shape, inv-scale) which is *_prec_pri is defined
       //jnll -= dlgamma(log_clust_prec, clust_prec_pri[0], 1.0 / clust_prec_pri[1], true); // tmb takes (shape, scale)
-      jnll -= dPCPriPrec(clust_prec, clust_prec_pri[0], clust_prec_pri[1], true); //type2gumbel. P(1/sqrt(prec)>u)=a
-      
       // don't forget the jacobian!
       // optimizer is passing in log(sigma), but the prior is defined on log(tau)
       // pi(log(sigma)) = pi(log(tau))*|dflog(sigma)/dlog(sigma)|, where log(tau) = f(log(sigma))
@@ -242,11 +281,13 @@ Type objective_function<Type>::operator() ()
     
     // prior for log(obs prec) if using normal data lik
     if(options[5] == 0){
+      
+      // pc.prior on precision
+      jnll -= dPCPriPrec(gauss_prec, norm_prec_pri[0], norm_prec_pri[1], true); //type2gumbel. P(1/sqrt(prec)>u)=a
+      
       // in tmb, log(X)~logGamma(shape, scale) where X~Gamma(shape, scale)
       // almost like INLA, except INLA uses params (shape, inv-scale) which is *_prec_pri is defined
       //jnll -= dlgamma(log_gauss_prec, norm_prec_pri[0], 1.0 / norm_prec_pri[1], true); // tmb takes (shape, scale)
-      jnll -= dPCPriPrec(gauss_prec, norm_prec_pri[0], norm_prec_pri[1], true); //type2gumbel. P(1/sqrt(prec)>u)=a
-      
       // don't forget the jacobian!
       // optimizer is passing in log(sigma), but the prior is defined on log(tau)
       // pi(log(sigma)) = pi(log(tau))*|dflog(sigma)/dlog(sigma)|, where log(tau) = f(log(sigma))
@@ -275,7 +316,7 @@ Type objective_function<Type>::operator() ()
 
       // if normal
       if(options[5] ==  0){
-      	jnll -= dnorm( y_i(i), latent_field_i(i), exp(log_obs_sigma)/sqrt(n_i(i)), true );
+      	jnll -= dnorm( y_i(i), latent_field_i(i), gauss_sigma/sqrt(n_i(i)), true );
       }
 
       // if binom
@@ -297,6 +338,8 @@ Type objective_function<Type>::operator() ()
     // ADREPORT(Epsilon_s);
     ADREPORT(clust_prec);
     ADREPORT(gauss_prec);
+    ADREPORT(sp_range);
+    ADREPORT(sp_sigma);
   }
 
   return jnll;
