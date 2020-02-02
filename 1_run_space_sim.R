@@ -16,7 +16,8 @@
 exp.lvid      <- as.numeric(commandArgs()[4]) ## all we need is to grab which (i.e. row of loopvars),
 exp.iter      <- as.numeric(commandArgs()[5])  ## which monte carlo iteration,
 main.dir.name <- as.character(commandArgs()[6]) ## the run_date folder name
-## exp.lvid <- 2; exp.iter <- 1; main.dir.name <- main.dir.names <- c('2019_11_18_21_24_49') ## study 1
+## exp.lvid <- 1; exp.iter <- 1; main.dir.name <- main.dir.names <- c('2020_01_07_08_13_43') ## study 1 w/o cluster var
+## exp.lvid <- 2; exp.iter <- 1; main.dir.name <- main.dir.names <- c('2020_01_07_08_13_43') ## study 1 w/ cluster var
 
 message(sprintf('ON EXPERIMENT LV ID: %04d', exp.lvid))
 message(sprintf('-- ON SIM ITER: %04d', exp.iter))
@@ -89,7 +90,7 @@ while( (tmb.converge != 1 | inla.converge != 1) & !(tmb.converge.fails >= 15 | i
   source('./5_setup_run_predict_inla.R')
   
   ## update convergence args for while loop
-  if(inla.mode.converge){
+  if(!inla.crash & inla.pd.hess & inla.mode.converge){
     inla.converge <- 1
   }else{
     inla.converge <- 0
@@ -107,23 +108,32 @@ while( (tmb.converge != 1 | inla.converge != 1) & !(tmb.converge.fails >= 15 | i
 ## print convergence statements for logs
 if(tmb.converge==1 & inla.converge==1){
   message('-- BOTH INLA AND TMB CONVERGED!')
+  
+  ## #############
+  ## VALIDATION ##
+  ## #############
+  source('./6_run_validation.R')
+  
+  ## update the tracker to compelted (0)
+  write.table(x=matrix(c(sim.loop.ct, 0), ncol=2), append=TRUE, 
+              file = paste0(jobtrack.dir, 
+                            sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)), sep=',',
+              row.names = F, col.names = F)
+  
+  ## write to bottom of outputs and errors files for ease of checking
+  message('DONE');print('DONE')
+  
 }else{
   message('-- AT LEAST ONE METHOD DID NOT CONVERGED!')
+  if(tmb.converge != 1){
+    message('---- TMB did not converge')
+  }
+  if(inla.converge != 1){
+    message('---- INLA did not converge')
+  }
 }
 
-## #############
-## VALIDATION ##
-## #############
-source('./6_run_validation.R')
 
-## update the tracker to compelted (0)
-write.table(x=matrix(c(sim.loop.ct, 0), ncol=2), append=TRUE, 
-            file = paste0(jobtrack.dir, 
-                          sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)), sep=',',
-            row.names = F, col.names = F)
-
-## write to bottom of outputs and errors files for ease of checking
-message('DONE');print('DONE')
 
 # ## save results from all Nsim monte carlo simulations in this run
 # write.csv(complete.summary.metrics, sprintf('%s/validation/summary_metrics_complete.csv', out.dir))

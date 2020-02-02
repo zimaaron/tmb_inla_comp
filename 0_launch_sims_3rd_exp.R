@@ -1,18 +1,18 @@
 ## this script can be used to launch 1_run_simulation.R in parallel on the IHME cluster
 ## written by aoz
 ## 2020JAN06
-## source('/homes/azimmer/tmb_inla_comp/0_launch_sims_1st_exp.R')
+## source('/homes/azimmer/tmb_inla_comp/0_launch_sims_3rd_exp.R')
 
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
-'STUDY 01: vary number of clusters, cluster effect, and normal data variance. 
-TRIAL 28: final run before general - with pixel coverage bugfix!!'
+'STUDY 01: vary number of clusters, number of spatial random effects, and inla.approx. 
+TRIAL 02: final run before general -- with pixel bugfix!!'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
-extra.job.name <- 'study01trial28'
+extra.job.name <- 'study03trial02'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -21,7 +21,7 @@ extra.job.name <- 'study01trial28'
 
 ## specify queue, project, and job requirements
 q.q   <- 'geospatial.q' ## all.q ## long.q
-q.m   <- '25G' ## e.g. 10G
+q.m   <- '35G' ## e.g. 10G
 q.t   <- '00:3:30:00' ## DD:HH:MM:SS
 q.p   <- -100 ## priority: -1023 (low) - 0 (high)
 cores <- 1 ## used for OMP/MKL in qsub_sim call TODO - parallel version? NOTE!! this is overwritten in arg 16
@@ -113,16 +113,16 @@ sp.var <- 0.5 ^ 2
 sp.alpha <- 2.0          
 
 ## loopvars 10: cluster RE variance. NA means no effect
-clust.var <-  c(NA, (c(1, 2, 4) / 10) ^ 2) 
+clust.var <-  (1 / 10) ^ 2
 
 ## loopvars 11: temporal auto-correlation (NOT USED IN SPACE-ONLY MODEL)
 t.rho <-  0.8           
 
 ## loopvars 12: R2 mesh args: largest allowed triangle edge length inner, and outer
-mesh_s_params <- c("c(0.4, 5)") 
+mesh_s_params <- c("c(0.15, 5)", "c(0.2, 5)", "c(0.3, 5)", "c(0.4, 5)", "c(0.6, 5)") 
 
 ## loopvars 13: number of clusters to simulate per year
-n.clust <- c(250, 500, 750, 1000, 2500, 5000)
+n.clust <- c(250, 500, 1000, 2500, 5000, 10000, 15000)
 
 ## loopvars 14: mean number of individuals sim'ed per cluster using poisson(m.clust)
 m.clust <- 35                   
@@ -150,7 +150,7 @@ alphaj.pri <- "c(0, 3)" ## N(mean, sd)
 clust.prec.pri <- "c(.5, .05)" 
 
 ## loopvars 20: INLA hyperparam integration strategy. can be 'eb', 'ccd', or 'grid'
-inla.int.strat <- c('eb')
+inla.int.strat <- c('eb', 'ccd')
 
 ## loopvars 21: INLA marginal posterior approx strategy: can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
 inla.approx <- 'simplified.laplace' 
@@ -162,7 +162,7 @@ n.sim <- 100
 data.lik <- c('normal', 'binom') 
 
 ## loopvars 24: ONLY FOR data.lik=='normal'. variance of INDIVIDUAL normal data obs.
-norm.var <- (c(1, 2, 4, 5) / 10) ^ 2
+norm.var <- (2 / 10) ^ 2
 
 ## loopvars 25: pc.prior on normal individual level precision
 ## (u, a) s.t. P(1/sqrt(prec) > u) = a, i.e. P(SD > u) = a

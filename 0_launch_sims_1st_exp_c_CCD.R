@@ -8,11 +8,11 @@
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
 'STUDY 01: vary number of clusters, cluster effect, and normal data variance. 
-TRIAL 28: final run before general - with pixel coverage bugfix!!'
+TRIAL 26: testing INLA ccd hyperpar integration'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
-extra.job.name <- 'study01trial28'
+extra.job.name <- 'study01trial26'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -150,7 +150,7 @@ alphaj.pri <- "c(0, 3)" ## N(mean, sd)
 clust.prec.pri <- "c(.5, .05)" 
 
 ## loopvars 20: INLA hyperparam integration strategy. can be 'eb', 'ccd', or 'grid'
-inla.int.strat <- c('eb')
+inla.int.strat <- c('ccd')
 
 ## loopvars 21: INLA marginal posterior approx strategy: can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
 inla.approx <- 'simplified.laplace' 

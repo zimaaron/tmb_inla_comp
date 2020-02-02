@@ -62,7 +62,7 @@ message('------ fitting INLA')
 
 ptm <- proc.time()[3]
 if(data.lik == 'normal'){
-  res_fit <- inla(formula,
+  res_fit <- try(inla(formula,
                   data = inla.stack.data(stack.obs),
                   control.predictor = list(A = inla.stack.A(stack.obs),
                                            ## link = 1, ## removed after looking at NMM
@@ -77,10 +77,10 @@ if(data.lik == 'normal'){
                   family = inla.lik.dict(data.lik),
                   num.threads = cores, #
                   scale = dt$N, 
-                  verbose = TRUE,
-                  keep = FALSE)
+                  verbose = FALSE, ## this must be false to get the logfile
+                  keep = FALSE))
 }else if(data.lik == 'binom'){
-  res_fit <- inla(formula,
+  res_fit <- try(inla(formula,
                   data = inla.stack.data(stack.obs),
                   control.predictor = list(A = inla.stack.A(stack.obs),
                                            ## link = 1, ## removed after looking at NMM
@@ -96,109 +96,131 @@ if(data.lik == 'normal'){
                   family = inla.lik.dict(data.lik),
                   num.threads = cores, #
                   Ntrials = dt$N,
-                  verbose = TRUE,
-                  keep = FALSE)
+                  verbose = FALSE, ## this must be false to get the logfile!
+                  keep = FALSE))
 }
 fit_time_inla <- proc.time()[3] - ptm
 
-## check to see if INLA converged nicely
-## using the check suggested here: https://groups.google.com/forum/#!topic/r-inla-discussion-group/LsCpuCsr-Qo
-## and noting that failing this check may not be terrible
-inla.mode.converge <- ifelse(res_fit$mode$mode.status == 0, TRUE, FALSE)
+## check to see if INLA crashed
+if(class(res_fit) == "try-error"){ 
+  inla.crash <- TRUE
+  inla.pd.hess <- FALSE       ## set this since otherwise since it's assignment will be skipped if INLA crashes 
+  inla.mode.converge <- FALSE ## set this since otherwise since it's assignment will be skipped if INLA crashes 
+}else{
+  inla.crash <- FALSE
+}
 
-## ##########
-## PREDICT ##
-## ##########
-message('------ making INLA predictions')
-
-ptm <- proc.time()[3]
-inla_draws <- inla.posterior.sample(ndraws, res_fit, use.improved.mean = bias.correct)
-inla_get_draws_time <- proc.time()[3] - ptm
-
-## get parameter names
-par_names <- rownames(inla_draws[[1]]$latent)
-
-## index to spatial field and linear coefficient samples
-s_idx <- grep('^space.*', par_names)
-l_idx <- which(!c(1:length(par_names)) %in% grep('^space.*|Predictor|[*:*]', par_names))
-
-## get spatial draws as matrices and project to deaws at locations 
-pred_s <- sapply(inla_draws, function (x) x$latent[s_idx])
-pred_inla <- as.matrix(A.pred %*% pred_s)
-
-## get intercept and coef draws and convert to covariate effects
-if(!is.null(alpha) | !is.null(betas)){
-  pred_l <- sapply(inla_draws, function (x) x$latent[l_idx])
-  if(!is.matrix(pred_l)){
-    pred_l <- matrix(pred_l, ncol = length(pred_l))
+if(!inla.crash){
+  
+  ## and grep the logfile for the hessian pd error where INLA self-corrects by adding to the diagonal
+  ## the full warning looks something like this:
+  # *** WARNING *** Eigenvalue 2 of the Hessian is -0.183833 < 0
+  # *** WARNING *** Set this eigenvalue to 2.03328
+  # *** WARNING *** This have consequence for the accurancy of
+  # *** WARNING *** the approximations; please check!!!
+  # *** WARNING *** R-inla: Use option inla(..., control.inla = list(h = h.value), ...)
+  # *** WARNING *** R-inla: to chose a different `h.value'.
+  inla.pd.hess <- ifelse(sum(grepl('Eigenvalue . of the Hessian', res_fit$logfile)) == 0, TRUE, FALSE)
+  
+  ## check to see if INLA converged nicely
+  ## using the check suggested here: https://groups.google.com/forum/#!topic/r-inla-discussion-group/LsCpuCsr-Qo
+  ## and noting that failing this check may not be terrible
+  inla.mode.converge <- ifelse(res_fit$mode$mode.status == 0, TRUE, FALSE)
+  
+  ## ##########
+  ## PREDICT ##
+  ## ##########
+  message('------ making INLA predictions')
+  
+  ptm <- proc.time()[3]
+  inla_draws <- inla.posterior.sample(ndraws, res_fit, use.improved.mean = bias.correct)
+  inla_get_draws_time <- proc.time()[3] - ptm
+  
+  ## get parameter names
+  par_names <- rownames(inla_draws[[1]]$latent)
+  
+  ## index to spatial field and linear coefficient samples
+  s_idx <- grep('^space.*', par_names)
+  l_idx <- which(!c(1:length(par_names)) %in% grep('^space.*|Predictor|[*:*]', par_names))
+  
+  ## get spatial draws as matrices and project to deaws at locations 
+  pred_s <- sapply(inla_draws, function (x) x$latent[s_idx])
+  pred_inla <- as.matrix(A.pred %*% pred_s)
+  
+  ## get intercept and coef draws and convert to covariate effects
+  if(!is.null(alpha) | !is.null(betas)){
+    pred_l <- sapply(inla_draws, function (x) x$latent[l_idx])
+    if(!is.matrix(pred_l)){
+      pred_l <- matrix(pred_l, ncol = length(pred_l))
+    }
+    rownames(pred_l) <- res_fit$names.fixed
+    
+    ## extract cell values  from covariates, deal with timevarying covariates here
+    non_space_names <- par_names[l_idx]
+    cov_effs <- list()
+    for(p in 1:nperiods)  cov_effs[[p]] <- cov_vals[[p]][, non_space_names] %*% pred_l
+    
+    cov_effs <- do.call(rbind, cov_effs)
+    
+    pred_inla <- pred_inla + cov_effs
   }
-  rownames(pred_l) <- res_fit$names.fixed
-
-  ## extract cell values  from covariates, deal with timevarying covariates here
-  non_space_names <- par_names[l_idx]
-  cov_effs <- list()
-  for(p in 1:nperiods)  cov_effs[[p]] <- cov_vals[[p]][, non_space_names] %*% pred_l
   
-  cov_effs <- do.call(rbind, cov_effs)
+  if(!is.null(clust.var)){
+    ## get draws of clust precision
+    clust_prec_inla_draws <- sapply(inla_draws, function(x) {
+      clust.idx <- which(grepl('clust.id', names(inla_draws[[1]]$hyper)))
+      x$hyperpar[[clust.idx]]}) ## this gets the precision for the cluster RE
+  }
   
-  pred_inla <- pred_inla + cov_effs
-}
-
-if(!is.null(clust.var)){
-  ## get draws of clust precision
-  clust_prec_inla_draws <- sapply(inla_draws, function(x) {
-    clust.idx <- which(grepl('clust.id', names(inla_draws[[1]]$hyper)))
-    x$hyperpar[[clust.idx]]}) ## this gets the precision for the cluster RE
-}
-
-totalpredict_time_inla <- proc.time()[3] - ptm
-
-## #######
-## SAVE ##
-## #######
-
-## save the posterior param draws
-saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_inla_param_draws.rds', 
-                       out.dir, exp.lvid, exp.iter),
-        object = inla_draws)
-
-## save the cell_pred
-# saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds.rds', 
-#                        out.dir, exp.lvid, exp.iter),
-#         object = pred_inla)
-
-## summarize the latent field
-summ_inla <- cbind(median = (apply(pred_inla, 1, median)),
-                   sd     = (apply(pred_inla, 1, sd)))
-
-ras_med_inla <- insertRaster(simple_raster, matrix(summ_inla[, 1], ncol = nperiods))
-ras_sdv_inla <- insertRaster(simple_raster, matrix(summ_inla[, 2], ncol = nperiods))
-
-writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_median_raster.tif', 
-                           out.dir, exp.lvid, exp.iter), 
-            x = ras_med_inla, format='GTiff', overwrite=TRUE)
-writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_stdev_raster.tif', 
-                           out.dir, exp.lvid, exp.iter), 
-            x = ras_sdv_inla, format='GTiff', overwrite=TRUE)
-
-if(data.lik == 'binom'){
-  ## convert to prevalence space and summarize, rasterize, and save again
-  pred_inla_p <- plogis(pred_inla)
+  totalpredict_time_inla <- proc.time()[3] - ptm
   
-  # saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_PREV.rds', 
+  ## #######
+  ## SAVE ##
+  ## #######
+  
+  ## save the posterior param draws
+  saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_inla_param_draws.rds', 
+                         out.dir, exp.lvid, exp.iter),
+          object = inla_draws)
+  
+  ## save the cell_pred
+  # saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds.rds', 
   #                        out.dir, exp.lvid, exp.iter),
-  #         object = pred_inla_p)
+  #         object = pred_inla)
   
-  summ_inla_p <- cbind(median = (apply(pred_inla_p, 1, median)),
-                       sd     = (apply(pred_inla_p, 1, sd)))
-
-  ras_med_inla_p <- insertRaster(simple_raster, matrix(summ_inla_p[, 1], ncol = nperiods))
-  ras_sdv_inla_p <- insertRaster(simple_raster, matrix(summ_inla_p[, 2], ncol = nperiods))
-
-  writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_median_raster_PREV.rds', 
-                             out.dir, exp.lvid, exp.iter),
-              x = ras_med_inla_p, format='GTiff', overwrite=TRUE)
-  writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_stdev_raster_PREV.rds', 
-                             out.dir, exp.lvid, exp.iter),
-              x = ras_sdv_inla_p, format='GTiff', overwrite=TRUE)
-}
+  ## summarize the latent field
+  summ_inla <- cbind(median = (apply(pred_inla, 1, median)),
+                     sd     = (apply(pred_inla, 1, sd)))
+  
+  ras_med_inla <- insertRaster(simple_raster, matrix(summ_inla[, 1], ncol = nperiods))
+  ras_sdv_inla <- insertRaster(simple_raster, matrix(summ_inla[, 2], ncol = nperiods))
+  
+  writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_median_raster.tif', 
+                             out.dir, exp.lvid, exp.iter), 
+              x = ras_med_inla, format='GTiff', overwrite=TRUE)
+  writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_stdev_raster.tif', 
+                             out.dir, exp.lvid, exp.iter), 
+              x = ras_sdv_inla, format='GTiff', overwrite=TRUE)
+  
+  if(data.lik == 'binom'){
+    ## convert to prevalence space and summarize, rasterize, and save again
+    pred_inla_p <- plogis(pred_inla)
+    
+    # saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_PREV.rds', 
+    #                        out.dir, exp.lvid, exp.iter),
+    #         object = pred_inla_p)
+    
+    summ_inla_p <- cbind(median = (apply(pred_inla_p, 1, median)),
+                         sd     = (apply(pred_inla_p, 1, sd)))
+    
+    ras_med_inla_p <- insertRaster(simple_raster, matrix(summ_inla_p[, 1], ncol = nperiods))
+    ras_sdv_inla_p <- insertRaster(simple_raster, matrix(summ_inla_p[, 2], ncol = nperiods))
+    
+    writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_median_raster_PREV.rds', 
+                               out.dir, exp.lvid, exp.iter),
+                x = ras_med_inla_p, format='GTiff', overwrite=TRUE)
+    writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_stdev_raster_PREV.rds', 
+                               out.dir, exp.lvid, exp.iter),
+                x = ras_sdv_inla_p, format='GTiff', overwrite=TRUE)
+  }
+} ## !inla.crash

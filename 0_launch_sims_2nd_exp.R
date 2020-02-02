@@ -1,18 +1,18 @@
 ## this script can be used to launch 1_run_simulation.R in parallel on the IHME cluster
 ## written by aoz
-## 2019NOV16
+## 2020JAN06
 ## source('/homes/azimmer/tmb_inla_comp/0_launch_sims_2nd_exp.R')
 
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
-'STUDY 02: vary number of clusters, cluster effect, and normal data variance WITH two covariates
-TRIAL 11: first run in a long time. just testing where we left off... now with jacobian'
+'STUDY 02: vary number of clusters, cluster effect, and normal data variance with covariates. 
+TRIAL 12: final run before general'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
-extra.job.name <- 'study02trial11'
+extra.job.name <- 'study02trial12'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -22,7 +22,7 @@ extra.job.name <- 'study02trial11'
 ## specify queue, project, and job requirements
 q.q   <- 'geospatial.q' ## all.q ## long.q
 q.m   <- '25G' ## e.g. 10G
-q.t   <- '00:2:30:00' ## DD:HH:MM:SS
+q.t   <- '00:3:30:00' ## DD:HH:MM:SS
 q.p   <- -100 ## priority: -1023 (low) - 0 (high)
 cores <- 1 ## used for OMP/MKL in qsub_sim call TODO - parallel version? NOTE!! this is overwritten in arg 16
 
@@ -147,7 +147,7 @@ alphaj.pri <- "c(0, 3)" ## N(mean, sd)
 
 ## loopvars 19: pc.prior on clust RE precision
 ## (u, a) s.t. P(1/sqrt(prec) > u) = a, i.e. P(SD > u) = a
-clust.prec.pri <- "c(1, .01)" 
+clust.prec.pri <- "c(.5, .05)" 
 
 ## loopvars 20: INLA hyperparam integration strategy. can be 'eb', 'ccd', or 'grid'
 inla.int.strat <- c('eb')
@@ -166,13 +166,29 @@ norm.var <- (c(1, 2, 4, 5) / 10) ^ 2
 
 ## loopvars 25: pc.prior on normal individual level precision
 ## (u, a) s.t. P(1/sqrt(prec) > u) = a, i.e. P(SD > u) = a
-norm.prec.pri <- "c(1, .01)"
+norm.prec.pri <- "c(.5, .05)"
 
 ## loopvars 26: bias correct the mean estimates. NOTE: applies to both INLA and TMB!!
 bias.correct <- c(TRUE) 
 
 ## loopvars 27: perform sd correction. NOTE!! for TMB only
 sd.correct <- c(TRUE)
+
+## loopvars 28: pc.prior on spde parameters
+## c(a, b, c, d), where
+## P(sp.range < a) = b
+## P(sp.sigma > c) = d
+matern.pri <- "c(10, .95, 1., .05)" ## a, b, c, d
+
+## loopvars 29: fix data locations
+## if set to true, then we only simulate the data locations once per experiment and 
+## each iteration after the first will use the same locs
+fix.locs <- FALSE
+
+## loopvars 30: fix GP
+## if set to true, then we only simulate the GP once per experiment and 
+## each iteration after the first will use the same GP
+fix.gp <- FALSE
 
 ## TODO always add all vars to exand.grid()
 ## NOTE: I use a named list here to ensure the columns in loopvars are named
@@ -202,7 +218,11 @@ loopvars <- data.table(expand.grid(list(reg = reg, ## 1
                              norm.var = norm.var,
                              norm.prec.pri = norm.prec.pri, ## 25
                              bias.correct = bias.correct,
-                             sd.correct = sd.correct)))
+                             sd.correct = sd.correct,
+                             matern.pri = matern.pri,
+                             fix.locs  = fix.locs,
+                             fix.gp = fix.gp ## 30
+                             )))
 
 ## drop wasteful combinations that don't need to be run
 
@@ -393,6 +413,9 @@ time.done.running <- proc.time()
 
 message('running time:')
 print(time.done.running - time.start.running)
+
+## finally, we can stitch together all the experiments and simulations
+source('./7_stitch_together_results_study1.R')
 
 # ## print columns of loopvar that vary
 # ## so we can easily see what's going on in the experiments that fail...

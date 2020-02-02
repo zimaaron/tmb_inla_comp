@@ -104,10 +104,10 @@ res <- rbind(lapply(1:ncol(res), function(x){NA}), res)
 params <- NULL
 if(!is.null(alpha)){ res[1, fe_int_mean := alpha]; params <- c(params, 'alpha')}
 if(!is.null(betas) & is.null(alpha)) { 
-  res[1, grep('fe.*med', colnames(res)) := betas]
+  res[1, grep('fe.*mean', colnames(res)) := betas]
   params <- c(params, rep('beta', length(betas)))}
 if(!is.null(betas) & !is.null(alpha)) {
-  res[1, grep('fe.*med', colnames(res))[-1] := betas]
+  res[1, grep('fe.*mean', colnames(res))[-1] := betas]
   params <- c(params, rep('beta', length(betas)))}
 if(!is.null(clust.var)) {res[1, clust_prec_mean:= 1 / clust.var]; params <- c(params, 'clust.prec')}
 if(data.lik == 'normal') {res[1, gauss_prec_mean:= 1 / norm.var]; params <- c(params, 'gauss.prec')}
@@ -244,8 +244,12 @@ for(ii in 1:num.dists){
                                (inla.post.dist.widths[-length(inla.post.dist.widths)] + inla.post.dist.widths[-1])/2,
                                inla.post.dist.widths[length(inla.post.dist.widths)]/2)
     inla.post.dist.probs <- inla.post.dist.widths * inla.post.dist[,2] ## width * pdf heigh approx= prob
-    inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
-
+    ## rarely, the inla posterior dist is a point mass (eg pc.prec posterior has point mass at Tau=Inf!)
+    if(sum(inla.post.dist.probs)==0){
+      inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist[,2])
+    }else{
+      inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
+    }
     ## get a safe range for plotting, and get the prior
     xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
                             probs=c(.0001, .9999)) ## avoid crazy extremes
@@ -276,8 +280,12 @@ for(ii in 1:num.dists){
                                (inla.post.dist.widths[-length(inla.post.dist.widths)] + inla.post.dist.widths[-1])/2,
                                inla.post.dist.widths[length(inla.post.dist.widths)]/2)
     inla.post.dist.probs <- inla.post.dist.widths * inla.post.dist[,2] ## width * pdf heigh approx= prob
-    inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
-
+    ## rarely, the inla posterior dist is a point mass (eg pc.prec posterior has point mass at Tau=Inf!)
+    if(sum(inla.post.dist.probs)==0){
+      inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist[,2])
+    }else{
+      inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
+    }
     ## get a safe range for plotting, and get the prior
     xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
                             probs=c(.0001, .9999)) ## avoid crazy extremes
@@ -316,8 +324,12 @@ for(ii in 1:num.dists){
                                (inla.post.dist.widths[-length(inla.post.dist.widths)] + inla.post.dist.widths[-1])/2,
                                inla.post.dist.widths[length(inla.post.dist.widths)]/2)
     inla.post.dist.probs <- inla.post.dist.widths * inla.post.dist[,2] ## width * pdf heigh approx= prob
-    inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
-    
+    ## rarely, the inla posterior dist is a point mass (eg pc.prec posterior has point mass at Tau=Inf!)
+    if(sum(inla.post.dist.probs)==0){
+      inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist[,2])
+    }else{
+      inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
+    }    
     ## get a safe range for plotting, and get the prior
     xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
                             probs=c(.0001, .9999)) ## avoid crazy extremes
@@ -357,7 +369,12 @@ for(ii in 1:num.dists){
                                (inla.post.dist.widths[-length(inla.post.dist.widths)] + inla.post.dist.widths[-1])/2,
                                inla.post.dist.widths[length(inla.post.dist.widths)]/2)
     inla.post.dist.probs <- inla.post.dist.widths * inla.post.dist[,2] ## width * pdf heigh approx= prob
-    inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
+    ## rarely, the inla posterior dist is a point mass (eg pc.prec posterior has point mass at Tau=Inf!)
+    if(sum(inla.post.dist.probs)==0){
+      inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist[,2])
+    }else{
+      inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
+    }
     
     ## get a safe range for plotting, and get the prior
     xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
@@ -377,7 +394,7 @@ for(ii in 1:num.dists){
     prior.u  <- norm.prec.pri[1]
     prior.a <- norm.prec.pri[2]
     
-    tmb.post.draws <- 1 / exp(log_gauss_sigma_tmb_draws * 2)
+    tmb.post.draws <- exp(log_gauss_prec_tmb_draws)
     inla.post.dist  <- res_fit$marginals.hyperpar[['Precision for the Gaussian observations']]
     ## to sample from the approximate posterior, we need to get the discrete probabilities 
     ## for each x-value. we do this by assuming an approximate rectangle
@@ -386,7 +403,12 @@ for(ii in 1:num.dists){
                                (inla.post.dist.widths[-length(inla.post.dist.widths)] + inla.post.dist.widths[-1])/2,
                                inla.post.dist.widths[length(inla.post.dist.widths)]/2)
     inla.post.dist.probs <- inla.post.dist.widths * inla.post.dist[,2] ## width * pdf heigh approx= prob
-    inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
+    ## rarely, the inla posterior dist is a point mass (eg pc.prec posterior has point mass at Tau=Inf!)
+    if(sum(inla.post.dist.probs)==0){
+      inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist[,2])
+    }else{
+      inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
+    }
 
     if(true.val==Inf) {
       ## get a safe range for plotting, and get the prior
@@ -419,7 +441,7 @@ for(ii in 1:num.dists){
     prior.u <- clust.prec.pri[1]
     prior.a <- clust.prec.pri[2]
 
-    tmb.post.draws <- 1 / exp(log_clust_sigma_tmb_draws * 2)
+    tmb.post.draws <- exp(log_clust_prec_tmb_draws)
     inla.post.dist  <- res_fit$marginals.hyperpar[[grep('clust.id', names(res_fit$marginals.hyperpar))]]
     ## to sample from the approximate posterior, we need to get the discrete probabilities 
     ## for each x-value. we do this by assuming an approximate rectangle
@@ -428,8 +450,12 @@ for(ii in 1:num.dists){
                                (inla.post.dist.widths[-length(inla.post.dist.widths)] + inla.post.dist.widths[-1])/2,
                                inla.post.dist.widths[length(inla.post.dist.widths)]/2)
     inla.post.dist.probs <- inla.post.dist.widths * inla.post.dist[,2] ## width * pdf heigh approx= prob
-    inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
-    
+    ## rarely, the inla posterior dist is a point mass (eg pc.prec posterior has point mass at Tau=Inf!)
+    if(sum(inla.post.dist.probs)==0){
+      inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist[,2])
+    }else{
+      inla.post.draws <- sample(x=inla.post.dist[,1], size=ndraws, replace=TRUE, prob=inla.post.dist.probs)
+    }    
     ## get a safe range for plotting, and get the prior
     xlim <- stats::quantile(c(tmb.post.draws, inla.post.draws, true.val),
                             probs=c(.0001, .9999)) ## avoid crazy extremes
@@ -720,6 +746,7 @@ all.preds <- data.table(rbind(pred_tmb, pred_inla))
 ## NOTE! the truth and the median.fit are in logit-space!
 non.na.idx <- which(!is.na(values(simple_raster)))
 d <- data.table(truth        = rep(values(true.rast)[non.na.idx], 2),
+                true.gp      = rep(values(true.gp)[non.na.idx], 2),
                 model        = c(rep('tmb', nrow(pred_tmb)),
                                  rep('inla', nrow(pred_inla))), 
                 median.fit   = apply(all.preds, 1, median))
@@ -744,27 +771,25 @@ min.obs.dist <- apply(raster::pointDistance(pix.pts.numeric, dt[,.(long, lat)],
 
 ## break this into approx number of 5km pixels distant
 min.obs.dist <- round(min.obs.dist / 5)
-d$obs.dist <- rep(min.obs.dist, 2)
+d[,obs.dist := rep(min.obs.dist, 2)]
 
 ## also, get the relative magnitude of the true gp
 ## break gp magnitude into deciles
-gp.dec1 <- dplyr::ntile(d[1:(.N/2),truth], 10)
-d[,gp.dec := rep(gp.dec1, 2)]
+d[,gp.dec := dplyr::ntile(true.gp, 10)]
 
-
-## TODO 
-## TODO
-## start after ultimate
-
-
-## make sure the decile is working
-par(mfrow=c(1, 2))
-plot(true.rast)
-plot(true.rast)
-for(i in 1:10){
-  dec.pts <- d[(.N/2+1):.N, which(gp.dec == i)]
-  points(pix.pts.numeric[dec.pts,], col=rev(brewer.pal(n=10, name='RdYlBu'))[i], pch=16)
-}
+# # ## make sure the decile is working
+# par(mfrow=c(3, 4))
+# plot(true.gp, main = 'true')
+# for(i in 1:10){
+#   plot(true.gp, main = sprintf('plotting decile %i', i))
+#   ## message(sprintf('plotting decile %i', i))
+#   dec.pts <- d[(.N/2+1):.N, which(gp.dec == i)]
+#   ## points(pix.pts.numeric[dec.pts,], col=rev(brewer.pal(n=10, name='RdYlBu'))[i], pch=16, cex=.25)
+#   points(pix.pts.numeric[dec.pts,], col=1, pch=16, cex=.25)
+#   ## readline(prompt="Press [enter] to continue")
+# }
+# plot(true.gp, main='observations')
+# points(dt[,.(long, lat)])
 
 ## get some coverage probs
 coverage_probs <- c(25, 50, 80, 90, 95)
@@ -776,7 +801,7 @@ for(cc in 1:length(coverage_probs)){
   c <- coverage_probs[cc]
   message(paste0('-------- calcing ', c ,'% coverage of binomial prob'))
   li       <- lui[cc,]
-  ui       <- lui[length(coverage_probs) + cc]
+  ui       <- lui[length(coverage_probs) + cc,]
   d[, paste0('pix.cov.',c)] <- d[['truth']] >= li & d[['truth']] <= ui
 }
 
@@ -842,9 +867,11 @@ for(i in 1:length(nom.cov.names)){
 }
 
 ## facet by observations
+long.cov <- na.omit(long.cov)
 long.cov.sum <-  summarySE(long.cov, measurevar="obs_cov",
                            groupvars = c('obs.dist', 'model', 'n_target_cov'),
                            conf.interval = cov.width)
+
 
 ## add on some relevant lvid params and save to use in the combination validation plot
 long.cov.sum$lv.id     <- exp.lvid

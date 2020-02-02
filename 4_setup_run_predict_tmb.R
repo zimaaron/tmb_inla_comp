@@ -66,10 +66,12 @@ data_full <- list(num_i = nrow(dt),  # Total number of observations
 ## Specify starting values for TMB parameters for GP
 tmb_params <- list(alpha = 0.0, # intercept
                    betas = rep(0, ncol(X_betas)), # cov effects
-                   log_obs_sigma = -2, # log(data sd) if using normal dist
+                   ## log_gauss_sigma = -2, # log(data sd) if using normal dist
+                   log_gauss_prec  = -2*-2, # log(data sd)*-2 to get log(prec) if using normal dist
                    log_tau   = -1.0, # Log inverse of tau (Epsilon)
                    log_kappa = -1.0, # Matern range parameter
-                   log_clust_sigma = -2, # log of cluster sd
+                   ## log_clust_sigma = -2, # log of cluster sd
+                   log_clust_prec = -2*-2, # (log of cluster sd)*-2 to get log(prec)
                    clust_i = rep(0, nrow(dt)), # vector of cluster random effects
                    Epsilon_s = matrix(0, nrow=nodes, ncol=1) # GP value at obs locs
                    )
@@ -92,7 +94,7 @@ if(is.null(betas)){
 
 ## cluster RE
 if(is.null(clust.var)){
-  ADmap[['log_clust_sigma']] <- factor(NA)
+  ADmap[['log_clust_prec']] <- factor(NA)
   ADmap[['clust_i']] <- rep(factor(NA), nrow(dt))
 }else{
   rand_effs <- c(rand_effs, 'clust_i')
@@ -100,7 +102,7 @@ if(is.null(clust.var)){
 
 ## normal data obs variance
 if(data.lik == 'binom'){
-  ADmap[['log_obs_sigma']] <- factor(NA)
+  ADmap[['log_gauss_prec']] <- factor(NA)
 }
 
 ## make the autodiff generated liklihood func & gradient
@@ -182,8 +184,10 @@ if(class(opt0) == "try-error"){
     if(!is.matrix(betas_tmb_draws)) betas_tmb_draws <- matrix(betas_tmb_draws, nrow = 1)
     log_kappa_tmb_draws <- tmb_draws[parnames == 'log_kappa',]
     log_tau_tmb_draws  <- tmb_draws[parnames == 'log_tau',]
-    log_clust_sigma_tmb_draws <- tmb_draws[parnames == 'log_clust_sigma', ]
-    log_gauss_sigma_tmb_draws <- tmb_draws[parnames == 'log_obs_sigma', ]
+    ## log_clust_sigma_tmb_draws <- tmb_draws[parnames == 'log_clust_sigma', ]
+    ## log_gauss_sigma_tmb_draws <- tmb_draws[parnames == 'log_gauss_sigma', ]
+    log_clust_prec_tmb_draws <- tmb_draws[parnames == 'log_clust_prec', ]
+    log_gauss_prec_tmb_draws <- tmb_draws[parnames == 'log_gauss_prec', ]
     sp_range_tmb_draws <- sqrt(8) / exp(log_kappa_tmb_draws)
     sp_sigma_tmb_draws <- (4 * pi * exp(2*log_kappa_tmb_draws) * exp(2 * log_tau_tmb_draws)) ^ (-.5)
     
@@ -202,7 +206,7 @@ if(class(opt0) == "try-error"){
       
       ## add column for intercept if included
       if(!is.null(alpha)){
-        betas_tmb_draws <- rbind(rep(1, ndraws), betas_tmb_draws)
+        betas_tmb_draws <- rbind(alpha_tmb_draws, betas_tmb_draws)
       }
       
       ## add on covariate values by draw

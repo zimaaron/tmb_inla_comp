@@ -107,6 +107,8 @@ norm.prec.pri <- eval(parse(text = as.character(loopvars[exp.lvid, 25])))
 bias.correct <- as.logical(loopvars[exp.lvid, 26])
 sd.correct   <- as.logical(loopvars[exp.lvid, 27])
 matern.pri   <- eval(parse(text = as.character(loopvars[exp.lvid, 28]))) ## pc prior for matern
+fix.locs     <- as.logical(loopvars[exp.lvid, 29]) ## fix locations across experiments
+fix.gp       <- as.logical(loopvars[exp.lvid, 30]) ## fix locations across experiments
 
 
 ## TODO? add in some validation options? or maybe just always do them all

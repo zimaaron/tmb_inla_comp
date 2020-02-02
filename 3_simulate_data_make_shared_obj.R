@@ -26,6 +26,8 @@ if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
                                 clust.re.var = clust.var, 
                                 covs = covs,
                                 cov_layers = NULL, 
+                                fixed.locs = NULL, 
+                                fixed.gp = NULL,
                                 simple_raster = simple_raster,
                                 simple_polygon = simple_polygon,
                                 out.dir = out.dir,
@@ -41,14 +43,39 @@ if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
   ## save the cov_list for future iterations to speed things up
   covs.gp <- sim.obj$cov.gp.rasters   ## rasters of covs and true simulated gp field
   cov_list <- covs.gp[!grepl('gp',names(covs.gp))]
-  ## save the cov_list to reload in future iterations of this experiment
   saveRDS(object = cov_list,
           file = sprintf('%s/cov_list.rds', common.dir))
+  
+  ## if we want to fix the locations, we save them
+  if(fix.locs){
+    fixed.locs <- sim.obj$sim.dat[,.(long,lat)]
+    saveRDS(fixed.locs, sprintf('%s/simulated_obj/fixed_locs.rds', out.dir))
+  }
 
+  ## if we want to fix the GP, we save it
+  if(fix.gp){
+    fixed.gp <- sim.obj$cov.gp.rasters[['gp']]
+    saveRDS(fixed.gp, sprintf('%s/simulated_obj/fixed_gp.rds', out.dir))
+  }
+  
 }else{
   
   ## reuse covs
   cov_list <- readRDS(sprintf('%s/cov_list.rds', common.dir))
+  
+  ## if we want to fix the locations, we reload them
+  if(fix.locs){
+    fixed.locs <- readRDS(sprintf('%s/simulated_obj/fixed_locs.rds', out.dir))
+  }else{
+    fixed.locs <- NULL
+  }
+  
+  ## if we want to fix the GP, we reload them
+  if(fix.gp){
+    fixed.gp <- readRDS(sprintf('%s/simulated_obj/fixed_gp.rds', out.dir))
+  }else{
+    fixed.gp <- NULL
+  }
   
   sim.obj <- sim.realistic.data(reg = reg,
                                 year_list = year_list,
@@ -63,7 +90,9 @@ if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
                                 n.clust = n.clust,
                                 m.clust = m.clust,
                                 covs = covs,
-                                cov_layers = cov_list, ## which is created from each sim.obj after stripping GP from the list. ~line64
+                                cov_layers = cov_list,   ## which is created in the first exp.iter
+                                fixed.locs = fixed.locs, ## which is created in the first exp.iter
+                                fixed.gp = fixed.gp,     ## which is created in the first exp.iter
                                 simple_raster = simple_raster,
                                 simple_polygon = simple_polygon,
                                 pop_raster = pop_raster, 
@@ -139,6 +168,27 @@ pix.pts.numeric <- as.data.frame(pix.pts@data)
 ## make the triangulation
 mesh_s <- inla.mesh.2d(loc.domain = as.matrix(pix.pts.numeric[,2:3]), 
                        max.e = mesh.params)
+
+# ## test the number of vertices different min.edges gives
+# mesh.size <- data.table(min.edge=numeric(),
+#                         num.vert=integer())
+# for(me in c(.15, .2, .25, .3, .35, .4, .45, .5, .55, .6, .65, .7, .75)){
+#   tmp.mesh.params <- c(me, 5)
+#   tmp.mesh <- inla.mesh.2d(loc.domain = as.matrix(pix.pts.numeric[,2:3]),
+#                            max.e = tmp.mesh.params)
+#   mesh.size <- rbind(mesh.size, data.table(min.edge=me, num.vert=tmp.mesh$n))
+# }
+# png('~/GeneralExam/meshes5.png', width=2300, height=1500)
+# par(mfrow=c(2,3))
+# for(me in c(.15, .2, .3, .4, .6)){
+#   tmp.mesh.params <- c(me, 5)
+#   tmp.mesh <- inla.mesh.2d(loc.domain = as.matrix(pix.pts.numeric[,2:3]),
+#                            max.e = tmp.mesh.params)
+#   plot(tmp.mesh)
+#   plot(simple_raster, add=T, legend=F)
+#   plot(tmp.mesh, add=T)
+# }
+# dev.off()
 
 ## plot the triangulation
 pdf(sprintf('%s/modeling/inputs/experiment%04d_iter%04d_mesh.pdf', out.dir, exp.lvid, exp.iter))

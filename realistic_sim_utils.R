@@ -252,6 +252,8 @@ sim.realistic.data <- function(reg,
                                clust.re.var = NULL, ## iid RE variance for each cluster observed 
                                covs = NULL,
                                cov_layers = NULL, ## if supplied, use this instead of reloading covs
+                               fixed.locs = NULL, ## if supplied, use these locaations to sample data
+                               fixed.gp   = NULL, ## if supplied, use this GP
                                simple_raster,
                                simple_polygon, 
                                out.dir,
@@ -386,99 +388,104 @@ sim.realistic.data <- function(reg,
                              lat=coordinates(pix.pts)[,2])
   pix.pts.numeric <- as.data.frame(pix.pts@data)
   
-  ## sim using SPDE mesh ## TODO export this mesh to use in fitting
-  if(sp.field.sim.strat == 'SPDE'){ 
-    
-    ## now we can use these coords to simulate GP from rspde()
-    reg.mesh <- inla.mesh.2d(boundary = inla.sp2segment(simple_polygon),
-                             loc = pix.pts@data[, 2:3],
-                             max.edge = c(0.1, 5),
-                             offset = c(1, 5),
-                             cutoff = 0.1)
-    # FOR PAPER FIGURE:  
-    # png('~/tmb_inla_paper/spatial_matern_varying_ranges.png', width=8, height=8, units='in', res=300)
-    # set.seed(413)
-    # par(mfrow=c(2, 2), mai=c(.5, .5, .5, .85))
-    # for(sp.range in c(.5, 1, sqrt(8), 5)){
-    #   sp.kappa = sqrt(8)/sp.range
-    
-    ## get spatial fields that are GPs across space and are indep in time
-    sf.iid <- rspde(coords = cbind(pix.pts.numeric[, 2], pix.pts.numeric[, 3]),
-                    kappa = sp.kappa,
-                    variance = sp.var,
-                    alpha = sp.alpha,
-                    mesh = reg.mesh,
-                    n = length(year_list),
-                    seed = seed)
-    
-    # FOR PAPER FIGURE:  
-    #   ## rasterize and plot (for testing params)
-    #   sf.rast <- rasterize(x = pix.pts@data[, 2:3],
-    #                        y = simple_raster_full,
-    #                        field = sf.iid)
-    #   if(sp.range==.5) plot(sf.rast, col=viridis(256),
-    #                         main=expression(paste('Matern Field: ', sigma^2 == 0.25, ', ', alpha == 2, ', ', 'range = 0.5')))
-    #   if(sp.range==1) plot(sf.rast, col=viridis(256),
-    #                        main=expression(paste('Matern Field: ', sigma^2 == 0.25, ', ', alpha == 2, ', ', 'range = 1')))
-    #   if(sp.range==sqrt(8)) plot(sf.rast, col=viridis(256),
-    #                              main=expression(paste('Matern Field: ', sigma^2 == 0.25, ', ', alpha == 2, ', ', 'range = ', sqrt(8))))
-    #   if(sp.range==5) plot(sf.rast, col=viridis(256),
-    #                        main=expression(paste('Matern Field: ', sigma^2 == 0.25, ', ', alpha == 2, ', ', 'range = 5')))
-    # }
-    # dev.off()
-    
-  }else{
-    reg.mesh <- NULL
-  }
+  if(is.null(fixed.gp)){ ## then we simulate GP
   
-  ## use random fields package on simple_raster to simulate GP for spatial field
-  if(sp.field.sim.strat == 'RF'){ 
-    model <- RMmatern(nu = sp.alpha - 1, ## from INLA book
-                      scale = sqrt(2 * (sp.alpha - 1)) / sp.kappa, 
-                      var = sp.var)      
-    
-    ## sf.iid <- geostatsp::RFsimulate(model, x = simple_raster, n = length(year_list))
-    sf.iid <- RFsimulate(model, x = pix.pts.numeric[, 2], y = pix.pts.numeric[, 3], n = length(year_list), spConform = FALSE)
-  }
-  
-  ## simulate t dist with low DOF
-  if(sp.field.sim.strat == 't'){
-    stop("sp.field.sim.strat=='t' is not yet implemented")
-  }
-  
-  ## simulate extremal dist
-  if(sp.field.sim.strat == 'ext'){
-    stop("sp.field.sim.strat=='ext' is not yet implemented")
-  }
-  
-  ## ---------
-  ## introduce temporal ar1 correlation at the pixel level
-  if(length(year_list) > 1){ ## then, correlate gp draws
-    sf.cor <- sf.iid
-    for(ii in 2:ncol(sf.cor)){
-      sf.cor[, ii] <- t.rho * sf.cor[, ii - 1] + sqrt(1 - t.rho ^ 2) * sf.iid[, ii]
+    ## sim using SPDE mesh ## TODO export this mesh to use in fitting
+    if(sp.field.sim.strat == 'SPDE'){ 
+      
+      ## now we can use these coords to simulate GP from rspde()
+      reg.mesh <- inla.mesh.2d(boundary = inla.sp2segment(simple_polygon),
+                               loc = pix.pts@data[, 2:3],
+                               max.edge = c(0.1, 5),
+                               offset = c(1, 5),
+                               cutoff = 0.1)
+      # FOR PAPER FIGURE:  
+      # png('~/tmb_inla_paper/spatial_matern_varying_ranges.png', width=8, height=8, units='in', res=300)
+      # set.seed(413)
+      # par(mfrow=c(2, 2), mai=c(.5, .5, .5, .85))
+      # for(sp.range in c(.5, 1, sqrt(8), 5)){
+      #   sp.kappa = sqrt(8)/sp.range
+      
+      ## get spatial fields that are GPs across space and are indep in time
+      sf.iid <- rspde(coords = cbind(pix.pts.numeric[, 2], pix.pts.numeric[, 3]),
+                      kappa = sp.kappa,
+                      variance = sp.var,
+                      alpha = sp.alpha,
+                      mesh = reg.mesh,
+                      n = length(year_list),
+                      seed = seed)
+      
+      # FOR PAPER FIGURE:  
+      #   ## rasterize and plot (for testing params)
+      #   sf.rast <- rasterize(x = pix.pts@data[, 2:3],
+      #                        y = simple_raster_full,
+      #                        field = sf.iid)
+      #   if(sp.range==.5) plot(sf.rast, col=viridis(256),
+      #                         main=expression(paste('Matern Field: ', sigma^2 == 0.25, ', ', alpha == 2, ', ', 'range = 0.5')))
+      #   if(sp.range==1) plot(sf.rast, col=viridis(256),
+      #                        main=expression(paste('Matern Field: ', sigma^2 == 0.25, ', ', alpha == 2, ', ', 'range = 1')))
+      #   if(sp.range==sqrt(8)) plot(sf.rast, col=viridis(256),
+      #                              main=expression(paste('Matern Field: ', sigma^2 == 0.25, ', ', alpha == 2, ', ', 'range = ', sqrt(8))))
+      #   if(sp.range==5) plot(sf.rast, col=viridis(256),
+      #                        main=expression(paste('Matern Field: ', sigma^2 == 0.25, ', ', alpha == 2, ', ', 'range = 5')))
+      # }
+      # dev.off()
+      
+    }else{
+      reg.mesh <- NULL
     }
     
+    ## use random fields package on simple_raster to simulate GP for spatial field
+    if(sp.field.sim.strat == 'RF'){ 
+      model <- RMmatern(nu = sp.alpha - 1, ## from INLA book
+                        scale = sqrt(2 * (sp.alpha - 1)) / sp.kappa, 
+                        var = sp.var)      
+      
+      ## sf.iid <- geostatsp::RFsimulate(model, x = simple_raster, n = length(year_list))
+      sf.iid <- RFsimulate(model, x = pix.pts.numeric[, 2], y = pix.pts.numeric[, 3], n = length(year_list), spConform = FALSE)
+    }
     
-    ## convert them to rasters
-    for(cc in 1:ncol(sf.iid)){
-      if(cc == 1){
-        sf.rast <- rasterize(x = pix.pts@data[, 2:3],
-                             y = simple_raster,
-                             field = sf.cor[, cc])
-      }else{
-        sf.rast <- addLayer(sf.rast,
-                            rasterize(x = pix.pts@data[, 2:3],
-                                      y = simple_raster,
-                                      field = sf.cor[, cc]))
+    ## simulate t dist with low DOF
+    if(sp.field.sim.strat == 't'){
+      stop("sp.field.sim.strat=='t' is not yet implemented")
+    }
+    
+    ## simulate extremal dist
+    if(sp.field.sim.strat == 'ext'){
+      stop("sp.field.sim.strat=='ext' is not yet implemented")
+    }
+    
+    ## ---------
+    ## introduce temporal ar1 correlation at the pixel level
+    if(length(year_list) > 1){ ## then, correlate gp draws
+      sf.cor <- sf.iid
+      for(ii in 2:ncol(sf.cor)){
+        sf.cor[, ii] <- t.rho * sf.cor[, ii - 1] + sqrt(1 - t.rho ^ 2) * sf.iid[, ii]
       }
+      
+      
+      ## convert them to rasters
+      for(cc in 1:ncol(sf.iid)){
+        if(cc == 1){
+          sf.rast <- rasterize(x = pix.pts@data[, 2:3],
+                               y = simple_raster,
+                               field = sf.cor[, cc])
+        }else{
+          sf.rast <- addLayer(sf.rast,
+                              rasterize(x = pix.pts@data[, 2:3],
+                                        y = simple_raster,
+                                        field = sf.cor[, cc]))
+        }
+      }
+    }else{ ## we have a single year, no time corr needed
+      sf.rast <- rasterize(x = pix.pts@data[, 2:3],
+                           y = simple_raster,
+                           field = sf.iid)
     }
-  }else{ ## we have a single year, no time corr needed
-    sf.rast <- rasterize(x = pix.pts@data[, 2:3],
-                         y = simple_raster,
-                         field = sf.iid)
+  }else{ ## else if fixed.gp is supplied, just use that
+    sf.rast <- fixed.gp
+    reg.mesh <- NULL ## since this gets returned in the final list obj
   }
-  
   
   ## plot gp
   pdf(sprintf('%s/simulated_obj/iter%04d_st_gp_plot.pdf', out.dir, exp.iter), width = 16, height = 16)
@@ -602,38 +609,44 @@ sim.realistic.data <- function(reg,
 
   if(verbose) message('SIMULATE DATA\n')
   
-  ## randomly (for now) select data boservation locations across time
   
-  ## to do this, we sample, with replacement, from the lat-longs that we used to sim the GP
-  if(obs.loc.strat == 'rand'){ ## select locations totally at random
-    sim.rows <- sample(x = 1:nrow(pix.pts.numeric), prob = pix.pts.numeric[, 1],
-                       size = n.clust * length(year_list), replace = TRUE)
-  } else{ ## stratify by "urban"/"rural"
-    ## given the % of population you want to be urban, find the population value cutoff
-    urban_thresh <- quantile(probs = (1 - urban.pop.pct), na.omit(values(pop_raster)))
+  if(is.null(fixed.locs)){ ## simulate survey locs
     
-    ## make a binary urban rural raster and get the lat-longs of the pixels
-    u_r_raster <- pop_raster[[1]] ## urban is 1, rural is 0
-    u_r_raster[pop_raster[[1]] < urban_thresh] <- 0
-    u_r_raster[pop_raster[[1]] >= urban_thresh] <- 1
+    ## randomly (for now) select data observation locations across time
     
-    ## convert pixels to a data frame
-    u_r.pts <- rasterToPoints(u_r_raster, spatial = TRUE)
-    u_r.pts@data <- data.frame(u_r.pts@data, long=coordinates(u_r.pts)[,1],
-                               lat=coordinates(u_r.pts)[,2])
-    u_r.pts.numeric <- as.data.frame(u_r.pts@data)
+    ## to do this, we sample, with replacement, from the lat-longs that we used to sim the GP
+    if(obs.loc.strat == 'rand'){ ## select locations totally at random
+      sim.rows <- sample(x = 1:nrow(pix.pts.numeric), prob = pix.pts.numeric[, 1],
+                         size = n.clust * length(year_list), replace = TRUE)
+    } else{ ## stratify by "urban"/"rural"
+      ## given the % of population you want to be urban, find the population value cutoff
+      urban_thresh <- quantile(probs = (1 - urban.pop.pct), na.omit(values(pop_raster)))
+      
+      ## make a binary urban rural raster and get the lat-longs of the pixels
+      u_r_raster <- pop_raster[[1]] ## urban is 1, rural is 0
+      u_r_raster[pop_raster[[1]] < urban_thresh] <- 0
+      u_r_raster[pop_raster[[1]] >= urban_thresh] <- 1
+      
+      ## convert pixels to a data frame
+      u_r.pts <- rasterToPoints(u_r_raster, spatial = TRUE)
+      u_r.pts@data <- data.frame(u_r.pts@data, long=coordinates(u_r.pts)[,1],
+                                 lat=coordinates(u_r.pts)[,2])
+      u_r.pts.numeric <- as.data.frame(u_r.pts@data)
+      
+      ## sample stratified locations
+      u.rows <- sample(x = which(u_r.pts.numeric[, 1] == 1), size = round(n.clust * urban.strat.pct),
+                       replace = TRUE)
+      r.rows <- sample(x = which(u_r.pts.numeric[, 1] == 0), size = round(n.clust * (1 - urban.strat.pct)),
+                       replace = TRUE)
+      sim.rows <- c(u.rows, r.rows)
+    }
     
-    ## sample stratified locations
-    u.rows <- sample(x = which(u_r.pts.numeric[, 1] == 1), size = round(n.clust * urban.strat.pct),
-                     replace = TRUE)
-    r.rows <- sample(x = which(u_r.pts.numeric[, 1] == 0), size = round(n.clust * (1 - urban.strat.pct)),
-                     replace = TRUE)
-    sim.rows <- c(u.rows, r.rows)
+    ## generate a table of simulated data at the selected locations
+    sim.dat <- as.data.table(pix.pts.numeric[, -1])
+    sim.dat <- sim.dat[sim.rows, ]
+  }else{ ## else if fixed.locs is supplied, use that
+    sim.dat <- fixed.locs
   }
-  
-  ## generate a table of simulated data at the selected locations
-  sim.dat <- as.data.table(pix.pts.numeric[, -1])
-  sim.dat <- sim.dat[sim.rows, ]
   
   ## add in years
   sim.dat[, year := rep(year_list, each = n.clust)]
@@ -733,7 +746,7 @@ sim.realistic.data <- function(reg,
   saveRDS(object = cov_layers,
           file = sprintf('%s/simulated_obj/iter%04d_cov_gp_rasters.rds', out.dir, exp.iter))
 
-  if(sp.field.sim.strat == 'SPDE'){
+  if(sp.field.sim.strat == 'SPDE' & is.null(fixed.gp)){
     saveRDS(object = reg.mesh,
             file = sprintf('%s/simulated_obj/iter%04d_region_mesh.rds', out.dir, exp.iter))
   }
@@ -743,8 +756,9 @@ sim.realistic.data <- function(reg,
   #########################
   return(list(sim.dat = sim.dat,
               cov.gp.rasters = cov_layers,
-              true.rast = true.rast, 
-              mesh_s = reg.mesh))
+              true.rast = true.rast,
+              mesh_s = reg.mesh ## in case we want to use the same mesh for fitting
+              ))
 }
 
 

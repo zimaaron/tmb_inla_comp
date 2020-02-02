@@ -52,6 +52,17 @@ Type dPCPriPrec(Type tau, Type u, Type a, int give_log=0)
   if(give_log)return logres; else return exp(logres);
 }
 
+// helper function for pc prior on log(precision) of multi-var normal
+// internally, INLA places the prior on log(precision)
+template<class Type>
+Type dPCPriLogPrec(Type log_prec, Type u, Type a, int give_log=0)
+{
+  Type logres;
+  Type lambda = -log(a) / u; //) P( 1/sqrt(tau) > u ) = a 
+  logres = log(lambda/Type(2.0)) - Type(1.0/2.0)*log_prec - lambda*exp(-log_prec/2.0);
+  if(give_log)return logres; else return exp(logres);
+}
+
 template<class Type>
 Type dPCPriSPDE(Type logtau, Type logkappa,
                 Type matern_par_a, Type matern_par_b, 
@@ -137,12 +148,14 @@ Type objective_function<Type>::operator() ()
   Type matern_par_d = matern_pri[3]; // field sd prob:  alpha_sigma
 
   // Fixed effects
-  PARAMETER( alpha );            // Intercept
-  PARAMETER_VECTOR( betas );     // Covariate coefficients
-  PARAMETER( log_obs_sigma);     // if using normal likelihood, sd of single normal obs
-  PARAMETER( log_tau );          // Log of INLA tau param (precision of space covariance matrix)
-  PARAMETER( log_kappa );        // Log of INLA kappa (related to spatial correlation and range)
-  PARAMETER( log_clust_sigma );  // Log of SD for cluster RE
+  PARAMETER( alpha );             // Intercept
+  PARAMETER_VECTOR( betas );      // Covariate coefficients
+  // PARAMETER( log_gauss_sigma );  // if using normal likelihood, log sd of single normal obs
+  PARAMETER( log_gauss_prec );      // if using normal likelihood, log prec of single normal obs
+  PARAMETER( log_tau );           // Log of INLA tau param (precision of space covariance matrix)
+  PARAMETER( log_kappa );         // Log of INLA kappa (related to spatial correlation and range)
+  // PARAMETER( log_clust_sigma );// Log of SD for cluster RE
+  PARAMETER( log_clust_prec );    // Log of prec for cluster RE
   PARAMETER_VECTOR( clust_i );    // random effect estimate for each cluster observation
   
   // Random effects
@@ -169,12 +182,17 @@ Type objective_function<Type>::operator() ()
   // Transform some of our parameters
   Type sp_range = sqrt(8.0) / exp(log_kappa);
   Type sp_sigma = 1.0 / sqrt(4.0 * 3.14159265359 * exp(2.0 * log_tau) * exp(2.0 * log_kappa));
-  Type clust_sigma = exp(log_clust_sigma);
-  Type gauss_sigma = exp(log_obs_sigma); 
   // Type log_clust_prec = -2.0 * log_clust_sigma; // needed if using non-pc prior
-  // Type log_gauss_prec = -2.0 * log_obs_sigma;   // needed if using non-pc prior
-  Type clust_prec = exp(-2.0 * log_clust_sigma);
-  Type gauss_prec = exp(-2.0 * log_obs_sigma);
+  // Type log_gauss_prec = -2.0 * log_gauss_sigma;   // needed if using non-pc prior
+  // Type clust_sigma = exp(log_clust_sigma);       // used when passing in log(sigma) instead of log(prec)
+  // Type gauss_sigma = exp(log_gauss_sigma);         // used when passing in log(sigma) instead of log(prec)
+  // Type clust_prec = exp(-2.0 * log_clust_sigma); // used when passing in log(sigma) instead of log(prec)
+  // Type gauss_prec = exp(-2.0 * log_gauss_sigma);   // used when passing in log(sigma) instead of log(prec)
+  Type clust_sigma = exp(-.5 * log_clust_prec);
+  Type gauss_sigma = exp(-.5 * log_gauss_prec);
+  Type clust_prec  = exp(log_clust_prec);
+  Type gauss_prec  = exp(log_gauss_prec);
+  
     
   // Define objects for derived values
   vector<Type> fe_i(num_i);              // main effect alpha + X_betas %*% t(betas)
@@ -267,7 +285,8 @@ Type objective_function<Type>::operator() ()
     if(options[4] == 1){
 
       // pc.prior on precision
-      jnll -= dPCPriPrec(clust_prec, clust_prec_pri[0], clust_prec_pri[1], true); //type2gumbel. P(1/sqrt(prec)>u)=a
+      // jnll -= dPCPriPrec(lclust_prec, clust_prec_pri[0], clust_prec_pri[1], true); //type2gumbel. P(1/sqrt(prec)>u)=a
+      jnll -= dPCPriLogPrec(log_clust_prec, clust_prec_pri[0], clust_prec_pri[1], true); // P(1/sqrt(prec)>u)=a
       
       // in tmb, log(X)~logGamma(shape, scale) where X~Gamma(shape, scale)
       // almost like INLA, except INLA uses params (shape, inv-scale) which is *_prec_pri is defined
@@ -283,7 +302,8 @@ Type objective_function<Type>::operator() ()
     if(options[5] == 0){
       
       // pc.prior on precision
-      jnll -= dPCPriPrec(gauss_prec, norm_prec_pri[0], norm_prec_pri[1], true); //type2gumbel. P(1/sqrt(prec)>u)=a
+      // jnll -= dPCPriPrec(gauss_prec, norm_prec_pri[0], norm_prec_pri[1], true); //type2gumbel. P(1/sqrt(prec)>u)=a
+      jnll -= dPCPriLogPrec(log_gauss_prec, norm_prec_pri[0], norm_prec_pri[1], true); // P(1/sqrt(prec)>u)=a
       
       // in tmb, log(X)~logGamma(shape, scale) where X~Gamma(shape, scale)
       // almost like INLA, except INLA uses params (shape, inv-scale) which is *_prec_pri is defined

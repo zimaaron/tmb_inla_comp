@@ -75,6 +75,10 @@ for(uu in 1:length(prior.us)){
 # pc.test.res[, u := rep(prior.us, each=length(prior.as)*4)]
 # pc.test.res[, a := rep(rep(prior.as, each=4), length(prior.us))]
 
+
+## TODO compare this (pc.test.res.prec ) last run to the one that ran overnight (pc.test.res)
+## pc.test.res.prec <- pc.test.res ## without log(prec) change in tmb
+
 gg <- ggplot(pc.test.res, aes(x=param, y=value, col=model)) + 
   geom_point(aes(pch=tmb.c, size=5)) + 
   facet_grid(u~a) +

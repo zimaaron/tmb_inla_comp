@@ -1,18 +1,18 @@
 ## this script can be used to launch 1_run_simulation.R in parallel on the IHME cluster
 ## written by aoz
 ## 2020JAN06
-## source('/homes/azimmer/tmb_inla_comp/0_launch_sims_1st_exp.R')
+## source('/homes/azimmer/tmb_inla_comp/0_launch_sims_1st_exp_d_1000samplesPerCluster.R')
 
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
 'STUDY 01: vary number of clusters, cluster effect, and normal data variance. 
-TRIAL 28: final run before general - with pixel coverage bugfix!!'
+TRIAL 26: testing INLA ccd hyperpar integration'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
-extra.job.name <- 'study01trial28'
+extra.job.name <- 'study01trial26'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -125,7 +125,7 @@ mesh_s_params <- c("c(0.4, 5)")
 n.clust <- c(250, 500, 750, 1000, 2500, 5000)
 
 ## loopvars 14: mean number of individuals sim'ed per cluster using poisson(m.clust)
-m.clust <- 35                   
+m.clust <- 1000                   
 
 ## loopvars 15
 ## each entry must be a character string with the syntax for a 3 element R list containing:

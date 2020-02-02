@@ -410,7 +410,7 @@ for(dl in c('binom', 'normal')){
                             aes(x=log(num.obs), y=med, 
                                 shape = fit_type,
                                 linetype = fit_type,
-                                colour = clust.var.cat)) + 
+                                colour = fit_type)) + 
     geom_errorbar(position=pd, aes(ymin=l.ci, ymax=u.ci), width=.025) +
     geom_line(position=pd) +
     geom_point(position=pd, size=2) +
@@ -418,7 +418,7 @@ for(dl in c('binom', 'normal')){
     ## facet_wrap(. ~ variable, scales='free_y') +
     ggtitle(pt) +
     ## fix the legends a bit
-    labs(color = 'Clust. Var', shape='Fit Type', linetype = 'Fit Type') + ## legend titles
+    labs(color = 'Fit', shape='Fit Type', linetype = 'Fit Type') + ## legend titles
     xlab('Num Spatial Locations Sampled') + 
     scale_x_continuous(breaks = log(sort(fe.mean.long.sum$num.obs)), ## add log x-axis labels
                        labels = paste0('ln(', sort(fe.mean.long.sum$num.obs), ')')) + 
@@ -456,7 +456,7 @@ message('plotting coverage by gp decile')
 ## cov.gp is already long, and mostly ready for plotting
 ## we need to average over the right things and make a column for line groupings
 
-cov.width <- 0.5 ## set the coverage interval width
+cov.width <- 0.8 ## set the coverage interval width
 for(ii in 1:loop.params[,.N]){
   
   d.l <- dl <- loop.params[ii, dl]

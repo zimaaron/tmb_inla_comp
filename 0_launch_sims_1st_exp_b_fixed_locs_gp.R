@@ -1,18 +1,18 @@
 ## this script can be used to launch 1_run_simulation.R in parallel on the IHME cluster
 ## written by aoz
 ## 2020JAN06
-## source('/homes/azimmer/tmb_inla_comp/0_launch_sims_1st_exp.R')
+## source('/homes/azimmer/tmb_inla_comp/0_launch_sims_1st_exp_fixed_locs_gp.R')
 
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
 'STUDY 01: vary number of clusters, cluster effect, and normal data variance. 
-TRIAL 28: final run before general - with pixel coverage bugfix!!'
+TRIAL 25: fixing locations AND fixded GP for each iteration'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
-extra.job.name <- 'study01trial28'
+extra.job.name <- 'study01trial24_fixed_locs_gp'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -183,12 +183,12 @@ matern.pri <- "c(10, .95, 1., .05)" ## a, b, c, d
 ## loopvars 29: fix data locations
 ## if set to true, then we only simulate the data locations once per experiment and 
 ## each iteration after the first will use the same locs
-fix.locs <- FALSE
+fix.locs <- TRUE
 
 ## loopvars 30: fix GP
 ## if set to true, then we only simulate the GP once per experiment and 
 ## each iteration after the first will use the same GP
-fix.gp <- FALSE
+fix.gp <- TRUE
 
 ## TODO always add all vars to exand.grid()
 ## NOTE: I use a named list here to ensure the columns in loopvars are named
@@ -413,9 +413,6 @@ time.done.running <- proc.time()
 
 message('running time:')
 print(time.done.running - time.start.running)
-
-## finally, we can stitch together all the experiments and simulations
-source('./7_stitch_together_results_study1.R')
 
 # ## print columns of loopvar that vary
 # ## so we can easily see what's going on in the experiments that fail...
