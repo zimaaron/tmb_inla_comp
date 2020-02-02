@@ -76,7 +76,6 @@ if(data.lik == 'normal'){
                   control.family = list(hyper = list(prec = list(prior="pc.prec", param = norm.prec.pri))), 
                   family = inla.lik.dict(data.lik),
                   num.threads = cores, #
-                  Ntrials = dt$N,
                   scale = dt$N, 
                   verbose = TRUE,
                   keep = FALSE)
@@ -97,7 +96,6 @@ if(data.lik == 'normal'){
                   family = inla.lik.dict(data.lik),
                   num.threads = cores, #
                   Ntrials = dt$N,
-                  scale = dt$N, 
                   verbose = TRUE,
                   keep = FALSE)
 }
