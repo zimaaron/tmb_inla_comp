@@ -205,6 +205,7 @@ fit_coverage_CI_summary <- ggplot(avg.cov.sum,
                                       group = line_group),
                                   position=position_jitter(w=0.02, h=0.02)) + 
 geom_errorbar(position=pd, aes(ymin = l.ci, ymax = u.ci), width = .025) +
+  facet_wrap(~ num.obs, scales = "fixed") +
 geom_line(position=pd) +
 geom_point(position=pd) +
 geom_abline(intercept = 0, slope = 1) +
@@ -213,6 +214,8 @@ ggtitle('sim coverage from RE groups') +
 labs(color = "num.grps", shape='lik', linetype='lik') + ## legend titles
 xlab('Nominal Coverage') + 
 ylab('Observed Monte Carlo Coverage')
+
+fit_coverage_CI_summary
 
 ggsave('~/GeneralExam/RE_grp_cov_sim.png', 
         plot = fit_coverage_CI_summary ,
