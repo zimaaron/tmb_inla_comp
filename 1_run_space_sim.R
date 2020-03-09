@@ -13,11 +13,24 @@
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-exp.lvid      <- as.numeric(commandArgs()[4]) ## all we need is to grab which (i.e. row of loopvars),
-exp.iter      <- as.numeric(commandArgs()[5])  ## which monte carlo iteration,
-main.dir.name <- as.character(commandArgs()[6]) ## the run_date folder name
-## exp.lvid <- 1; exp.iter <- 1; main.dir.name <- main.dir.names <- c('2020_01_07_08_13_43') ## study 1 w/o cluster var
-## exp.lvid <- 2; exp.iter <- 1; main.dir.name <- main.dir.names <- c('2020_01_07_08_13_43') ## study 1 w/ cluster var
+## get the array task id
+task.id <- as.integer(Sys.getenv("SGE_TASK_ID"))
+
+## load the loopvar matrix with param settings
+results.dir <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/')
+loopvars    <- read.csv(file = paste0(results.dir, '/loopvars.csv'))
+
+## get the main.dir with the run_date (same for all lvid and iters)
+main.dir <- as.character(loopvars$main.dir[1])
+
+## map that into experiments (loopvar id == lvid)
+##           and iterations  (iteration  == iter)
+exp.lvid <- task.id; while(exp.lvid - nrow(loopvars)>0){exp.lvid <- exp.lvid - nrow(loopvars)}
+exp.iter <- ceiling(task.id/nrow(loopvars))
+
+## set and create the output.dir
+out.dir  <- sprintf('%s/%04d', main.dir, exp.lvid)
+dir.create(out.dir, recursive = TRUE, showWarnings = F)
 
 message(sprintf('ON EXPERIMENT LV ID: %04d', exp.lvid))
 message(sprintf('-- ON SIM ITER: %04d', exp.iter))

@@ -45,12 +45,14 @@ modeling_shapefile_version <- '2019_10_10'
 ############################################################################
 ## load in the loopvars from launch and setup all the params for this job ##
 ############################################################################
-main.dir <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/%s', main.dir.name)
-out.dir  <- sprintf('%s/%04d', main.dir, exp.lvid)
-loopvars <- read.csv(file = paste0(main.dir, '/loopvars.csv'))
+
+# these three lines were moved to script 1 when switching to array jobs on 08mar2020
+# main.dir <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/%s', main.dir.name)
+# out.dir  <- sprintf('%s/%04d', main.dir, exp.lvid)
+# loopvars <- read.csv(file = paste0(main.dir, '/loopvars.csv'))
 
 ## create a directory for some common objects that can be shared by all experiments launched
-common.dir <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/%s/common/', main.dir.name)
+common.dir <- sprintf('%s/common/', main.dir)
 dir.create(common.dir, recursive = TRUE, showWarnings = F)
 
 ## create a write a file to keep track of job status

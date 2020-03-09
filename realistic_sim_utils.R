@@ -1,5 +1,93 @@
 ## some functions to help with realistic inla/tmb simulation comparison
-## written by aoz 19nov2019
+## written by aoz 08mar2020
+
+## qsub_sim: function to launch sims (and sim comparisons) on the cluster
+qsub_sim_array <- function(array.ind, ## array job indiced to launch
+                           main.dir.nm, ## head dir to store all results
+                           code.path,
+                           singularity = 'default',
+                           singularity.opts = list(SET_OMP_THREADS = cores, 
+                                                   SET_MKL_THREADS = cores),
+                           job.name = 'sim_array_jobs',
+                           mem = '20G',
+                           time = '01:00:00:00', 
+                           queue = 'geospatial.q',
+                           priority = 0, ## default = 0, lowest priority is -1023 
+                           hold.jid = NULL, ## jobid to hold on. default no hold
+                           logloc = NULL ## defaults to input/output dir in main.dir/exp.lvid
+){
+  
+  ## some early checks
+  if(length(unique(c(length(cov_names), length(cov_measures), length(betas)))) != 1){
+    messge('cov_names, cov_measrures, and betas lengths do not match! fix and rerun')
+    stop()
+  }
+  
+  ## set correct project based on queue
+  proj <- ifelse(queue=='geospatial.q', 'proj_geo_nodes', 'proj_geospatial')
+  
+  ## make sure we have access to J if running on non geo nodes
+  node.flag <- ifelse(queue != 'geospatial.q', ' -l archive=TRUE ', '')
+  
+  ## grab the shell script we want
+  shell <- '/share/code/geospatial/azimmer/lbd_core/mbg_central/share_scripts/shell_sing.sh'
+  sing_image <- get_singularity(image = singularity)
+  
+  ## set the loglocation for output/error files
+  if(is.null(logloc)){
+    logloc <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/%s/logs', main.dir.nm)
+  }
+  error_log_dir <- paste0(logloc, '/errors/')
+  output_log_dir <- paste0(logloc, '/output/')
+  
+  ## Piece together lengthy `qsub` command
+  qsub <- paste0("qsub",
+                 " -N ", job.name,
+                 " -e ", logloc, "/errors/",
+                 " -o ", logloc, "/output/",
+                 " -q ", queue, 
+                 " -P ", proj,
+                 " -p ", priority)
+  
+  ## add on job resource requests
+  qsub <- paste0(qsub,
+                 ' -l m_mem_free=', mem,
+                 ' -l fthread=1',
+                 ' -l h_rt=', time, 
+                 node.flag ## either ' -l geos_node=TRUE', or ''
+  )
+  
+  ## add on array job indices to run
+  qsub <- paste0(qsub,
+                 ' -t ',
+                 array.ind[1], ':', tail(array.ind, n=1))
+  
+  ## add on stuff to launch singularity
+  qsub <- qsub_sing_envs(qsub, singularity.opts,
+                         sing_image)
+  
+  ## add hold on jobid flag
+  if(!is.null(hold.jid)) {
+    qsub <- paste(qsub, 
+                  "-hold_jid", 
+                  hold.jid)
+  }
+  
+  ## append shell, and code to run 
+  qsub <- paste(qsub,
+                shell, 
+                code.path)
+  
+  # ## add on all remaining arguments 
+  # qsub <- paste(qsub,
+  #               exp.lvid, ## which row in loopvars
+  #               exp.iter, ## which iteration of experiment
+  #               main.dir.nm, ## which dir to load from
+  #               sep = " ")
+  
+  return(qsub)
+}
+
 
 ## qsub_sim: function to launch sims (and sim comparisons) on the cluster
 qsub_sim <- function(exp.lvid, ## if looping through multiple experiments - i.e. row of loopvars

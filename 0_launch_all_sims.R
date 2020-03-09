@@ -1,20 +1,20 @@
 ## this script can be used to launch 1_run_simulation.R in parallel on the IHME cluster
 ## written by aoz
-## 2020FEB23
+## 2020MAR08
 ## source('/homes/azimmer/tmb_inla_comp/0_launch_all_sims.R')
 
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
-'COMBINED STUDIES. Now testing combining all studies to avoid rerunning the same baselines.
+'Testing combined studies as array jobs.
 In this we vary:
 number of clusters
 cluster effect
 normal data variance
 with and without covariates
 
-TRIAL 01: final run before general - with pixel coverage bugfix!!'
+TRIAL 01: test array job for iter1'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
@@ -30,7 +30,6 @@ q.q   <- 'geospatial.q' ## all.q ## long.q
 q.m   <- '25G' ## e.g. 10G
 q.t   <- '00:3:30:00' ## DD:HH:MM:SS
 q.p   <- -100 ## priority: -1023 (low) - 0 (high)
-cores <- 1 ## used for OMP/MKL in qsub_sim call TODO - parallel version? NOTE!! this is overwritten in arg 16
 
 #############################################
 ## setup the environment for singularity R ##
@@ -93,16 +92,16 @@ reg <- 'nga'
 year_list <- 2000 
 
 ## loopvars 3: vector of covariates to use in model
-cov_names <- c("c('access2')", ## this is just to make sure nothing breaks... this run has no covs b/c betas is set to NA
-               "c('access2', 'mapincidence')")
+cov_names <- c("c('access2')") ## TODO_CUSTOM_TEST_RUN, ## this is just to make sure nothing breaks... this run has no covs b/c betas is set to NA
+            ##   "c('access2', 'mapincidence')")
 
 ## loopvars 4: vector of covariate measures to use in conjunction with cov_names to load covs
-cov_measures <- c("c('mean')", ## this is just to make sure nothing breaks... this run has no covs b/c betas is set to NA
-                  "c('mean', 'mean')")
+cov_measures <- c("c('mean')") ## TODO_CUSTOM_TEST_RUN, ## this is just to make sure nothing breaks... this run has no covs b/c betas is set to NA
+               ##   "c('mean', 'mean')")
 
 ## loopvars 5: cov effects. either NA (NO Covs), or a vector of cov effects to use wtih cov_names 
-betas <- c(NA, ## this is just to make sure nothing breaks... this run has no covs b/c betas is set to NA
-           "c(-.25, .25)")
+betas <- c(NA) ## TODO_CUSTOM_TEST_RUN, ## this is just to make sure nothing breaks... this run has no covs b/c betas is set to NA
+          ## "c(-.25, .25)")
 
 ## loopvars 6 ## global intercept
 alpha <- -1.0
@@ -112,11 +111,11 @@ alpha <- -1.0
 ## Nigeria is approx 12 degrees wide and 10 degrees tall
 ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
 ## so, with kappa=1, 90% of the correlation drops by 2.8 degrees, or about 1/4 of the heigth/width 
-sp.range <- c(1, sqrt(8)) 
+sp.range <- c(1) ## TODO_TEST_RUN, sqrt(8)) 
 
 ## loopvars 8: spatial nominal field variance as defiend by INLA folks
 ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
-sp.var <- c(.25 ^ 2, 0.5 ^ 2)      
+sp.var <- c(.25 ^ 2) ## TODO_TEST_RUN, 0.5 ^ 2)      
 
 ## loopvars 9: matern smoothness = sp.alpha - 1 -> sp.alpha = matern smooth + 1 (for R^2 domain)
 sp.alpha <- 2.0          
@@ -131,7 +130,7 @@ t.rho <-  0.8
 mesh_s_params <- c("c(0.15, 5)", "c(0.2, 5)", "c(0.3, 5)") 
 
 ## loopvars 13: number of clusters to simulate per year
-n.clust <- c(250, 500, 1000, 2000, 4000, 8000)
+n.clust <- c(250, 500, 1000) ## TODO_TEST_RUN, 2000, 4000, 8000)
 
 ## loopvars 14: mean number of individuals sim'ed per cluster using poisson(m.clust)
 m.clust <- 35                   
@@ -159,10 +158,10 @@ alphaj.pri <- "c(0, 3)" ## N(mean, sd)
 clust.prec.pri <- "c(.5, .05)" 
 
 ## loopvars 20: INLA hyperparam integration strategy. can be 'eb', 'ccd', or 'grid'
-inla.int.strat <- c('eb', 'ccd')
+inla.int.strat <- c('eb') ## TODO_TEST_RUN, 'ccd')
 
 ## loopvars 21: INLA marginal posterior approx strategy: can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
-inla.approx <- c('gaussian', 'simplified.laplace', 'laplace')
+inla.approx <- 'simplified_laplace' ## TODO_CUSTOM_TEST_RUN c('gaussian', 'simplified.laplace', 'laplace')
 
 ## loopvars 22: number of times to repeat an experiment (monte carlo simulations)
 n.sim <- 3
@@ -233,6 +232,9 @@ loopvars <- data.table(expand.grid(list(reg = reg, ## 1
                              fix.gp = fix.gp ## 30
                              )))
 
+## add on main.dir
+loopvars$main.dir <- main.dir
+
 ## drop wasteful combinations that don't need to be run
 
 ## drop varying norm.var with binomial
@@ -243,17 +245,68 @@ message(sprintf('-- EACH WITH %i ITERATIONS', n.sim))
 message(sprintf("---- THAT'S %i JOBS!", n.sim*nrow(loopvars)))
 
 ## add a unique hash (for ease in tracking all iterations w/in an experiment) to each loopvar row
-loopvars$qsub.hash <- stringi::stri_rand_strings(n=nrow(loopvars), length=5)
+## loopvars$qsub.hash <- stringi::stri_rand_strings(n=nrow(loopvars), length=5)
 
 ## save loopvars to this dir to reload into the parallel env
+write.table(file = paste0('/ihme/scratch/users/azimmer/tmb_inla_sim/loopvars.csv'), 
+            x = loopvars,
+            row.names = FALSE, sep=',')
+## also save it inside the main.dir for the run to log what we did
 write.table(file = paste0(main.dir, '/loopvars.csv'), x = loopvars,
             row.names = FALSE, sep=',')
 
 ## make a data.table to save the job.ids
-jid.dt <- data.table('exp'  = character(), 
-                     'iter' = character(), 
-                     'jid'  = character(),
-                     'qsub' = character())
+## TODO: track array jobs
+# jid.dt <- data.table('exp'  = character(), 
+#                      'iter' = character(), 
+#                      'jid'  = character(),
+#                      'qsub' = character())
+
+## to prep covariates and other objects that are common within an experiment across iterations, 
+## we will launch two array jobs
+## array job1 runs the first iteration for all experiments and preps objects
+## the second array job will hold on completion of all jobs in array1 and will the run all other iterations
+## not the most effecient, but better than launch qsubs for each experiment and iteration!
+
+## create complete array index for all experiments and iterations within them
+array.ind <- 1:(nrow(loopvars)*n.sim)  
+
+## create array_job1 for 1st iterations
+qsub.string.array1 <- qsub_sim_array(array.ind = 1:nrow(loopvars),
+                                     main.dir = main.dir.name,
+                                     code.path = '/homes/azimmer/tmb_inla_comp/1_run_space_sim.R', 
+                                     singularity = 'default',
+                                     singularity.opts = NULL,
+                                     job.name = 'array_init',
+                                     mem = q.m,
+                                     time = q.t,
+                                     queue = q.q,
+                                     priority = q.p,
+                                     hold.jid = NULL, ## no hold
+                                     logloc = NULL)   ## defaults
+
+## launch the job and catch the message
+sub.msg    <- system(qsub.string.array1, intern=TRUE)
+print(sub.msg)
+
+## save the job ids
+initjid <- strsplit(sub.msg, split = ' ')[[1]][[3]]
+
+## create array_job2 for all other iterations
+qsub.string.array2 <- qsub_sim_array(array.iters = array.ind[-(1:nrow(loopvars))],
+                                     main.dir = main.dir.name,
+                                     code.path = '/homes/azimmer/tmb_inla_comp/1_run_space_sim.R', 
+                                     singularity = 'default',
+                                     singularity.opts = NULL,
+                                     job.name = 'array_remainder',
+                                     mem = q.m,
+                                     time = q.t,
+                                     queue = q.q,
+                                     priority = q.p,
+                                     hold.jid = init.jid, ## hold this array until other array is 100% done
+                                     logloc = NULL)  
+
+
 
 for(ll in 1:nrow(loopvars)){
   for(ii in 1:n.sim){
