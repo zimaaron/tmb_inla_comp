@@ -23,7 +23,7 @@ X_betas <- as.matrix(dt[, covs[, name], with=FALSE])
 
 templ <- "model_space"
 setwd("/homes/azimmer/tmb_inla_comp/")
-TMB::compile(paste0('./', templ,".cpp"))
+## TMB::compile(paste0('./', templ,".cpp"))
 dyn.load( dynlib(templ) )
 
 

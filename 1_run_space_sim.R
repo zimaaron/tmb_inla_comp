@@ -22,6 +22,7 @@ loopvars    <- read.csv(file = paste0(results.dir, '/loopvars.csv'))
 
 ## get the main.dir with the run_date (same for all lvid and iters)
 main.dir <- as.character(loopvars$main.dir[1])
+main.dir.name <- tail(strsplit(main.dir, '/')[[1]], n=1)
 
 ## map that into experiments (loopvar id == lvid)
 ##           and iterations  (iteration  == iter)

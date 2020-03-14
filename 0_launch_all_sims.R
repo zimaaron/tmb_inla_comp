@@ -290,7 +290,7 @@ sub.msg    <- system(qsub.string.array1, intern=TRUE)
 print(sub.msg)
 
 ## save the job ids
-initjid <- strsplit(sub.msg, split = ' ')[[1]][[3]]
+init.jid <- strsplit(sub.msg, split = ' ')[[1]][[3]]
 
 ## create array_job2 for all other iterations
 qsub.string.array2 <- qsub_sim_array(array.iters = array.ind[-(1:nrow(loopvars))],

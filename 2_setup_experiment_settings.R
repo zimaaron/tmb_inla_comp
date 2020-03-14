@@ -29,6 +29,9 @@ library(viridis)
 library(scales)
 library(RandomFields)
 
+## set the location of the pardiso solver
+inla.setOption("pardiso.license", "~/sys/licenses/pardiso.lic")
+
 ## Now we can switch to the TMB repo
 setwd(tmb_repo)
 source('./realistic_sim_utils.R')
