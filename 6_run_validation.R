@@ -9,7 +9,7 @@ message('---- ON SCRIPT 6: running validation')
 ## update the tracker
 write.table(x=matrix(c(sim.loop.ct, 6), ncol=2), append=T,
             file = paste0(jobtrack.dir, 
-                          sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)), sep=',',
+                          sprintf('exp_%06d_iter_%06d.csv', exp.lvid, exp.iter)), sep=',',
             row.names=F, col.names = F)
 
 ## 1) summarize fitted params
@@ -121,7 +121,7 @@ names(rr) <- c('quantity','TRUE', 'R-INLA','TMB')
 rr$diff <- rr[,3]-rr[,4]
 
 write.table(x = rr, row.names = FALSE, sep=',', 
-          file = sprintf('%s/validation/experiment%04d_iter%04d_param_summary_table.csv', out.dir, exp.lvid, exp.iter))
+          file = sprintf('%s/validation/experiment%06d_iter%06d_param_summary_table.csv', out.dir, exp.lvid, exp.iter))
 
 ## we can now plot this table with: grid.table(rr)
 
@@ -136,7 +136,7 @@ write.table(x = rr, row.names = FALSE, sep=',',
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~
 message('------ plotting the summary table')
 
-png(sprintf('%s/validation/experiment%04d_iter%04d_plot_01_summary_table.png', out.dir, exp.lvid, exp.iter),
+png(sprintf('%s/validation/experiment%06d_iter%06d_plot_01_summary_table.png', out.dir, exp.lvid, exp.iter),
     height=7, width=9, units = 'in', res = 250)
 cols <- names(rr)[2:5]
 rr[,(cols) := round(.SD, 3), .SDcols=cols]
@@ -157,7 +157,7 @@ message('------- (while also getting coverage for each param)')
 
 ## NOTE: also assume that intercept is the first 'beta' and that betas are listed first!
 
-png(sprintf('%s/validation/experiment%04d_iter%04d_plot_02_parameter_densities.png', out.dir, exp.lvid, exp.iter),
+png(sprintf('%s/validation/experiment%06d_iter%06d_plot_02_parameter_densities.png', out.dir, exp.lvid, exp.iter),
     height=9, width=9, units = 'in', res = 250)
 
 ## set layout: start with a square, and drop rows is not needed
@@ -569,7 +569,7 @@ for(sum.meas in c('median','stdev')){
                       'TMB' = rtmb,
                       'INLA' = rinla)
     
-    png(sprintf('%s/validation/experiment%04d_iter%04d_plot_03_median_rasters.png', out.dir, exp.lvid, exp.iter),
+    png(sprintf('%s/validation/experiment%06d_iter%06d_plot_03_median_rasters.png', out.dir, exp.lvid, exp.iter),
         height=12, width=12, units = 'in', res = 250)
   } ## sum.meas==median
   
@@ -586,7 +586,7 @@ for(sum.meas in c('median','stdev')){
     rast.list <- list('TMB' = rtmb,
                       'INLA' = rinla)
     
-    png(sprintf('%s/validation/experiment%04d_iter%04d_plot_04_stdev_rasters.png', out.dir, exp.lvid, exp.iter),
+    png(sprintf('%s/validation/experiment%06d_iter%06d_plot_04_stdev_rasters.png', out.dir, exp.lvid, exp.iter),
         height=8, width=8, units = 'in', res = 250)
   } ## sum.meas==stdev
   
@@ -684,7 +684,7 @@ for(sum.meas in c('median','stdev')){
 ## ~~~~~~~~~~~~~~~~~~~~~~
 message('------ plotting caterpillar plots')
 
-png(sprintf('%s/validation/experiment%04d_iter%04d_plot_05_spatial_re_caterpillars.png', out.dir, exp.lvid, exp.iter),
+png(sprintf('%s/validation/experiment%06d_iter%06d_plot_05_spatial_re_caterpillars.png', out.dir, exp.lvid, exp.iter),
       height=8, width=12, units = 'in', res = 250)
 
 layout(matrix(1, 1, 1, byrow = TRUE))
@@ -881,7 +881,7 @@ long.cov.sum$clust.var <- clust.var
 long.cov.sum$dl        <- data.lik
 long.cov.sum$fit_type  <- long.cov.sum$model
 ## and save for validation
-write.csv(long.cov.sum, sprintf('%s/validation/experiment%04d_iter%04d_distance_coverage_summary.csv', out.dir, exp.lvid, exp.iter))
+write.csv(long.cov.sum, sprintf('%s/validation/experiment%06d_iter%06d_distance_coverage_summary.csv', out.dir, exp.lvid, exp.iter))
 
 ## make a plot of coverage as function of distance
 ## group the lines
@@ -910,7 +910,7 @@ if(interactive()){ ## then we can view
   print(gg.dist.cov)
 }
 
-ggsave(sprintf('%s/validation/experiment%04d_iter%04d_plot_06_coverage_distance_to_obs.png', out.dir, exp.lvid, exp.iter),
+ggsave(sprintf('%s/validation/experiment%06d_iter%06d_plot_06_coverage_distance_to_obs.png', out.dir, exp.lvid, exp.iter),
        plot = gg.dist.cov,
        device = 'png', units = 'in',
        width = 12, height = 8)
@@ -931,7 +931,7 @@ long.cov.sum$clust.var <- clust.var
 long.cov.sum$dl        <- data.lik
 long.cov.sum$fit_type  <- long.cov.sum$model
 ## and save for validation
-write.csv(long.cov.sum, sprintf('%s/validation/experiment%04d_iter%04d_GP_magnitude_coverage_summary.csv', out.dir, exp.lvid, exp.iter))
+write.csv(long.cov.sum, sprintf('%s/validation/experiment%06d_iter%06d_GP_magnitude_coverage_summary.csv', out.dir, exp.lvid, exp.iter))
 
 ## make a plot of coverage as function of distance
 ## group the lines
@@ -960,7 +960,7 @@ if(interactive()){ ## then we can view
   print(gg.mag.cov)
 }
 
-ggsave(sprintf('%s/validation/experiment%04d_iter%04d_plot_07_coverage_gpMagnitude.png', out.dir, exp.lvid, exp.iter),
+ggsave(sprintf('%s/validation/experiment%06d_iter%06d_plot_07_coverage_gpMagnitude.png', out.dir, exp.lvid, exp.iter),
        plot = gg.mag.cov,
        device = 'png', units = 'in',
        width = 12, height = 8)
@@ -1013,4 +1013,4 @@ summary.metrics <- cbind(surface.metrics, res.addon, pc.addon, lv.addon)
 summary.metrics[, iter := exp.iter]
 
 ## save
-write.csv(summary.metrics, sprintf('%s/validation/experiment%04d_iter%04d_summary_metrics.csv', out.dir, exp.lvid, exp.iter))
+write.csv(summary.metrics, sprintf('%s/validation/experiment%06d_iter%06d_summary_metrics.csv', out.dir, exp.lvid, exp.iter))

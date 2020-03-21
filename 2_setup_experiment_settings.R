@@ -51,7 +51,7 @@ modeling_shapefile_version <- '2019_10_10'
 
 # these three lines were moved to script 1 when switching to array jobs on 08mar2020
 # main.dir <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/%s', main.dir.name)
-# out.dir  <- sprintf('%s/%04d', main.dir, exp.lvid)
+# out.dir  <- sprintf('%s/%06d', main.dir, exp.lvid)
 # loopvars <- read.csv(file = paste0(main.dir, '/loopvars.csv'))
 
 ## create a directory for some common objects that can be shared by all experiments launched
@@ -63,7 +63,7 @@ jobtrack.dir <- paste0(common.dir, 'job_tracking/')
 dir.create(jobtrack.dir, recursive = TRUE, showWarnings = F)
 write.table(x=matrix(c(sim.loop.ct, 2), ncol=2), 
             file = paste0(jobtrack.dir, 
-                          sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)), sep=',', 
+                          sprintf('exp_%06d_iter_%06d.csv', exp.lvid, exp.iter)), sep=',', 
             row.names=F)
 
 ## create some directories for output organization

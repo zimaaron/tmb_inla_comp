@@ -9,7 +9,7 @@ message('---- ON SCRIPT 5: running INLA')
 ## update the tracker
 write.table(x=matrix(c(sim.loop.ct, 5), ncol=2), append=T,
             file = paste0(jobtrack.dir, 
-                          sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)), sep=',',
+                          sprintf('exp_%06d_iter_%06d.csv', exp.lvid, exp.iter)), sep=',',
             row.names=F, col.names = F)
 
 ## ########
@@ -130,7 +130,7 @@ if(!inla.crash){
   ## if the model didn't crash, AND it the hess was PD, AND if the mode converged, 
   ## then we predict out
   ## we could predict if either of these failed, but I'm considering these convergence failures
-  if(inla.pd.hess & inla.mode.converge){ ## added Mar 14, 2020
+  if(TRUE){# inla.pd.hess & inla.mode.converge){ ## added Mar 14, 2020
     
     ## ##########
     ## PREDICT ##
@@ -146,7 +146,7 @@ if(!inla.crash){
     
     ## index to spatial field and linear coefficient samples
     s_idx <- grep('^space.*', par_names)
-    l_idx <- which(!c(1:length(par_names)) %in% grep('^space.*|Predictor', par_names)) 
+    l_idx <- which(!c(1:length(par_names)) %in% grep('^space.*|Predictor|clust.id', par_names)) 
     ## deleted |[*:*] on 14Mar2020 from grep call
     
     ## get spatial draws as matrices and project to deaws at locations 
@@ -193,12 +193,12 @@ if(!inla.crash){
     ## #######
     
     ## save the posterior param draws
-    saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_inla_param_draws.rds', 
+    saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%06d_iter%06d_inla_param_draws.rds', 
                            out.dir, exp.lvid, exp.iter),
             object = inla_draws)
     
     ## save the cell_pred
-    # saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds.rds', 
+    # saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%06d_iter%06d_inla_preds.rds', 
     #                        out.dir, exp.lvid, exp.iter),
     #         object = pred_inla)
     
@@ -209,10 +209,10 @@ if(!inla.crash){
     ras_med_inla <- insertRaster(simple_raster, matrix(summ_inla[, 1], ncol = nperiods))
     ras_sdv_inla <- insertRaster(simple_raster, matrix(summ_inla[, 2], ncol = nperiods))
     
-    writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_median_raster.tif', 
+    writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%06d_iter%06d_inla_preds_median_raster.tif', 
                                out.dir, exp.lvid, exp.iter), 
                 x = ras_med_inla, format='GTiff', overwrite=TRUE)
-    writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_stdev_raster.tif', 
+    writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%06d_iter%06d_inla_preds_stdev_raster.tif', 
                                out.dir, exp.lvid, exp.iter), 
                 x = ras_sdv_inla, format='GTiff', overwrite=TRUE)
     
@@ -220,7 +220,7 @@ if(!inla.crash){
       ## convert to prevalence space and summarize, rasterize, and save again
       pred_inla_p <- plogis(pred_inla)
       
-      # saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_PREV.rds', 
+      # saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%06d_iter%06d_inla_preds_PREV.rds', 
       #                        out.dir, exp.lvid, exp.iter),
       #         object = pred_inla_p)
       
@@ -230,10 +230,10 @@ if(!inla.crash){
       ras_med_inla_p <- insertRaster(simple_raster, matrix(summ_inla_p[, 1], ncol = nperiods))
       ras_sdv_inla_p <- insertRaster(simple_raster, matrix(summ_inla_p[, 2], ncol = nperiods))
       
-      writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_median_raster_PREV.rds', 
+      writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%06d_iter%06d_inla_preds_median_raster_PREV.rds', 
                                  out.dir, exp.lvid, exp.iter),
                   x = ras_med_inla_p, format='GTiff', overwrite=TRUE)
-      writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%04d_iter%04d_inla_preds_stdev_raster_PREV.rds', 
+      writeRaster(file = sprintf('%s/modeling/outputs/inla/experiment%06d_iter%06d_inla_preds_stdev_raster_PREV.rds', 
                                  out.dir, exp.lvid, exp.iter),
                   x = ras_sdv_inla_p, format='GTiff', overwrite=TRUE)
     }

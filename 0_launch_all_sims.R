@@ -14,7 +14,7 @@ cluster effect
 normal data variance
 with and without covariates
 
-TRIAL 01: test array job for iter1'
+TRIAL 03  : test array jobs. trying all experiments'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
@@ -30,6 +30,9 @@ q.q   <- 'geospatial.q' ## all.q ## long.q
 q.m   <- '25G' ## e.g. 10G
 q.t   <- '00:3:30:00' ## DD:HH:MM:SS
 q.p   <- -100 ## priority: -1023 (low) - 0 (high)
+
+## specify number of concurrent tasks allowed to run. if NULL, no limit
+q.tc  <- NULL
 
 #############################################
 ## setup the environment for singularity R ##
@@ -92,16 +95,16 @@ reg <- 'nga'
 year_list <- 2000 
 
 ## loopvars 3: vector of covariates to use in model
-cov_names <- c("c('access2')") ## TODO_CUSTOM_TEST_RUN, ## this is just to make sure nothing breaks... this run has no covs b/c betas is set to NA
-            ##   "c('access2', 'mapincidence')")
+cov_names <- c("c('access2')", ## this is just to make sure nothing breaks... this run has no covs b/c betas is set to NA
+               "c('access2', 'mapincidence')")
 
 ## loopvars 4: vector of covariate measures to use in conjunction with cov_names to load covs
-cov_measures <- c("c('mean')") ## TODO_CUSTOM_TEST_RUN, ## this is just to make sure nothing breaks... this run has no covs b/c betas is set to NA
-               ##   "c('mean', 'mean')")
+cov_measures <- c("c('mean')", ## this is just to make sure nothing breaks... this run has no covs b/c betas is set to NA
+                  "c('mean', 'mean')")
 
 ## loopvars 5: cov effects. either NA (NO Covs), or a vector of cov effects to use wtih cov_names 
-betas <- c(NA) ## TODO_CUSTOM_TEST_RUN, ## this is just to make sure nothing breaks... this run has no covs b/c betas is set to NA
-          ## "c(-.25, .25)")
+betas <- c(NA, ## this is just to make sure nothing breaks... this run has no covs b/c betas is set to NA
+           "c(-.25, .25)")
 
 ## loopvars 6 ## global intercept
 alpha <- -1.0
@@ -111,11 +114,11 @@ alpha <- -1.0
 ## Nigeria is approx 12 degrees wide and 10 degrees tall
 ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
 ## so, with kappa=1, 90% of the correlation drops by 2.8 degrees, or about 1/4 of the heigth/width 
-sp.range <- c(1) ## TODO_TEST_RUN, sqrt(8)) 
+sp.range <- c(1, sqrt(8)) 
 
 ## loopvars 8: spatial nominal field variance as defiend by INLA folks
 ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
-sp.var <- c(.25 ^ 2) ## TODO_TEST_RUN, 0.5 ^ 2)      
+sp.var <- c(.25 ^ 2, 0.5 ^ 2)      
 
 ## loopvars 9: matern smoothness = sp.alpha - 1 -> sp.alpha = matern smooth + 1 (for R^2 domain)
 sp.alpha <- 2.0          
@@ -130,7 +133,7 @@ t.rho <-  0.8
 mesh_s_params <- c("c(0.15, 5)", "c(0.2, 5)", "c(0.3, 5)") 
 
 ## loopvars 13: number of clusters to simulate per year
-n.clust <- c(250, 500, 1000) ## TODO_TEST_RUN, 2000, 4000, 8000)
+n.clust <- c(250, 500, 1000, 2000, 4000, 8000)
 
 ## loopvars 14: mean number of individuals sim'ed per cluster using poisson(m.clust)
 m.clust <- 35                   
@@ -158,10 +161,10 @@ alphaj.pri <- "c(0, 3)" ## N(mean, sd)
 clust.prec.pri <- "c(.5, .05)" 
 
 ## loopvars 20: INLA hyperparam integration strategy. can be 'eb', 'ccd', or 'grid'
-inla.int.strat <- c('eb') ## TODO_TEST_RUN, 'ccd')
+inla.int.strat <- c('eb', 'ccd')
 
 ## loopvars 21: INLA marginal posterior approx strategy: can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
-inla.approx <- 'simplified_laplace' ## TODO_CUSTOM_TEST_RUN c('gaussian', 'simplified.laplace', 'laplace')
+inla.approx <- c('gaussian', 'simplified.laplace', 'laplace')
 
 ## loopvars 22: number of times to repeat an experiment (monte carlo simulations)
 n.sim <- 3
@@ -255,13 +258,12 @@ write.table(file = paste0('/ihme/scratch/users/azimmer/tmb_inla_sim/loopvars.csv
 write.table(file = paste0(main.dir, '/loopvars.csv'), x = loopvars,
             row.names = FALSE, sep=',')
 
-## make a data.table to save the job.ids
-## TODO: track array jobs
-# jid.dt <- data.table('exp'  = character(), 
-#                      'iter' = character(), 
-#                      'jid'  = character(),
-#                      'qsub' = character())
-
+## make a data.table to track jobs
+job.dt <- data.table('exp'  = sprintf('%04d', rep(1:nrow(loopvars), n.sim)), 
+                     'iter' = sprintf('%04d', rep(1:n.sim, each=nrow(loopvars))), 
+                     'jid'  = character(),
+                     'tid'  = character())
+                       
 ## to prep covariates and other objects that are common within an experiment across iterations, 
 ## we will launch two array jobs
 ## array job1 runs the first iteration for all experiments and preps objects
@@ -290,15 +292,95 @@ sub.msg    <- system(qsub.string.array1, intern=TRUE)
 print(sub.msg)
 
 ## save the job ids
-init.jid <- strsplit(sub.msg, split = ' ')[[1]][[3]]
+init.array.jid <- strsplit(sub.msg, split = ' ')[[1]][[3]]
+init.jid       <- strsplit(init.array.jid, split = '[.]')[[1]][1]
 
-## create array_job2 for all other iterations
-qsub.string.array2 <- qsub_sim_array(array.iters = array.ind[-(1:nrow(loopvars))],
+## update the tracker with the init jobs
+job.dt[iter=='0001', c('jid', 'tid') := data.table(jid=init.jid, tid=1:nrow(loopvars))]
+
+init.tracker.list <- list(NULL) ## list to store trackers after each submit
+num.launches <- 1 
+init.comlete <- 0
+
+## while(num.launches < 3 | init.comlete != 1){ ## relaunch broken jobs up to 2x
+  
+init.time.start <- Sys.time()
+
+## monitor init jobs and relaunch failed
+init.tracker <- monitor_array_jobs(init.array.jid=init.array.jid,
+                                   sims.array.jid=NULL,
+                                   jt.dt=job.dt, 
+                                   main.dir=main.dir)
+
+## after all init jobs completed, print the broken ones
+init.tracker.list[[num.launches]] <- init.tracker
+
+init.time.stop <- Sys.time()
+
+init.time.stop - init.time.start
+
+
+
+
+
+
+  
+#   ## check to see if any jobs errored. if, so, relaunch
+#   if( mean(init.tracker$summ.tracker[, completed]==100) < 1 ){
+#     ## find errored jobs and resubmit
+#     message(sprintf('%.2f%% of your experiments completed successfully', 
+#                     mean(init.tracker$summ.tracker[, completed]==100)*100))
+#     message(sprintf('%.2f%% of your iterations across all experiments completed successfully', 
+#                     mean(init.tracker$full.tracker[, errored]==0)*100))
+#     message('These experiments had some iterations fail:')
+#     print(init.tracker$summ.tracker[errored > 0,])
+#     # message('These are the failed experiment iterations:')
+#     # print(init.tracker$full.tracker[errored==1, .(exp, iter, jid, tid)])
+#     
+#     ## get the task ids of the failed jobs
+#     failed.tid <- as.numeric(init.tracker$full.tracker[errored==1, tid])
+#     
+#     ## relaunch just these jobs
+#     qsub.string.array1.resub <- qsub_sim_array(array.ind = failed.tid,
+#                                                main.dir = main.dir.name,
+#                                                code.path = '/homes/azimmer/tmb_inla_comp/1_run_space_sim.R', 
+#                                                singularity = 'default',
+#                                                singularity.opts = NULL,
+#                                                job.name = 'array_init',
+#                                                mem = q.m,
+#                                                time = q.t,
+#                                                queue = q.q,
+#                                                priority = q.p,
+#                                                concurrent.tasks = q.ct, ## concurrent tasks 
+#                                                hold.jid = NULL, ## no hold
+#                                                logloc = NULL)   ## defaults
+#     
+#     ## launch the job and catch the message
+#     sub.msg <- system(qsub.string.array1.resub, intern=TRUE)
+#     print(sub.msg)
+#     
+#     ## save the job ids
+#     init.array.jid <- strsplit(sub.msg, split = ' ')[[1]][[3]]
+#     init.jid       <- strsplit(init.array.jid, split = '[.]')[[1]][1]
+#     
+#     ## update the tracker with the init jobs
+#     job.dt[iter=='0001', c('jid', 'tid') := data.table(jid=init.jid, tid=1:nrow(loopvars))]
+#     
+#   }else{ ## otherwise, they completed!
+#     for(i in 1:3){message('\nALL INIT JOBS SUCCESSFUL')}
+#   } 
+#   
+# }
+
+  if( mean(init.tracker$summ.tracker[, completed]==100) == 1 ){
+
+## create array_job2 for all other sim iterations
+qsub.string.array2 <- qsub_sim_array(array.ind = array.ind[-(1:nrow(loopvars))],
                                      main.dir = main.dir.name,
                                      code.path = '/homes/azimmer/tmb_inla_comp/1_run_space_sim.R', 
                                      singularity = 'default',
                                      singularity.opts = NULL,
-                                     job.name = 'array_remainder',
+                                     job.name = 'array_sims',
                                      mem = q.m,
                                      time = q.t,
                                      queue = q.q,
@@ -306,79 +388,32 @@ qsub.string.array2 <- qsub_sim_array(array.iters = array.ind[-(1:nrow(loopvars))
                                      hold.jid = init.jid, ## hold this array until other array is 100% done
                                      logloc = NULL)  
 
+## launch the job and catch the message
+sub.msg    <- system(qsub.string.array2, intern=TRUE)
+print(sub.msg)
 
+## save the job ids
+sims.array.jid <- strsplit(sub.msg, split = ' ')[[1]][[3]]
+sims.jid        <- strsplit(sims.array.jid, split = '[.]')[[1]][1]
 
-for(ll in 1:nrow(loopvars)){
-  for(ii in 1:n.sim){
-    
-    message(sprintf('ON EXPERIMENT LOOP.ID %04d', ll))
-    message(sprintf('----- on iter %04d', ii))
-    
-    if(ii == 1){
-      ## now we can setup our main directory where all outputs will be saved
-      dir.create(main.dir, showWarnings = F, recursive = TRUE)
-      hold <- 0 ## to avoid ifelse() error
-      hold.jid <- NULL
-    }
-    
-    ## save and reload loopvars in parallel env. that way, we only need to pass in iter/row #
-    qsub.string <- qsub_sim(exp.lvid = ll, ## sets which loopvar to use in parallel
-                            exp.iter = ii,
-                            exp.hash = loopvars$qsub.hash[ll],
-                            main.dir = main.dir.name,
-                            codepath = '/homes/azimmer/tmb_inla_comp/1_run_space_sim.R', 
-                            singularity = 'default',
-                            singularity_opts = NULL,
-                            extra_name = extra.job.name,
-                            mem = q.m,
-                            time = q.t,
-                            queue = q.q,
-                            priority = q.p,
-                            hold.jid = switch(hold + 1, NULL, hold.jid), ## NULL if hold==0, hold.jid if hold==1
-                            logloc = NULL) ## defaults to input/output dir in sim run_date dir
-    
-    ## launch the job and catch the message
-    sub.msg    <- system(qsub.string, intern=TRUE)
-    print(sub.msg)
-    
-    ## save the job ids
-    subbed.jid <- strsplit(sub.msg, split = ' ')[[1]][[3]]
-    jid.dt <- rbind(jid.dt, list(sprintf('%04d', ll),
-                                 sprintf('%04d', ii),
-                                 subbed.jid,
-                                 qsub.string))
+## update the tracker with the init jobs
+job.dt[iter != '0001', c('jid', 'tid') := data.table(jid=sims.jid, tid=array.ind[-(1:nrow(loopvars))])]
 
-    if(ii == 1){
-      ## to use as holds for all others
-      hold.jid <- subbed.jid
-      
-      ## all iters (except the 1st) hold on the 1st
-      hold <- 1 
-    }
-  
-  } ## iteration
-}   ## experiment/loopvar row
+## set the key on tid
+setkey(job.dt, 'exp', 'iter')
 
-time.start.running <- proc.time()
+## monitor sims jobs and relaunch failed
+sims.tracker <- monitor_array_jobs(init.array.jid=init.array.jid,
+                                   sims.array.jid=sims.array.jid,
+                                   jt.dt=job.dt, 
+                                   main.dir=main.dir)
 
-## track job progress
-in_q <- 1
-while(in_q > 0) {
-  message(paste0('\n\n', Sys.time()))
-  jt1 <- track.exp.iter(jid.dt, main.dir)
-  js1 <- jt1[['summ.tracker']]
-  jf1 <- jt1[['full.tracker']]
-  print(js1, nrow(js1))
-  print(jf1[, c(on_track_per=mean(on_track)*100,
-          in_q=sum(in_q),
-          running=sum(running),
-          errored=sum(errored),
-          completed=sum(completed),
-          completed_per=mean(completed)*100)],
-          digits=3)
-  in_q <- sum(js1$in_q)
-  Sys.sleep(60)
+## after all sims jobs completed, print the broken ones
+sims.tracker.list[[num.launches]] <- sims.tracker
 }
+
+###############################
+###############################
 
 message(sprintf('%.2f%% of your experiments completed successfully', 
                 mean(js1[, completed]==100)*100))
@@ -456,7 +491,6 @@ if(mean(jt1[['full.tracker']][, errored]==0) != 1){
     in_q <- sum(js2$in_q)
     Sys.sleep(60)
   }
-  
   
   message(sprintf('%.2f%% of your experiments completed successfully', 
                   mean(js2[, completed]==100)*100))

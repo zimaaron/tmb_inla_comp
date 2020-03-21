@@ -61,34 +61,34 @@ if(!file.exists(sprintf('%sall_summary_metrics.csv', compar.dir))){
   for(lvid in 1:nrow(loopvars)){
     message(sprintf('--loading in summary metrics from %i of %i', lvid, nrow(loopvars)))
     
-    out.dir  <- sprintf('%s/%04d', main.dir, lvid)
+    out.dir  <- sprintf('%s/%06d', main.dir, lvid)
     
     for(iter in 1:loopvars$n.sim[1]){ ## n.sim is the same for all experiments
       
       ## check to see that the file is there
-      if(!file.exists(sprintf('%s/validation/experiment%04d_iter%04d_summary_metrics.csv', 
+      if(!file.exists(sprintf('%s/validation/experiment%06d_iter%06d_summary_metrics.csv', 
                               out.dir, lvid, iter))){
-        message(sprintf('----WARNING!! summary file for exp %04d, iter %04d does not exist!', lvid, iter))
+        message(sprintf('----WARNING!! summary file for exp %06d, iter %06d does not exist!', lvid, iter))
         missing.files <- rbind(missing.files, 
                                data.table(lvid=lvid,
                                           iter=iter))
       }else{
         if(lvid==1 & iter==1){
-          summary.metrics <- fread(sprintf('%s/validation/experiment%04d_iter%04d_summary_metrics.csv', 
+          summary.metrics <- fread(sprintf('%s/validation/experiment%06d_iter%06d_summary_metrics.csv', 
                                            out.dir, lvid, iter))[,lvid:=lvid]
-          cov.gp   <- fread(sprintf('%s/validation/experiment%04d_iter%04d_GP_magnitude_coverage_summary.csv', 
+          cov.gp   <- fread(sprintf('%s/validation/experiment%06d_iter%06d_GP_magnitude_coverage_summary.csv', 
                                     out.dir, lvid, iter))[,lvid:=lvid]
-          cov.dist <- fread(sprintf('%s/validation/experiment%04d_iter%04d_distance_coverage_summary.csv', 
+          cov.dist <- fread(sprintf('%s/validation/experiment%06d_iter%06d_distance_coverage_summary.csv', 
                                     out.dir, lvid, iter))[,lvid:=lvid]
         }else{
           summary.metrics <- rbind(summary.metrics,
-                                   fread(sprintf('%s/validation/experiment%04d_iter%04d_summary_metrics.csv', 
+                                   fread(sprintf('%s/validation/experiment%06d_iter%06d_summary_metrics.csv', 
                                                  out.dir, lvid, iter))[,lvid:=lvid], fill=T)
           cov.gp   <- rbind(cov.gp,
-                            fread(sprintf('%s/validation/experiment%04d_iter%04d_GP_magnitude_coverage_summary.csv', 
+                            fread(sprintf('%s/validation/experiment%06d_iter%06d_GP_magnitude_coverage_summary.csv', 
                                           out.dir, lvid, iter))[,lvid:=lvid], fill = T)
           cov.dist <- rbind(cov.dist,
-                            fread(sprintf('%s/validation/experiment%04d_iter%04d_distance_coverage_summary.csv', 
+                            fread(sprintf('%s/validation/experiment%06d_iter%06d_distance_coverage_summary.csv', 
                                           out.dir, lvid, iter))[,lvid:=lvid], fill = T)
         }
       } ## file.exists check

@@ -30,11 +30,11 @@ exp.lvid <- task.id; while(exp.lvid - nrow(loopvars)>0){exp.lvid <- exp.lvid - n
 exp.iter <- ceiling(task.id/nrow(loopvars))
 
 ## set and create the output.dir
-out.dir  <- sprintf('%s/%04d', main.dir, exp.lvid)
+out.dir  <- sprintf('%s/%06d', main.dir, exp.lvid)
 dir.create(out.dir, recursive = TRUE, showWarnings = F)
 
-message(sprintf('ON EXPERIMENT LV ID: %04d', exp.lvid))
-message(sprintf('-- ON SIM ITER: %04d', exp.iter))
+message(sprintf('ON EXPERIMENT LV ID: %06d', exp.lvid))
+message(sprintf('-- ON SIM ITER: %06d', exp.iter))
 
 ## set the seed for the entire experiment using minutes, 
 ## the experiemnt loopvar id, and the iteration
@@ -131,7 +131,7 @@ if(tmb.converge==1 & inla.converge==1){
   ## update the tracker to compelted (0)
   write.table(x=matrix(c(sim.loop.ct, 0), ncol=2), append=TRUE, 
               file = paste0(jobtrack.dir, 
-                            sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)), sep=',',
+                            sprintf('exp_%06d_iter_%06d.csv', exp.lvid, exp.iter)), sep=',',
               row.names = F, col.names = F)
   
   ## write to bottom of outputs and errors files for ease of checking

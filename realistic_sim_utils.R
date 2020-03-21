@@ -13,6 +13,7 @@ qsub_sim_array <- function(array.ind, ## array job indiced to launch
                            time = '01:00:00:00', 
                            queue = 'geospatial.q',
                            priority = 0, ## default = 0, lowest priority is -1023 
+                           concurrent.tasks = NULL, ## max number of concurrent jobs running. if NULL, no limit
                            hold.jid = NULL, ## jobid to hold on. default no hold
                            logloc = NULL ## defaults to input/output dir in main.dir/exp.lvid
 ){
@@ -62,6 +63,13 @@ qsub_sim_array <- function(array.ind, ## array job indiced to launch
                  ' -t ',
                  array.ind[1], ':', tail(array.ind, n=1))
   
+  ## add on concurrent task limit
+  if(!is.null(concurrent.tasks)){
+    qsub <- paste0(qsub,
+                   ' -tc ',
+                   concurrent.tasks)
+  }
+  
   ## add on stuff to launch singularity
   qsub <- qsub_sing_envs(qsub, singularity.opts,
                          sing_image)
@@ -88,6 +96,163 @@ qsub_sim_array <- function(array.ind, ## array job indiced to launch
   return(qsub)
 }
 
+array_tracker <- function(init.array.jid, ## array jid
+                          sims.array.jid, ## array jid
+                          j.dt,           ## dt of jobs with exp, iter, jid, tid columns
+                          main.dir        ## dir containing common dir with tracking csvs
+){
+  
+  ## get array jobid and the range of task ids for the init job
+  init.jid        <- strsplit(init.array.jid, split='[.]')[[1]][1]
+  init.task.range <- strsplit(strsplit(init.array.jid, split='[.]')[[1]][2], '[:]')[[1]][1]
+  init.start.id   <- strsplit(init.task.range, '[-]')[[1]][1] 
+  init.final.id   <- strsplit(init.task.range, '[-]')[[1]][2] 
+  
+  ## get array jobid and the range of task ids for the remaining jobs
+  if(!is.null(sims.array.jid)){
+    sims.jid        <- strsplit(sims.array.jid, split='[.]')[[1]][1]
+    sims.task.range <- strsplit(strsplit(sims.array.jid, split='[.]')[[1]][2], '[:]')[[1]][1]
+    sims.start.id   <- strsplit(sims.task.range, '[-]')[[1]][1] 
+    sims.final.id   <- strsplit(sims.task.range, '[-]')[[1]][2] 
+  }else{
+    j.dt <- subset(j.dt, jid==init.jid)
+    sims.jid=1
+  }
+  
+  ## query scheduler for state of the jobs
+  q.ret <- system("qstat", intern = TRUE)
+  
+  ## convert to a table
+  q.jobs <- do.call('rbind',
+                    lapply(q.ret[-(1:2)], 
+                           FUN = function(x) { 
+                             q.ret.spl <- strsplit(x, split = ' ')[[1]];
+                             data.table(jid      = q.ret.spl[3],
+                                        j.status = q.ret.spl[12],
+                                        tid  = q.ret.spl[56])
+                           }))
+  
+  ## subset to init.jid and sims.jid
+  q.jobs <- subset(q.jobs, jid==init.jid | jid==sims.jid)
+  
+  ## merge status onto jid.dt  
+  if(!is.null(j.dt)){
+    j.dt <- merge(j.dt, q.jobs, by =c('jid', 'tid'), all.x=T, all.y=F, sort=T)
+  }
+  
+  ## check the job tracking csvs
+  jt.info <- check_csv_trackers(main.dir = main.dir)
+  
+  if(!is.null(j.dt)){
+    ## merge on csv jt info
+    j.dt <-  merge(j.dt, jt.info, by = c('exp', 'iter'), all.x=T)
+    
+    ## determine status (not started, running, failed, completed) for each job
+    
+    ## TODO something is wrong with the logic.... jobs that don't exist are coming through as errored
+    
+    ## number of jobs in queue
+    j.dt[(grepl('qw', j.status) | grepl('r', j.status)), in_q := 1]
+    ## in qw means not started
+    j.dt[grepl('qw', j.status)  , not_started := 1]
+    ## running
+    j.dt[grepl('r', j.status), running := 1]
+    ## errored
+    j.dt[(is.na(j.status) & (script_num != 0 | is.na(script_num))), errored := 1]
+    ## not errored
+    j.dt[is.na(errored), on_track := 1]
+    ## completed
+    j.dt[(is.na(j.status) & script_num==0), completed := 1]
+    
+    ## swap NA for 0 for averaging
+    j.dt[is.na(j.dt)] <- 0
+    
+    ## count number of iterations in q by experiment
+    exp.sum <- j.dt[, lapply(.SD, sum), by=exp, .SDcols=c('in_q')]
+    
+    ## take the mean of running status
+    exp.sum <- merge(exp.sum, 
+                     j.dt[, lapply(.SD, FUN=function(x){round(100*mean(x, na.rm=T), 2)}), 
+                            by=exp, 
+                            .SDcols=c('on_track', 'not_started', 'running', 
+                                      'errored', 'completed')],
+                     all.x=T, all.y=F, by='exp')
+    
+    return(list(full.tracker = j.dt,
+                summ.tracker = exp.sum))
+  }else{ 
+    
+    ## there is no job tracking, so just check for percent completion by exp
+    exp.sum <- jt.info[, mean(script_num==0)*100, by=exp]
+    setnames(exp.sum, 'V1', 'perc_comp')
+    return(list(message=sprintf('%0.2f percent of experimets completed. %0.2f percent of iterations completed',
+                                exp.sum[,mean(perc_comp==100)*100], 
+                                jt.info[,mean(script_num==0)]*100),
+                summ.tracker=exp.sum))
+  }
+}
+
+monitor_array_jobs <- function(init.array.jid,  ## array jid
+                               sims.array.jid,  ## array jid
+                               j.dt,            ## dt of jobs with exp, iter, jid, tid columns
+                               main.dir,        ## dir containing common dir with tracking csvs
+                               pause.time = 300 ## time between checking on jobs (seconds)
+){                   
+  in_q <- 1
+  while(in_q > 0){
+    tracker <- array_tracker(init.array.jid=init.array.jid,
+                             sims.array.jid=sims.array.jid,
+                             j.dt=job.tracker, 
+                             main.dir=main.dir)
+    
+    message(paste0('\n\n', Sys.time(), '\n\n'))
+    ts <- tracker[['summ.tracker']]
+    tf <- tracker[['full.tracker']]
+    ## print(ts, nrow(ts))
+    print(tf[, c(on_track_per=mean(on_track)*100,
+                  in_q=sum(in_q),
+                  running=sum(running),
+                  errored=sum(errored),
+                  completed=sum(completed),
+                  completed_per=mean(completed)*100)],
+          digits=3)
+    in_q <- sum(ts$in_q)
+    if(in_q > 0){ Sys.sleep(pause.time) }
+  }
+  return(tracker)
+}
+
+## check output dir for completion after jobs are done running
+check_csv_trackers <- function(main.dir,
+                               j.dt = NULL ## if not null, merge onto csv info
+                       ){
+  ## check the csvs
+  jt.dir <- paste(main.dir, 'common', 'job_tracking', sep = '/')
+  jt.csvs <- list.files(path = jt.dir)
+  if(length(jt.csvs) == 0) { ## no files yet, 
+    jt.info <- data.table(exp     = character(),
+                          iter    = character(),
+                          sim_loop_ct = numeric(), ## sim.loop.ct from 1_run_space_sim.R
+                          script_num  = numeric())
+  } else { 
+    jt.info <- do.call('rbind',
+                       lapply(jt.csvs,
+                              FUN = function(x) {
+                                csv.spl <- strsplit(x, split='.')[[1]];
+                                csv.spl <- strsplit(x, split='_')[[1]];
+                                csv.dat <- read.csv(paste(jt.dir, x, sep='/'));
+                                data.table(exp     = csv.spl[2],
+                                           iter    = substr(csv.spl[4], start=1, stop=4), ## the status is appended, use last row
+                                           sim_loop_ct = csv.dat[nrow(csv.dat), 1], ## sim.loop.ct from 1_run_space_sim.R
+                                           script_num  = csv.dat[nrow(csv.dat), 2]) ## script number
+                              } ## func
+                       ) ## lapply
+    ) ## do.call
+  } ## else: length(jt.csvs) > 0
+  
+  ## merge onto j.dt if it is passed in
+  
+}
 
 ## qsub_sim: function to launch sims (and sim comparisons) on the cluster
 qsub_sim <- function(exp.lvid, ## if looping through multiple experiments - i.e. row of loopvars
@@ -124,7 +289,7 @@ qsub_sim <- function(exp.lvid, ## if looping through multiple experiments - i.e.
   
   ## set the loglocation for output/error files
   if(is.null(logloc)){
-    logloc <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/%s/%04d/logs', main.dir.nm, exp.lvid)
+    logloc <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/%s/%06d/logs', main.dir.nm, exp.lvid)
   }
   error_log_dir <- paste0(logloc, '/errors/')
   output_log_dir <- paste0(logloc, '/output/')
@@ -158,7 +323,7 @@ qsub_sim <- function(exp.lvid, ## if looping through multiple experiments - i.e.
   
   ## append job name, shell, and code to run 
   qsub <- paste0(qsub,
-                 sprintf(" -N sim_job_%s_hash_%s_exp%04d_iter%04d", 
+                 sprintf(" -N sim_job_%s_hash_%s_exp%06d_iter%06d", 
                          extra_name, exp.hash, exp.lvid, exp.iter), ## job name
                  " ", shell, " ", codepath) ## shell and code path
 
@@ -576,7 +741,7 @@ sim.realistic.data <- function(reg,
   }
   
   ## plot gp
-  pdf(sprintf('%s/simulated_obj/iter%04d_st_gp_plot.pdf', out.dir, exp.iter), width = 16, height = 16)
+  pdf(sprintf('%s/simulated_obj/iter%06d_st_gp_plot.pdf', out.dir, exp.iter), width = 16, height = 16)
   par(mfrow = rep( ceiling(sqrt( dim(sf.rast)[3] )), 2))
   for(yy in 1:dim(sf.rast)[3]){
     raster::plot(sf.rast[[yy]],
@@ -672,7 +837,7 @@ sim.realistic.data <- function(reg,
   ## and, add nugget if desired
   if(!is.null(pixel.iid.var)) true.rast <- true.rast + nug.rast
   
-  pdf(sprintf('%s/simulated_obj/iter%04d_true_surface_plot.pdf', out.dir, exp.iter), width = 16, height = 16)
+  pdf(sprintf('%s/simulated_obj/iter%06d_true_surface_plot.pdf', out.dir, exp.iter), width = 16, height = 16)
   par(mfrow = rep( ceiling(sqrt( dim(true.rast)[3] )), 2))
   for(yy in 1:dim(true.rast)[3]){
     raster::plot(true.rast[[yy]],
@@ -682,7 +847,7 @@ sim.realistic.data <- function(reg,
   }
   dev.off()
   
-  saveRDS(sprintf('%s/simulated_obj/iter%04d_true_surface_raster.rds', out.dir, exp.iter), object = true.rast)
+  saveRDS(sprintf('%s/simulated_obj/iter%06d_true_surface_raster.rds', out.dir, exp.iter), object = true.rast)
   
 
   ## now the surface simulation is done and all we need to do is simulate the data
@@ -829,14 +994,14 @@ sim.realistic.data <- function(reg,
   ## save everything we might want ##
   ## #################################
   saveRDS(object = sim.dat,
-          file = sprintf('%s/simulated_obj/iter%04d_sim_data.rds', out.dir, exp.iter))
+          file = sprintf('%s/simulated_obj/iter%06d_sim_data.rds', out.dir, exp.iter))
   
   saveRDS(object = cov_layers,
-          file = sprintf('%s/simulated_obj/iter%04d_cov_gp_rasters.rds', out.dir, exp.iter))
+          file = sprintf('%s/simulated_obj/iter%06d_cov_gp_rasters.rds', out.dir, exp.iter))
 
   if(sp.field.sim.strat == 'SPDE' & is.null(fixed.gp)){
     saveRDS(object = reg.mesh,
-            file = sprintf('%s/simulated_obj/iter%04d_region_mesh.rds', out.dir, exp.iter))
+            file = sprintf('%s/simulated_obj/iter%06d_region_mesh.rds', out.dir, exp.iter))
   }
   
   #########################

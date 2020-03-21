@@ -9,7 +9,7 @@ message('---- ON SCRIPT 4: running TMB')
 ## update the tracker
 write.table(x=matrix(c(sim.loop.ct, 4), ncol=2), append=T,
             file = paste0(jobtrack.dir, 
-                          sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)), sep=',',
+                          sprintf('exp_%06d_iter_%06d.csv', exp.lvid, exp.iter)), sep=',',
             row.names=F, col.names = F)
 
 ## ########
@@ -227,12 +227,12 @@ if(class(opt0) == "try-error"){
     ## #######
     
     ## save the posterior param draws
-    saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_param_draws.rds', 
+    saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%06d_iter%06d_tmb_param_draws.rds', 
                            out.dir, exp.lvid, exp.iter),
             object = tmb_draws)
     
     ## save the cell preds
-    # saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds.rds', 
+    # saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%06d_iter%06d_tmb_preds.rds', 
     #                        out.dir, exp.lvid, exp.iter),
     #         object = pred_tmb)
     
@@ -243,10 +243,10 @@ if(class(opt0) == "try-error"){
     ras_med_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 1], ncol = nperiods))
     ras_sdv_tmb <- insertRaster(simple_raster, matrix(summ_tmb[, 2], ncol = nperiods))
     
-    writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_median_raster.tif', 
+    writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%06d_iter%06d_tmb_preds_median_raster.tif', 
                                out.dir, exp.lvid, exp.iter), 
                 x = ras_med_tmb, format='GTiff', overwrite = TRUE)
-    writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_stdev_raster.tif', 
+    writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%06d_iter%06d_tmb_preds_stdev_raster.tif', 
                                out.dir, exp.lvid, exp.iter), 
                 x = ras_sdv_tmb, format='GTiff', overwrite = TRUE)
     
@@ -254,7 +254,7 @@ if(class(opt0) == "try-error"){
       ## convert to prevalence space and summarize, rasterize, and save again
       pred_tmb_p <- plogis(pred_tmb)
       
-      # saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_PREV.rds', 
+      # saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%06d_iter%06d_tmb_preds_PREV.rds', 
       #                        out.dir, exp.lvid, exp.iter),
       #         object = pred_tmb_p)
       
@@ -264,10 +264,10 @@ if(class(opt0) == "try-error"){
       ras_med_tmb_p <- insertRaster(simple_raster, matrix(summ_tmb_p[, 1], ncol = nperiods))
       ras_sdv_tmb_p <- insertRaster(simple_raster, matrix(summ_tmb_p[, 2], ncol = nperiods))
       
-      writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_median_raster_PREV.rds', 
+      writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%06d_iter%06d_tmb_preds_median_raster_PREV.rds', 
                                  out.dir, exp.lvid, exp.iter),
                   x = ras_med_tmb_p, format='GTiff', overwrite = TRUE)
-      writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%04d_iter%04d_tmb_preds_stdev_raster_PREV.rds', 
+      writeRaster(file = sprintf('%s/modeling/outputs/tmb/experiment%06d_iter%06d_tmb_preds_stdev_raster_PREV.rds', 
                                  out.dir, exp.lvid, exp.iter),
                   x = ras_sdv_tmb_p, format='GTiff', overwrite = TRUE)
     }

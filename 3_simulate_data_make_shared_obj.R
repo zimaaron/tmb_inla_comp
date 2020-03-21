@@ -7,7 +7,7 @@ message('---- ON SCRIPT 3: simulating data and prepping objects for fitting')
 ## update the tracker
 write.table(x=matrix(c(sim.loop.ct, 3), ncol=2), append=T,
             file = paste0(jobtrack.dir, 
-                          sprintf('exp_%04d_iter_%04d.csv', exp.lvid, exp.iter)), sep=',', 
+                          sprintf('exp_%06d_iter_%06d.csv', exp.lvid, exp.iter)), sep=',', 
             row.names=F, col.names = F)
 
 if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
@@ -104,7 +104,7 @@ if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
                                 seed = seed,
                                 exp.iter = exp.iter)
 
-saveRDS(file = sprintf('%s/simulated_obj/experiment%04d_iter%04d_sim_obj.rds', 
+saveRDS(file = sprintf('%s/simulated_obj/experiment%06d_iter%06d_sim_obj.rds', 
                        out.dir, exp.lvid, exp.iter),
         object = sim.obj)
 
@@ -191,7 +191,7 @@ mesh_s <- inla.mesh.2d(loc.domain = as.matrix(pix.pts.numeric[,2:3]),
 # dev.off()
 
 ## plot the triangulation
-pdf(sprintf('%s/modeling/inputs/experiment%04d_iter%04d_mesh.pdf', out.dir, exp.lvid, exp.iter))
+pdf(sprintf('%s/modeling/inputs/experiment%06d_iter%06d_mesh.pdf', out.dir, exp.lvid, exp.iter))
 plot(mesh_s)
 plot(simple_raster, add = TRUE) ## just to show loc of simple_raster under mesh for scale
 plot(mesh_s, add = TRUE)
@@ -222,8 +222,8 @@ A.proj <- inla.spde.make.A(mesh  = mesh_s,
                            group = dt.pers)
 
 ## save relevant objects. NOTE: meshes are not deterministic!?
-saveRDS(file = sprintf('%s/modeling/inputs/experiment%04d_iter%04d_mesh.rds', out.dir, exp.lvid, exp.iter), mesh_s)
-saveRDS(file = sprintf('%s/modeling/inputs/experiment%04d_iter%04d_spde.rds', out.dir, exp.lvid, exp.iter), spde)
+saveRDS(file = sprintf('%s/modeling/inputs/experiment%06d_iter%06d_mesh.rds', out.dir, exp.lvid, exp.iter), mesh_s)
+saveRDS(file = sprintf('%s/modeling/inputs/experiment%06d_iter%06d_spde.rds', out.dir, exp.lvid, exp.iter), spde)
 
 ## now that the mesh is made, we can grab the default priors that it generates
 ## only needed for non-pc matern priors
