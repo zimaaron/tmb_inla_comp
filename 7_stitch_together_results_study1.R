@@ -1,5 +1,5 @@
-## this script may be run in a clean env:
-# ## Set core_repo location and tmb_repo loc
+## NOTE: this script may be run in a clean env:
+
 user      <- Sys.info()['user']
 core_repo <- sprintf('/share/code/geospatial/%s/lbd_core/', user)
 tmb_repo  <- sprintf('/homes/%s/tmb_inla_comp', user)
@@ -30,13 +30,9 @@ library(ggplot2)
 ## this script pulls together some overall results from an experiment run
 ## main.dir.name <- main.dir.names <- c('2020_01_07_08_13_43') ## study 1
 # main.dir.name <- main.dir.names <- c('2019_09_29_21_38_14') ## study 2
-
-## source('/homes/azimmer/tmb_inla_comp/7_stitch_together_results_study1.R')
-
-## message(sprintf('ON MAIN DIR %i of %i: %s', which(main.dir.names %in% main.dir.name), length(main.dir.names), main.dir.name))
+main.dir.name <- "2020_08_08_13_13_30"
 
 main.dir <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/%s', main.dir.name)
-
 compar.dir <- sprintf('%s/comparisons/', main.dir)
 dir.create(compar.dir, recursive = T, showWarnings = F)
 
@@ -45,55 +41,86 @@ loopvars <- fread(file = paste0(main.dir, '/loopvars.csv'), stringsAsFactors = F
 
 # ## print columns of loopvar that vary
 # ## so we can easily see what's going on in the experiments that fail...
-loopvars[,!apply(loopvars, MARGIN = 2,
-                 FUN=function(x){col.var <- sort(x, decreasing=F)[1] == sort(x, decreasing=T)[1]
-                 if(is.na(col.var)){
-                   return(TRUE)
-                 }else{
-                   return(col.var)}
-                 }), with=F]
+loopvars[, !apply(loopvars, MARGIN = 2,
+                  FUN=function(x){col.var <- sort(x, decreasing=F)[1] == sort(x, decreasing=T)[1]
+                  if(is.na(col.var)){
+                    return(TRUE)
+                  }else{
+                    return(col.var)}
+                  }), with=F]
 
 ## if we haven't already done this, 
 ## read in the summary metrics log from each iteration of each experiment
 missing.files <- data.table(lvid=integer(),
                             iter=integer())
 if(!file.exists(sprintf('%sall_summary_metrics.csv', compar.dir))){
+  
+  summary.metrics.list <- cov.gp.list <- cov.dist.list <- list(NULL)
+  list.ind <- 1
+  
   for(lvid in 1:nrow(loopvars)){
     message(sprintf('--loading in summary metrics from %i of %i', lvid, nrow(loopvars)))
     
-    out.dir  <- sprintf('%s/%04d', main.dir, lvid)
+    out.dir  <- sprintf('%s/%06d', main.dir, lvid)
     
     for(iter in 1:loopvars$n.sim[1]){ ## n.sim is the same for all experiments
       
       ## check to see that the file is there
-      if(!file.exists(sprintf('%s/validation/experiment%04d_iter%04d_summary_metrics.csv', 
+      if(!file.exists(sprintf('%s/validation/experiment%06d_iter%06d_summary_metrics.csv', 
                               out.dir, lvid, iter))){
-        message(sprintf('----WARNING!! summary file for exp %04d, iter %04d does not exist!', lvid, iter))
+        message(sprintf('----WARNING!! summary file for exp %06d, iter %06d does not exist!', lvid, iter))
         missing.files <- rbind(missing.files, 
                                data.table(lvid=lvid,
                                           iter=iter))
       }else{
-        if(lvid==1 & iter==1){
-          summary.metrics <- fread(sprintf('%s/validation/experiment%04d_iter%04d_summary_metrics.csv', 
-                                           out.dir, lvid, iter))[,lvid:=lvid]
-          cov.gp   <- fread(sprintf('%s/validation/experiment%04d_iter%04d_GP_magnitude_coverage_summary.csv', 
-                                    out.dir, lvid, iter))[,lvid:=lvid]
-          cov.dist <- fread(sprintf('%s/validation/experiment%04d_iter%04d_distance_coverage_summary.csv', 
-                                    out.dir, lvid, iter))[,lvid:=lvid]
-        }else{
-          summary.metrics <- rbind(summary.metrics,
-                                   fread(sprintf('%s/validation/experiment%04d_iter%04d_summary_metrics.csv', 
-                                                 out.dir, lvid, iter))[,lvid:=lvid], fill=T)
-          cov.gp   <- rbind(cov.gp,
-                            fread(sprintf('%s/validation/experiment%04d_iter%04d_GP_magnitude_coverage_summary.csv', 
-                                          out.dir, lvid, iter))[,lvid:=lvid], fill = T)
-          cov.dist <- rbind(cov.dist,
-                            fread(sprintf('%s/validation/experiment%04d_iter%04d_distance_coverage_summary.csv', 
-                                          out.dir, lvid, iter))[,lvid:=lvid], fill = T)
-        }
+        
+        summary.metrics.list[[list.ind]] <- fread(sprintf('%s/validation/experiment%06d_iter%06d_summary_metrics.csv', 
+                                                          out.dir, lvid, iter))[,lvid:=lvid]
+        
+        cov.gp.list[[list.ind]]          <- fread(sprintf('%s/validation/experiment%06d_iter%06d_GP_magnitude_coverage_summary.csv', 
+                                                  out.dir, lvid, iter))[,lvid:=lvid][,iter:=iter]
+        
+        cov.dist.list[[list.ind]]        <- fread(sprintf('%s/validation/experiment%06d_iter%06d_distance_coverage_summary.csv', 
+                                                          out.dir, lvid, iter))[,lvid:=lvid][,iter:=iter]
+        
+        list.ind <- list.ind +  1
+        
+        # if(lvid==1 & iter==1){
+        #   summary.metrics <- fread(sprintf('%s/validation/experiment%06d_iter%06d_summary_metrics.csv', 
+        #                                    out.dir, lvid, iter))[,lvid:=lvid]
+        #   cov.gp   <- fread(sprintf('%s/validation/experiment%06d_iter%06d_GP_magnitude_coverage_summary.csv', 
+        #                             out.dir, lvid, iter))[,lvid:=lvid]
+        #   cov.dist <- fread(sprintf('%s/validation/experiment%06d_iter%06d_distance_coverage_summary.csv', 
+        #                             out.dir, lvid, iter))[,lvid:=lvid]
+        # }else{
+        #   summary.metrics <- rbind(summary.metrics,
+        #                            fread(sprintf('%s/validation/experiment%06d_iter%06d_summary_metrics.csv', 
+        #                                          out.dir, lvid, iter))[,lvid:=lvid], fill=T)
+        #   cov.gp   <- rbind(cov.gp,
+        #                     fread(sprintf('%s/validation/experiment%06d_iter%06d_GP_magnitude_coverage_summary.csv', 
+        #                                   out.dir, lvid, iter))[,lvid:=lvid], fill = T)
+        #   cov.dist <- rbind(cov.dist,
+        #                     fread(sprintf('%s/validation/experiment%06d_iter%06d_distance_coverage_summary.csv', 
+        #                                   out.dir, lvid, iter))[,lvid:=lvid], fill = T)
+        # }
+        
       } ## file.exists check
     }   ## loading all iterations within
-  }     ## all experiments
+  }     ## all experiments (ie loopvars loop)
+  
+  ## convert all columns of summary metrics to character to ensure constant typing of each column, 
+  ##  then rbind, then convert columns to appropriate types (numerics, logicals, etc)
+  summary.metrics.list2 <- lapply(summary.metrics.list, 
+                                  function(x){
+                                    # make sure each column only shows up once
+                                    x <- x[, .SD, .SDcols = unique(names(x))]
+                                    # convert to characters
+                                    x[, names(x) := lapply(.SD, as.character)]
+                                  })
+  ## combine the lists
+  summary.metrics <- rbindlist(summary.metrics.list2, fill=T)
+  cov.gp          <- rbindlist(cov.gp.list, fill=T)
+  cov.dist        <- rbindlist(cov.dist.list, fill=T)
   
   ## save the combined metrics for the study 
   write.csv(summary.metrics, file = sprintf('%sall_summary_metrics.csv', compar.dir))
@@ -119,6 +146,67 @@ if(!file.exists(sprintf('%sall_summary_metrics.csv', compar.dir))){
 
 message('summary metrics from all experiments and all iterations prepped and ready to go')
 
+## convert columns of summary.metrics to appropriate type
+numCols <- c( "mean.l.truth",
+              "mean.l.est"           ,"bias",
+              "rmse"                 ,"cor",
+              "CoV"                  ,"crps",
+              "st_mesh_nodes",
+              "cores"                ,"s_mesh_max_edge",
+              "s_mesh_cutoff"        ,"draws",
+              "fit_time"             ,"pred_time",
+              "pt_tmb_sdreport_time" ,"pt_get_draws_time",
+              "convergence.fails",
+              "fe_int_mean"          ,"fe_int_sd",
+              "gauss_var_mean"       ,"gauss_var_sd",
+              "matern_range_mean"    ,"matern_range_sd",
+              "matern_sigma_mean"    ,"matern_sigma_sd",
+              "gauss_prec_mean"      ,
+              "year_list"            ,
+              "alpha"                ,"sp.range",
+              "sp.var"               ,"sp.alpha",
+              "clust.var"            ,"t.rho",
+              "n.clust",
+              "m.clust"              ,
+              "ndraws"               ,"n.sim",
+              "norm.var"             ,"iter",
+              "lvid"                 ,"fe_access2_mean",
+              "fe_mapincidence_mean" ,"fe_access2_sd",
+              "fe_mapincidence_sd"   ,
+              "clust_var_mean"       ,"clust_var_sd",
+              "clust_prec_mean"      ,
+              "mean.p"              ,"mean.p.est",
+              "bias.p"              ,"rmse.p",
+              "cor.p"               ,"CoV.p")
+
+# logical columns
+logCols <- c( "pix.cov25"            ,"pix.cov50",
+              "pix.cov80"            ,"pix.cov90",
+              "pix.cov95"            ,"st_mesh_nodes",
+              "convergence"          ,"alpha.cov.25",
+              "alpha.cov.50"         ,"alpha.cov.80",
+              "alpha.cov.90"         ,"alpha.cov.95",
+              "gauss.prec.cov.25"    ,"gauss.prec.cov.50",
+              "gauss.prec.cov.80"    ,"gauss.prec.cov.90",
+              "gauss.prec.cov.95"    ,"sp.range.cov.25",
+              "sp.range.cov.50"      ,"sp.range.cov.80",
+              "sp.range.cov.90"      ,"sp.range.cov.95",
+              "sp.sigma.cov.25"      ,"sp.sigma.cov.50",
+              "sp.sigma.cov.80"      ,"sp.sigma.cov.90",
+              "sp.sigma.cov.95"      ,"bias.correct",
+              "sd.correct"           ,
+              "fix.locs"             ,"fix.gp",
+              "beta.cov.25",
+              "beta.cov.50"          ,"beta.cov.80",
+              "beta.cov.90"          ,"beta.cov.95",
+              "clust.prec.cov.25",
+              "clust.prec.cov.50"   ,"clust.prec.cov.80",
+              "clust.prec.cov.90"   ,"clust.prec.cov.95")
+
+# convert
+summary.metrics[,(numCols):= lapply(.SD, as.numeric), .SDcols = numCols]
+summary.metrics[,(logCols):= lapply(.SD, as.logical), .SDcols = logCols]
+
 ## process a few things and make some necessary columns for plotting
 
 ## set the order of clust.var so that NA -> None and comes first
@@ -133,8 +221,12 @@ summary.metrics[,logkappa := log(sqrt(8) / sp.range)]
 summary.metrics[,logtau   := log(sqrt(1 / (4 * pi * exp(logkappa) ^ 2 * sp.var)))]
 
 ## make new labels for INLA_EB, INLA_CCD, TMB
-summary.metrics[inla.int.strat == 'eb' & mean.l.model == 'inla', fit_type := 'INLA_EB']
-summary.metrics[inla.int.strat == 'ccd' & mean.l.model == 'inla', fit_type := 'INLA_CCD']
+summary.metrics[inla.int.strat == 'eb' & mean.l.model == 'inla' & inla.approx == "gaussian", fit_type := 'INLA_EB_G']
+summary.metrics[inla.int.strat == 'eb' & mean.l.model == 'inla' & inla.approx == "simplified.laplace", fit_type := 'INLA_EB_S']
+summary.metrics[inla.int.strat == 'eb' & mean.l.model == 'inla' & inla.approx == "laplace", fit_type := 'INLA_EB_L']
+summary.metrics[inla.int.strat == 'ccd' & mean.l.model == 'inla' & inla.approx == "gaussian", fit_type := 'INLA_CCD_G']
+summary.metrics[inla.int.strat == 'ccd' & mean.l.model == 'inla' & inla.approx == "simplified.laplace", fit_type := 'INLA_CCD_S']
+summary.metrics[inla.int.strat == 'ccd' & mean.l.model == 'inla' & inla.approx == "laplace", fit_type := 'INLA_CCD_L']
 summary.metrics[mean.l.model == 'tmb', fit_type := 'TMB']
 
 ## ####################################################################

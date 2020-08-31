@@ -14,7 +14,7 @@
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ## get the array task id
-task.id <- as.integer(Sys.getenv("SGE_TASK_ID"))
+sge.task.id <- as.integer(Sys.getenv("SGE_TASK_ID"))
 
 ## load the loopvar matrix with param settings
 results.dir <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/')
@@ -23,6 +23,16 @@ loopvars    <- read.csv(file = paste0(results.dir, '/loopvars.csv'))
 ## get the main.dir with the run_date (same for all lvid and iters)
 main.dir <- as.character(loopvars$main.dir[1])
 main.dir.name <- tail(strsplit(main.dir, '/')[[1]], n=1)
+
+## load the csv that relates SGE_TASK_ID to tasks in the big sim
+require(data.table)
+message(paste0('SGE.TASK.ID is: ', sge.task.id))
+message('LOADING task_ids.csv')
+task.dt <- fread(file.path(main.dir, "task_ids.csv"))
+## and get the task id for this run
+task.id <- as.numeric(task.dt[sge.task.id,])
+message(paste0('this run maps to tid: ', task.id))
+
 
 ## map that into experiments (loopvar id == lvid)
 ##           and iterations  (iteration  == iter)
@@ -40,15 +50,25 @@ message(sprintf('-- ON SIM ITER: %06d', exp.iter))
 ## the experiemnt loopvar id, and the iteration
 ## this seed will rarely repeat across experiments and give unique starting values within each experiment
 ## NOTE: the max seed integer is (2^31 - 1) = 2147483647
-## so, we use the last 3 digits for iter
-##     we use the 3 prior digits for exp.lvid
-##     that leaves 4 digits, with a max value of 2147, first 4 digits
-##     we take the minutes and seconds of run_date, modulo 2146 to get these first 4 digits
-seed <- as.numeric(sprintf('%i%03d%03d',
-                           (as.numeric(paste0(strsplit(main.dir.name, '_')[[1]][5:6], collapse='')) %% 2146),
+## so, we use experiment and the iteration
+seed <- as.numeric(sprintf('1%06d%04d',
+                           ## as.integer(paste0(strsplit(main.dir.name, '_')[[1]][4:6], collapse='')),
                            exp.lvid,   ## experiment loopvar id
-                           exp.iter))  ## experiment iteration for given lvid
+                           exp.iter))   ## experiment iteration for given lvid
+seed <- seed %% 2147483647
+
+# save the seed. IF THIS IS A RELAUNCH, INCREMENT THE SEED BY 1 TO AVOID AN EXACT REPEAT
+dir.create(file.path(out.dir, 'seeds'))
+seed.fn <- sprintf('%s/seeds/seed_%06d.csv', out.dir, exp.iter)
+if(file.exists(seed.fn)){
+  seed <- as.numeric(read.csv(seed.fn))
+  seed <- seed + 1
+}
+write.csv(matrix(seed, nrow=1), row.names=F,
+          file = seed.fn)
+
 set.seed(seed)
+message(sprintf('---- using seed: %s', seed))
  
 
 ## #####################################################
@@ -128,7 +148,7 @@ if(tmb.converge==1 & inla.converge==1){
   ## #############
   source('./6_run_validation.R')
   
-  ## update the tracker to compelted (0)
+  ## update the tracker to completed (0)
   write.table(x=matrix(c(sim.loop.ct, 0), ncol=2), append=TRUE, 
               file = paste0(jobtrack.dir, 
                             sprintf('exp_%06d_iter_%06d.csv', exp.lvid, exp.iter)), sep=',',

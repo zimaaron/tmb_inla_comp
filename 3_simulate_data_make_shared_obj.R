@@ -10,7 +10,16 @@ write.table(x=matrix(c(sim.loop.ct, 3), ncol=2), append=T,
                           sprintf('exp_%06d_iter_%06d.csv', exp.lvid, exp.iter)), sep=',', 
             row.names=F, col.names = F)
 
-if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
+## determine unique covariate sets used in loopvars
+cov.lv.list <- lapply(as.character(loopvars$cov_names), 
+                      FUN=function(x){eval(parse(text=x))})
+cov.uniq <- unique(cov.lv.list)
+
+## determine which cov set (among loopvars) this experiment uses
+cov.ind  <- which(unlist(lapply(cov.uniq, function(x){base::all.equal(x, cov_names)}))=="TRUE")
+
+## if the cov file hasn't been pre-processed and saved yet, load the covs
+if(!file.exists(sprintf('%s/cov_list_%02d.rds', common.dir, cov.ind))){ 
   sim.obj <- sim.realistic.data(reg = reg,
                                 year_list = year_list,
                                 data.lik = data.lik,
@@ -41,11 +50,17 @@ if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
                                 exp.iter = exp.iter)
   
   ## save the cov_list for future iterations to speed things up
-  covs.gp <- sim.obj$cov.gp.rasters   ## rasters of covs and true simulated gp field
-  cov_list <- covs.gp[!grepl('gp',names(covs.gp))]
-  saveRDS(object = cov_list,
-          file = sprintf('%s/cov_list.rds', common.dir))
+  covs.gp  <- sim.obj$cov.gp.rasters   ## rasters of covs and true simulated gp field
+  cov_list <- covs.gp[!grepl('gp', names(covs.gp))]
   
+  ## if this is the first experiment in loopvars that uses these covs (and the saved cov file doesn't exist), 
+  ##   then save the object for reuse
+  if(exp.lvid == min(which(unlist(lapply(cov.lv.list, function(x){base::all.equal(x, cov_names)}))=="TRUE"))){
+    saveRDS(object = cov_list,
+            file = sprintf('%s/cov_list_%02d.rds', common.dir, cov.ind))
+  }
+
+  ## TODO: the logic to save these is wrong since this part is only run if the covs are not extant - AOZ 2020july27
   ## if we want to fix the locations, we save them
   if(fix.locs){
     fixed.locs <- sim.obj$sim.dat[,.(long,lat)]
@@ -61,7 +76,7 @@ if(exp.iter == 1){ ## first time, must load covs, after that, we can reuse them
 }else{
   
   ## reuse covs
-  cov_list <- readRDS(sprintf('%s/cov_list.rds', common.dir))
+  cov_list <- readRDS(sprintf('%s/cov_list_%02d.rds', common.dir, cov.ind))
   
   ## if we want to fix the locations, we reload them
   if(fix.locs){

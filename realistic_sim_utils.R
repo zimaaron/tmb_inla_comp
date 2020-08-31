@@ -2,7 +2,9 @@
 ## written by aoz 08mar2020
 
 ## qsub_sim: function to launch sims (and sim comparisons) on the cluster
-qsub_sim_array <- function(array.ind, ## array job indiced to launch
+qsub_sim_array <- function(array.ind.start = NULL, # array job start index (if launching range)
+                           array.ind.stop  = NULL, # array job stop index (if launching range)
+                           array.ind       = NULL, # specific array job indices to launch. overrides start/stop
                            main.dir.nm, ## head dir to store all results
                            code.path,
                            singularity = 'default',
@@ -59,9 +61,18 @@ qsub_sim_array <- function(array.ind, ## array job indiced to launch
   )
   
   ## add on array job indices to run
-  qsub <- paste0(qsub,
-                 ' -t ',
-                 array.ind[1], ':', tail(array.ind, n=1))
+  if(is.null(array.ind)){
+    # then use start/stop indices
+    qsub <- paste0(qsub,
+                   ' -t ',
+                   array.ind.start, ':', array.ind.stop)
+  }else{
+    # o.w., submit only specific jobs listed
+    qsub <- paste0(qsub,
+                   ' -t ',
+                   paste0(array.ind, collapse=','))
+  }
+
   
   ## add on concurrent task limit
   if(!is.null(concurrent.tasks)){
@@ -116,7 +127,7 @@ array_tracker <- function(init.array.jid, ## array jid
     sims.final.id   <- strsplit(sims.task.range, '[-]')[[1]][2] 
   }else{
     j.dt <- subset(j.dt, jid==init.jid)
-    sims.jid=1
+    sims.jid <- 1
   }
   
   ## query scheduler for state of the jobs
@@ -132,12 +143,35 @@ array_tracker <- function(init.array.jid, ## array jid
                                         tid  = q.ret.spl[56])
                            }))
   
-  ## subset to init.jid and sims.jid
+  ## with array jobs, we need to parse qw separately
+  if(q.jobs[,sum(j.status=='qw')>0]){
+    qw.ind <- q.jobs[,which(j.status=='qw')]
+    for(qq in qw.ind){
+      q.ret.spl <- strsplit(q.ret[-(1:2)][qq], split = ' ')[[1]][[85]]
+      qw.inds   <- strsplit(q.ret.spl, '[:]')[[1]][1]
+      qw.first  <- strsplit(qw.inds, '-')[[1]][1]
+      qw.last   <- strsplit(qw.inds, '-')[[1]][2]
+      q.jobs.qw <- data.table(jid      = q.jobs[qq, jid],
+                              j.status = 'qw',
+                              tid      = seq(qw.first, 
+                                             qw.last)
+      )
+      q.jobs <- rbind(q.jobs, q.jobs.qw)
+    }
+  }
+  
+  ## subset relevant jobs
+  ## to init.jid and sims.jid
+  ## to qw with tid
   q.jobs <- subset(q.jobs, jid==init.jid | jid==sims.jid)
+  q.jobs <- subset(q.jobs, tid != "")
+  ## map sge.task.id to tid
+  task_csv <- fread(file.path(main.dir, "task_ids.csv"))
+  q.jobs[,tid := as.character(unlist(task_csv[as.numeric(q.jobs[,tid]),1]))]
   
   ## merge status onto jid.dt  
   if(!is.null(j.dt)){
-    j.dt <- merge(j.dt, q.jobs, by =c('jid', 'tid'), all.x=T, all.y=F, sort=T)
+    j.dt <- merge(j.dt, q.jobs, by =c('jid', 'tid'), all.x=T, all.y=F, sort=F)
   }
   
   ## check the job tracking csvs
@@ -145,11 +179,13 @@ array_tracker <- function(init.array.jid, ## array jid
   
   if(!is.null(j.dt)){
     ## merge on csv jt info
-    j.dt <-  merge(j.dt, jt.info, by = c('exp', 'iter'), all.x=T)
+    j.dt <-  merge(j.dt, jt.info, by = c('exp', 'iter'), all.x=T, sort=F)
     
     ## determine status (not started, running, failed, completed) for each job
     
     ## TODO something is wrong with the logic.... jobs that don't exist are coming through as errored
+    ## 2020-08-08 - I think it has to do with system r/w lag. 
+    ##   the job has completed but when the queen node looks at the results from the hive, the queen sees a slightly out-of-date version
     
     ## number of jobs in queue
     j.dt[(grepl('qw', j.status) | grepl('r', j.status)), in_q := 1]
@@ -157,8 +193,8 @@ array_tracker <- function(init.array.jid, ## array jid
     j.dt[grepl('qw', j.status)  , not_started := 1]
     ## running
     j.dt[grepl('r', j.status), running := 1]
-    ## errored
-    j.dt[(is.na(j.status) & (script_num != 0 | is.na(script_num))), errored := 1]
+    ## errored. script number 0 means completed
+    j.dt[(is.na(j.status) & script_num != 0), errored := 1]
     ## not errored
     j.dt[is.na(errored), on_track := 1]
     ## completed
@@ -192,6 +228,40 @@ array_tracker <- function(init.array.jid, ## array jid
   }
 }
 
+## helper function returns combos of params that never worked
+## helpful to debug
+list_failed_loopvars <- function(loopvars,
+                                 exp.tracker){
+  exp.summ <- exp.tracker$summ.tracker
+  exp.full <- exp.tracker$full.tracker
+  
+  ## get all loopvar columns that vary
+  unique.loopvar.cols <- loopvars[,lapply(.SD, function(x){length(unique(x))}),
+                                          .SDcols = 1:ncol(loopvars)]
+  
+  ## get failed loopvars
+  failed.loopvars.ind <- as.numeric(subset(exp.summ, errored > 0)$exp)
+  failed.loopvars <- loopvars[failed.loopvars.ind,]
+  failed.unique.loopvar.cols <- loopvars[,lapply(.SD, function(x){length(unique(x))}),
+                                                 .SDcols = 1:ncol(loopvars)]
+  
+  ## out of cols that vary, here are the experiments that had something fail
+  failed.combos <- unique(loopvars[failed.loopvars.ind, .SD,.SDcols=which(unique.loopvar.cols > 1)])
+  
+  ##  and here are the ones that worked
+  worked.combos <- unique(loopvars[-failed.loopvars.ind, .SD,.SDcols=which(unique.loopvar.cols > 1)])
+  
+  ## find params that only showed up in failed
+  always.failed <- sapply(1:ncol(failed.combos),
+                          function(x){
+                            setdiff(unique(failed.combos[,x, with=F]), unique(worked.combos[,x,with=F]))
+                          })
+  
+  message('These loopvar columns varied and the entries shown never worked')
+  print(always.failed)
+}
+
+
 monitor_array_jobs <- function(init.array.jid,  ## array jid
                                sims.array.jid,  ## array jid
                                j.dt,            ## dt of jobs with exp, iter, jid, tid columns
@@ -202,7 +272,7 @@ monitor_array_jobs <- function(init.array.jid,  ## array jid
   while(in_q > 0){
     tracker <- array_tracker(init.array.jid=init.array.jid,
                              sims.array.jid=sims.array.jid,
-                             j.dt=job.tracker, 
+                             j.dt=j.dt, 
                              main.dir=main.dir)
     
     message(paste0('\n\n', Sys.time(), '\n\n'))
@@ -224,7 +294,8 @@ monitor_array_jobs <- function(init.array.jid,  ## array jid
 
 ## check output dir for completion after jobs are done running
 check_csv_trackers <- function(main.dir,
-                               j.dt = NULL ## if not null, merge onto csv info
+                               j.dt = NULL, ## if not null, merge onto csv info
+                               mc.cores = num.mc.cores # load in trackers in parallel
                        ){
   ## check the csvs
   jt.dir <- paste(main.dir, 'common', 'job_tracking', sep = '/')
@@ -236,17 +307,17 @@ check_csv_trackers <- function(main.dir,
                           script_num  = numeric())
   } else { 
     jt.info <- do.call('rbind',
-                       lapply(jt.csvs,
+                       mclapply(jt.csvs,
                               FUN = function(x) {
-                                csv.spl <- strsplit(x, split='.')[[1]];
-                                csv.spl <- strsplit(x, split='_')[[1]];
+                                csv.spl <- strsplit(x, split='[.]')[[1]][1];
+                                csv.spl <- strsplit(csv.spl, split='_')[[1]];
                                 csv.dat <- read.csv(paste(jt.dir, x, sep='/'));
                                 data.table(exp     = csv.spl[2],
-                                           iter    = substr(csv.spl[4], start=1, stop=4), ## the status is appended, use last row
+                                           iter    = csv.spl[4], ## the status is appended, use last row
                                            sim_loop_ct = csv.dat[nrow(csv.dat), 1], ## sim.loop.ct from 1_run_space_sim.R
                                            script_num  = csv.dat[nrow(csv.dat), 2]) ## script number
-                              } ## func
-                       ) ## lapply
+                              }, ## func
+                       mc.cores = num.mc.cores) ## mclapply
     ) ## do.call
   } ## else: length(jt.csvs) > 0
   
@@ -1302,4 +1373,3 @@ inla_all_hyper_postprocess <- function(all.hyper){
   
   return (all.hyper)
 }
-
