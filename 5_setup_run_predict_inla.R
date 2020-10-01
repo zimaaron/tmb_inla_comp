@@ -192,10 +192,15 @@ if(!inla.crash){
     ## SAVE ##
     ## #######
     
+    ## save the fitted model object
+    saveRDS(file=sprintf('%s/modeling/outputs/inla/experiment%06d_iter%06d_fitted_inla_model.rds', 
+                                                out.dir, exp.lvid, exp.iter),
+            object = res_fit)
+    
     ## save the posterior param draws
-    saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%06d_iter%06d_inla_param_draws.rds', 
-                           out.dir, exp.lvid, exp.iter),
-            object = inla_draws)
+    ## saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%06d_iter%06d_inla_param_draws.rds', 
+    ##                       out.dir, exp.lvid, exp.iter),
+    ##         object = inla_draws)
     
     ## save the cell_pred
     # saveRDS(file = sprintf('%s/modeling/outputs/inla/experiment%06d_iter%06d_inla_preds.rds', 

@@ -44,7 +44,7 @@ if(!file.exists(sprintf('%s/cov_list_%02d.rds', common.dir, cov.ind))){
                                 obs.loc.strat = obs.loc.strat,
                                 urban.pop.pct = urban.pop.pct,
                                 urban.strat.pct = urban.strat.pct, 
-                                sp.field.sim.strat = 'SPDE', 
+                                sp.field.sim.strat = 'RF', 
                                 seed = seed,
                                 verbose = FALSE,
                                 exp.iter = exp.iter)
@@ -115,7 +115,7 @@ if(!file.exists(sprintf('%s/cov_list_%02d.rds', common.dir, cov.ind))){
                                 urban.pop.pct = urban.pop.pct,
                                 urban.strat.pct = urban.strat.pct, 
                                 out.dir = out.dir,
-                                sp.field.sim.strat = 'SPDE', 
+                                sp.field.sim.strat = 'RF', 
                                 seed = seed,
                                 exp.iter = exp.iter)
 

@@ -10,11 +10,11 @@ rm(list=ls())
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
 logging_note <- 
-'TRIAL 13.2: debugging qw bug'
+'TRIAL 14.1: full paper submission with RandomFields simulating the truth instead of SPDE.\n with fixed cov loader'
 
 ## make a master run_date to store all these runs in a single location
 main.dir.name  <- NULL ## IF NULL, run_date is made, OW uses name given
-extra.job.name <- 'full_run'
+extra.job.name <- 'full_run_rf'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -299,7 +299,7 @@ array.ind <- 1:(nrow(loopvars)*n.sim)
 
 ## save reference file that converts 1:Ntasks to task ids used in the parallel model
 # this is needed to, eg, relaunch a specific set of failed jobs since SGE can only take start/stop task indices
-fwrite(matrix(1:nrow(loopvars), ncol=1), file = file.path(main.dir, "task_ids.csv"))
+fwrite(data.table(matrix(1:nrow(loopvars), ncol=1)), file = file.path(main.dir, "task_ids.csv"))
 
 ## create array_job1 for 1st iterations
 qsub.string.array1 <- qsub_sim_array(array.ind.start = 1,
@@ -449,7 +449,7 @@ print(time.init.stop - time.init.start)
 if( mean(init.tracker$summ.tracker[, completed]==100) == 1 ){
   
   ## save reference file that converts 1:Ntasks to task ids used in the parallel model
-  fwrite(matrix(array.ind[-(1:nrow(loopvars))], ncol=1), file = file.path(main.dir, "task_ids.csv"))
+  fwrite(data.table(matrix(array.ind[-(1:nrow(loopvars))], ncol=1)), file = file.path(main.dir, "task_ids.csv"))
   
   ## create array_job2 for all other sim iterations
   qsub.string.array2 <- qsub_sim_array(array.ind.start = 1,
@@ -511,7 +511,7 @@ if( mean(init.tracker$summ.tracker[, completed]==100) == 1 ){
   
   relaunch.q.m <- q.m
   relaunch.q.t <- q.t
-  while(num.launches < 3 & sims.complete != 1){ ## relaunch broken jobs up to 2x
+  while(num.launches < 5 & sims.complete != 1){ ## relaunch broken jobs up to 2x
     
     if(sims.tracker$summ.tracker[errored > 0,.N] > 0){
       

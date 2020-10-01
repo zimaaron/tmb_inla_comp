@@ -28,12 +28,12 @@ library(tidyr)
 library(ggplot2)
 
 ## this script pulls together some overall results from an experiment run
-## main.dir.name <- main.dir.names <- c('2020_01_07_08_13_43') ## study 1
-# main.dir.name <- main.dir.names <- c('2019_09_29_21_38_14') ## study 2
-main.dir.name <- "2020_08_08_13_13_30"
+# main.dir.name <- "2020_08_08_13_13_30" # using SPDE to sim GP
+main.dir.name <- "2020_09_05_21_56_12" # using RandomFields to sim GP
 
 main.dir <- sprintf('/ihme/scratch/users/azimmer/tmb_inla_sim/%s', main.dir.name)
 compar.dir <- sprintf('%s/comparisons/', main.dir)
+compar.dir <- "/ihme/homes/azimmer/tmb_inla_sim/2020_09_05_21_56_12/comparisons"
 dir.create(compar.dir, recursive = T, showWarnings = F)
 
 ## read in all experiment parameters
@@ -1241,3 +1241,23 @@ ggsave(sprintf('%s/%s_fit_time_nclust.png', compar.dir, loopvars$data.lik[1]),
 # ##   cm.m.inla <- rbind(cm.m.inla,
 # ##                      cm[mean.l.model == 'inla', lapply(.SD, mean), by=mean.l.model])
 # ## }
+
+
+# get_jid_tid_exp_iter <- function(fn){
+#   fn <- file.path(main.dir, 'logs/errors', fn)
+#   
+#   ids <- strsplit(x=fn, '.', fixed=TRUE)
+#   jid <- substr(ids[[1]][2], 2, nchar(ids[[1]][2]))
+#   tid <- ids[[1]][3]
+#   
+#   log <- readLines(fn, n=10)
+#   exp.line <- grep('ON EXPERIMENT LV ID', log)
+#   exp <- strsplit(log[exp.line], ': ')[[1]][2]
+#   iter.line <- grep('ON SIM ITER', log)
+#   iter <- strsplit(log[iter.line], ': ')[[1]][2]
+#   
+#   return(data.table(jid=jid, tid=tid, exp=exp, iter=iter))
+# }
+# 
+# res.list <- mclapply(all.log.fns, get_jid_tid_exp_iter, mc.cores = 6)
+# res.dt <- rbindlist((res.list))

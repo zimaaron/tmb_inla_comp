@@ -626,13 +626,18 @@ sim.realistic.data <- function(reg,
   
 ##  if(!is.null(betas)){
     if(is.null(cov_layers)){
+      
       if(verbose) message('\n\nLOADING COVS\n')
-      cov_layers <- load_and_crop_covariates_annual(covs            = covs[, name],
-                                                    measures        = covs[, meas],
-                                                    simple_polygon  = simple_polygon,
-                                                    start_year      = min(year_list),
-                                                    end_year        = max(year_list),
-                                                    interval_mo     = 12) ## always grab annual, then subset if need be
+      
+      fixed_effects_config <- data.table(covariate = covs$name,
+                                         measure = covs$meas,
+                                         release = rep("2019_06_10", nrow(covs)))
+      
+      loader <- MbgStandardCovariateLoader$new(start_year = min(year_list),
+                                               end_year = max(year_list),
+                                               interval = 12,
+                                               covariate_config = fixed_effects_config)
+      cov_layers <- loader$get_covariates(simple_polygon)
       
       ## loop through covs, subset to years, align with simple raster, center-scale
       for(cc in 1:length(cov_layers)) {

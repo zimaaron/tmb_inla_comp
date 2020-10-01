@@ -226,10 +226,15 @@ if(class(opt0) == "try-error"){
     ## SAVE ##
     ## #######
     
+    # save the fitted model object
+    saveRDS(file=sprintf('%s/modeling/outputs/tmb/experiment%06d_iter%06d_fitted_tmb_model.rds', 
+                         out.dir, exp.lvid, exp.iter),
+            object = SD0)
+    
     ## save the posterior param draws
-    saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%06d_iter%06d_tmb_param_draws.rds', 
-                           out.dir, exp.lvid, exp.iter),
-            object = tmb_draws)
+    # saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%06d_iter%06d_tmb_param_draws.rds', 
+    #                        out.dir, exp.lvid, exp.iter),
+    #         object = tmb_draws)
     
     ## save the cell preds
     # saveRDS(file = sprintf('%s/modeling/outputs/tmb/experiment%06d_iter%06d_tmb_preds.rds', 
